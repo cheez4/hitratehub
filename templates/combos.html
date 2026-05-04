@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+    <div class="panel">
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">🔥 Combo Finder</div>
+                <div style="color:#92a9c7;">Find hitter pairs who get hits on the same day</div>
+            </div>
+        </div>
+
+        <form method="get">
+    <div class="leaderboard-compact-filters">
+        <div class="field">
+            <label>Prop</label>
+            <select name="combo_prop">
+                <option value="hits" {% if combo_prop == "hits" %}selected{% endif %}>Hits 20+</option>
+                <option value="total_bases" {% if combo_prop == "total_bases" %}selected{% endif %}>TB 35+</option>
+                <option value="home_runs" {% if combo_prop == "home_runs" %}selected{% endif %}>HR 3+</option>
+                <option value="runs" {% if combo_prop == "runs" %}selected{% endif %}>Runs 15+</option>
+                <option value="rbi" {% if combo_prop == "rbi" %}selected{% endif %}>RBI 15+</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Combo Size</label>
+            <select name="combo_size">
+                {% for n in [2,3,4,5,6,7] %}
+                    <option value="{{ n }}" {% if combo_size == n %}selected{% endif %}>{{ n }} Players</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Window</label>
+            <select name="combo_window">
+                {% for n in [10,20,30,45,60] %}
+                    <option value="{{ n }}" {% if combo_window == n %}selected{% endif %}>Last {{ n }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Show</label>
+            <select name="combo_limit">
+                <option value="25" {% if combo_limit == 25 %}selected{% endif %}>Top 25</option>
+                <option value="50" {% if combo_limit == 50 %}selected{% endif %}>Top 50</option>
+                <option value="100" {% if combo_limit == 100 %}selected{% endif %}>Top 100</option>
+            </select>
+        </div>
+    </div>
+
+    <div style="padding:0 18px 14px;">
+        <button class="run-btn" type="submit">Apply Filters</button>
+    </div>
+</form>
+
+        <div class="field">
+            <label>Window</label>
+            <select name="combo_window">
+                <option value="10" {% if combo_window == 10 %}selected{% endif %}>Last 10 Shared</option>
+                <option value="20" {% if combo_window == 20 %}selected{% endif %}>Last 20 Shared</option>
+                <option value="30" {% if combo_window == 30 %}selected{% endif %}>Last 30 Shared</option>
+                <option value="45" {% if combo_window == 45 %}selected{% endif %}>Last 45 Shared</option>
+                <option value="60" {% if combo_window == 60 %}selected{% endif %}>Last 60 Shared</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Min Games</label>
+            <select name="combo_min_games">
+                <option value="5" {% if combo_min_games == 5 %}selected{% endif %}>5+</option>
+                <option value="10" {% if combo_min_games == 10 %}selected{% endif %}>10+</option>
+                <option value="15" {% if combo_min_games == 15 %}selected{% endif %}>15+</option>
+                <option value="20" {% if combo_min_games == 20 %}selected{% endif %}>20+</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Scope</label>
+            <select name="combo_scope">
+                <option value="same_team" {% if combo_scope == "same_team" %}selected{% endif %}>Same Team</option>
+                <option value="all" {% if combo_scope == "all" %}selected{% endif %}>All Players</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Lineup</label>
+            <select name="lineup_filter">
+                <option value="confirmed" {% if lineup_filter == "confirmed" %}selected{% endif %}>Confirmed</option>
+                <option value="confirmed_probable" {% if lineup_filter == "confirmed_probable" %}selected{% endif %}>Confirmed + Probable</option>
+                <option value="all" {% if lineup_filter == "all" %}selected{% endif %}>All</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Show</label>
+            <select name="combo_limit">
+                <option value="25" {% if combo_limit == 25 %}selected{% endif %}>Top 25</option>
+                <option value="50" {% if combo_limit == 50 %}selected{% endif %}>Top 50</option>
+                <option value="100" {% if combo_limit == 100 %}selected{% endif %}>Top 100</option>
+            </select>
+        </div>
+    </div>
+
+    <div style="padding:0 18px 14px;">
+        <button class="run-btn" type="submit">Apply Filters</button>
+    </div>
+</form>
+
+        <div class="table-wrap">
+            <table>
+               <thead>
+    <tr>
+        <th>#</th>
+        <th>Players</th>
+        <th>Games</th>
+        <th>All Hit</th>
+        <th>Actual</th>
+        <th>Expected</th>
+        <th>Edge</th>
+    </tr>
+</thead>
+
+                <tbody>
+    {% for row in combo_rows %}
+    <tr>
+        <td>{{ loop.index }}</td>
+
+        <td>
+            {% for p in row.players %}
+                <div style="margin-bottom:6px;">
+                    {% set lu = lineup_map.get(p.name) or lineup_map.get(p.name|lower) %}
+                    {% if lu and lu.status == "confirmed" %}
+                        <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+                    {% elif lu and lu.status == "probable" %}
+                        <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+                    {% else %}
+                        <span class="lineup-badge lineup-not-listed">—</span>
+                    {% endif %}
+                    {{ p.name }}
+                    <span class="small">({{ p.team }})</span>
+                </div>
+            {% endfor %}
+        </td>
+
+        <td>{{ row.games }}</td>
+        <td>{{ row.all_hit }}/{{ row.games }}</td>
+        <td class="heat-cell heat-80">{{ row.rate }}%</td>
+        <td>{{ row.expected }}%</td>
+
+        <td>
+            {% if row.edge > 0 %}
+                <span class="match-pill hit-pill">+{{ row.edge }}%</span>
+            {% else %}
+                <span class="match-pill miss-pill">{{ row.edge }}%</span>
+            {% endif %}
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="7" style="color:#95aac6;">No combos found for these filters.</td>
+    </tr>
+    {% endfor %}
+</tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

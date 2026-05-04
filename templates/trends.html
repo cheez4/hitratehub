@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+    <div class="panel">
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">↗ Trends</div>
+                <div class="small">Hot streaks, cold streaks, and biggest movers</div>
+            </div>
+        </div>
+
+        <form method="get" action="{{ url_for('trends_page') }}">
+    <div style="padding:0 18px 18px;">
+        <div style="
+            display:grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 130px;
+            gap:12px;
+            align-items:end;
+        ">
+            <div class="field">
+                <label>Prop</label>
+                <select name="trend_prop">
+                    <option value="hits" {% if trend_prop == "hits" %}selected{% endif %}>Hits</option>
+                    <option value="total_bases" {% if trend_prop == "total_bases" %}selected{% endif %}>Total Bases</option>
+                    <option value="home_runs" {% if trend_prop == "home_runs" %}selected{% endif %}>Home Runs</option>
+                    <option value="runs" {% if trend_prop == "runs" %}selected{% endif %}>Runs</option>
+                    <option value="rbi" {% if trend_prop == "rbi" %}selected{% endif %}>RBI</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Window</label>
+                <select name="trend_window">
+                    <option value="5" {% if trend_window == 5 %}selected{% endif %}>Last 5</option>
+                    <option value="10" {% if trend_window == 10 %}selected{% endif %}>Last 10</option>
+                    <option value="20" {% if trend_window == 20 %}selected{% endif %}>Last 20</option>
+                    <option value="30" {% if trend_window == 30 %}selected{% endif %}>Last 30</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Vs Team</label>
+                <select name="vs_team">
+                    <option value="">All Teams</option>
+                    {% for t in trend_teams %}
+                        <option value="{{ t }}" {% if trend_vs_team == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Vs Hand</label>
+                <select name="vs_hand">
+                    <option value="">All Hands</option>
+                    <option value="R" {% if trend_vs_hand == "R" %}selected{% endif %}>Vs RHP</option>
+                    <option value="L" {% if trend_vs_hand == "L" %}selected{% endif %}>Vs LHP</option>
+                </select>
+            </div>
+<div class="field">
+    <label>Lineup</label>
+    <select name="lineup_filter">
+        <option value="confirmed" {% if lineup_filter == "confirmed" %}selected{% endif %}>Confirmed</option>
+        <option value="confirmed_probable" {% if lineup_filter == "confirmed_probable" %}selected{% endif %}>Confirmed + Probable</option>
+        <option value="all" {% if lineup_filter == "all" %}selected{% endif %}>All</option>
+    </select>
+</div>
+            <div class="field">
+                <label>Min Games</label>
+                <select name="min_games">
+                    <option value="3" {% if min_games == 3 %}selected{% endif %}>3+</option>
+                    <option value="5" {% if min_games == 5 %}selected{% endif %}>5+</option>
+                    <option value="10" {% if min_games == 10 %}selected{% endif %}>10+</option>
+                    <option value="15" {% if min_games == 15 %}selected{% endif %}>15+</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="
+            margin-top:14px;
+            display:flex;
+            justify-content:center;
+        ">
+            <button class="run-btn" type="submit" style="width:260px;">
+                Update Trends
+            </button>
+        </div>
+    </div>
+</form>
+    </div>
+
+    <div class="main-grid" style="margin-top:16px;">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">🔥 Hot Streaks</div>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Player</th>
+                            <th>Team</th>
+                            <th>Rate</th>
+                            <th>Record</th>
+                            <th>Avg</th>
+                            <th>Streak</th>
+                            <th>Last</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in hot_trends %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+    {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
+
+    {% if lu and lu.status == "confirmed" %}
+        <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+    {% elif lu and lu.status == "probable" %}
+        <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+    {% else %}
+        <span class="lineup-badge lineup-not-listed">—</span>
+    {% endif %}
+
+    {{ row.player_name }}
+</td>
+                            <td>{{ row.team }}</td>
+                            <td class="heat-cell heat-100">{{ row.rate }}%</td>
+                            <td>{{ row.hits }}/{{ row.games }}</td>
+                            <td>{{ row.avg }}</td>
+                            <td>🔥 {{ row.streak }}</td>
+                            <td>{{ row.last_value }} on {{ row.last_date }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" style="color:#95aac6;">No hot trends found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">📉 Cold Players</div>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Player</th>
+                            <th>Team</th>
+                            <th>Rate</th>
+                            <th>Record</th>
+                            <th>Avg</th>
+                            <th>Last</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in cold_trends %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+    {% set lu = lineup_map.get(row.player_name) %}
+
+    {% if lu and lu.status == "confirmed" %}
+        <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+    {% elif lu and lu.status == "probable" %}
+        <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+    {% else %}
+        <span class="lineup-badge lineup-not-listed">—</span>
+    {% endif %}
+
+    {{ row.player_name }}
+</td>
+                            <td>{{ row.team }}</td>
+                            <td class="heat-cell heat-20">{{ row.rate }}%</td>
+                            <td>{{ row.hits }}/{{ row.games }}</td>
+                            <td>{{ row.avg }}</td>
+                            <td>{{ row.last_value }} on {{ row.last_date }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" style="color:#95aac6;">No cold trends found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+            <div class="panel-title">🚀 Biggest Movers</div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Player</th>
+                        <th>Team</th>
+                        <th>Jump</th>
+                        <th>Rate</th>
+                        <th>Record</th>
+                        <th>Avg</th>
+                        <th>Last</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in mover_trends %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+    {% set lu = lineup_map.get(row.player_name) %}
+
+    {% if lu and lu.status == "confirmed" %}
+        <span class="lineup-badge lineup-confirmed">{{ lu.order }}</span>
+    {% elif lu and lu.status == "probable" %}
+        <span class="lineup-badge lineup-probable">{{ lu.order }}</span>
+    {% else %}
+        <span class="lineup-badge lineup-not-listed">—</span>
+    {% endif %}
+
+    {{ row.player_name }}
+</td>
+                        <td>{{ row.team }}</td>
+                        <td class="heat-cell heat-100">+{{ row.jump }}%</td>
+                        <td>{{ row.rate }}%</td>
+                        <td>{{ row.hits }}/{{ row.games }}</td>
+                        <td>{{ row.avg }}</td>
+                        <td>{{ row.last_value }} on {{ row.last_date }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="color:#95aac6;">No movers found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

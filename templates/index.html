@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">Custom Trend Calculator</div>
+        </div>
+
+        <div class="panel-body">
+            <form method="get" action="{{ url_for('index') }}">
+                <div style="display:grid; grid-template-columns: 1fr 190px; gap:16px;">
+                    <div>
+                        <div class="calculator-grid">
+                            <div class="field">
+                                <label>Role</label>
+                                <select name="calc_role" onchange="this.form.submit()">
+                                    <option value="hitter" {% if calc_role == "hitter" %}selected{% endif %}>Hitter</option>
+                                    <option value="pitcher" {% if calc_role == "pitcher" %}selected{% endif %}>Pitcher</option>
+                                </select>
+                            </div>
+
+                            <div class="field">
+                                <label>Mode</label>
+                                <select name="calc_mode" onchange="this.form.submit()">
+                                    <option value="over" {% if calc_mode == "over" %}selected{% endif %}>Over</option>
+                                    <option value="under" {% if calc_mode == "under" %}selected{% endif %}>Under</option>
+                                    <option value="range" {% if calc_mode == "range" %}selected{% endif %}>Range</option>
+                                </select>
+                            </div>
+
+                            <div class="field">
+                                <label>Prop</label>
+                                <select name="calc_prop">
+                                    {% if calc_role == "hitter" %}
+                                        <option value="hits" {% if calc_prop == "hits" %}selected{% endif %}>Hits</option>
+                                        <option value="total_bases" {% if calc_prop == "total_bases" %}selected{% endif %}>Total Bases</option>
+                                        <option value="home_runs" {% if calc_prop == "home_runs" %}selected{% endif %}>Home Runs</option>
+                                        <option value="runs" {% if calc_prop == "runs" %}selected{% endif %}>Runs</option>
+                                        <option value="rbi" {% if calc_prop == "rbi" %}selected{% endif %}>RBI</option>
+                                    {% else %}
+                                        <option value="strikeouts" {% if calc_prop == "strikeouts" %}selected{% endif %}>Strikeouts</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+
+                            <div class="field">
+                                <label>Window</label>
+                                <select name="calc_window">
+                                    <option value="5" {% if calc_window == 5 %}selected{% endif %}>Last 5</option>
+                                    <option value="10" {% if calc_window == 10 %}selected{% endif %}>Last 10</option>
+                                    <option value="20" {% if calc_window == 20 %}selected{% endif %}>Last 20</option>
+                                    <option value="30" {% if calc_window == 30 %}selected{% endif %}>Last 30</option>
+                                    <option value="45" {% if calc_window == 45 %}selected{% endif %}>Last 45</option>
+                                    <option value="60" {% if calc_window == 60 %}selected{% endif %}>Last 60</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {% if calc_role == "hitter" %}
+                            <div class="calculator-bottom" style="grid-template-columns: 170px 1fr 1fr 1fr 110px;">
+                                <div class="field">
+                                    <label>Player List</label>
+                                    <select name="lineup_filter" onchange="this.form.submit()">
+                                        <option value="confirmed" {% if lineup_filter == "confirmed" %}selected{% endif %}>Confirmed</option>
+                                        <option value="confirmed_probable" {% if lineup_filter == "confirmed_probable" %}selected{% endif %}>Confirmed + Probable</option>
+                                        <option value="all" {% if lineup_filter == "all" %}selected{% endif %}>All</option>
+                                    </select>
+                                </div>
+
+                                {% for i in range(1, 4) %}
+                                <div class="field">
+                                    <label>Player {{ i }}</label>
+                                    <select class="player-search" name="{{ 'calc_player' if i == 1 else 'calc_compare_' ~ i }}">
+                                        <option value="">Select Player</option>
+
+                                        {% for name in hitter_names %}
+                                            {% set lineup = lineup_map.get(name) or lineup_map.get(name|lower) %}
+                                            {% set field_name = 'calc_player' if i == 1 else 'calc_compare_' ~ i %}
+                                            {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
+
+                                            {% if lineup_filter == "all"
+                                               or (lineup_filter == "confirmed" and lineup and lineup.status == "confirmed")
+                                               or (lineup_filter == "confirmed_probable" and lineup and lineup.status in ["confirmed","probable"]) %}
+                                                <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>
+                                                    {% if lineup and lineup.status == "confirmed" %}
+                                                        🟢 BO{{ lineup.order }} {{ name }}
+                                                    {% elif lineup and lineup.status == "probable" %}
+                                                        🟡 BO{{ lineup.order }} {{ name }}
+                                                    {% else %}
+                                                        🔴 — {{ name }}
+                                                    {% endif %}
+                                                </option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endfor %}
+
+                                {% if calc_mode == "range" %}
+                                    <div class="field">
+                                        <label>Min</label>
+                                        <input type="text" name="calc_min" value="{{ calc_min }}" placeholder="Min">
+                                    </div>
+                                    <div class="field">
+                                        <label>Max</label>
+                                        <input type="text" name="calc_max" value="{{ calc_max }}" placeholder="Max">
+                                    </div>
+                                {% else %}
+                                    <div class="field">
+                                        <label>Line</label>
+                                        <input type="text" name="calc_line" value="{{ calc_line }}" placeholder="Line">
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <details style="margin-top:12px;">
+                                <summary style="cursor:pointer; font-weight:800; color:#e8eef8;">
+                                    ➕ Advanced Compare — Players 4–10
+                                </summary>
+
+                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
+                                    {% for i in range(4, 11) %}
+                                    <div class="field">
+                                        <label>Player {{ i }}</label>
+                                        <select class="player-search" name="calc_compare_{{ i }}">
+                                            <option value="">Select Player</option>
+
+                                            {% for name in hitter_names %}
+                                                {% set lineup = lineup_map.get(name) or lineup_map.get(name|lower) %}
+                                                {% set field_name = 'calc_compare_' ~ i %}
+                                                {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
+
+                                                {% if lineup_filter == "all"
+                                                   or (lineup_filter == "confirmed" and lineup and lineup.status == "confirmed")
+                                                   or (lineup_filter == "confirmed_probable" and lineup and lineup.status in ["confirmed","probable"]) %}
+                                                    <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>
+                                                        {% if lineup and lineup.status == "confirmed" %}
+                                                            🟢 BO{{ lineup.order }} {{ name }}
+                                                        {% elif lineup and lineup.status == "probable" %}
+                                                            🟡 BO{{ lineup.order }} {{ name }}
+                                                        {% else %}
+                                                            🔴 — {{ name }}
+                                                        {% endif %}
+                                                    </option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </details>
+
+                            <div class="filter-row">
+                                <div class="field">
+                                    <label>Vs Team</label>
+                                    <select name="vs_team">
+                                        <option value="">All Teams</option>
+                                        {% for t in teams %}
+                                            <option value="{{ t }}" {% if vs_team == t %}selected{% endif %}>{{ t }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="field">
+                                    <label>Vs Pitcher Hand</label>
+                                    <select name="vs_hand">
+                                        <option value="">All Hands</option>
+                                        <option value="R" {% if vs_hand == "R" %}selected{% endif %}>Vs RHP</option>
+                                        <option value="L" {% if vs_hand == "L" %}selected{% endif %}>Vs LHP</option>
+                                    </select>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="calculator-bottom" style="grid-template-columns: 1fr 1fr 1fr 110px;">
+                                {% for i in range(1, 4) %}
+                                <div class="field">
+                                    <label>Player {{ i }}</label>
+                                    <select name="{{ 'calc_player' if i == 1 else 'calc_compare_' ~ i }}">
+                                        <option value="">Select Player</option>
+                                        {% for name in pitcher_names %}
+                                            {% set field_name = 'calc_player' if i == 1 else 'calc_compare_' ~ i %}
+                                            {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
+                                            <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endfor %}
+
+                                {% if calc_mode == "range" %}
+                                    <div class="field">
+                                        <label>Min</label>
+                                        <input type="text" name="calc_min" value="{{ calc_min }}" placeholder="Min">
+                                    </div>
+                                    <div class="field">
+                                        <label>Max</label>
+                                        <input type="text" name="calc_max" value="{{ calc_max }}" placeholder="Max">
+                                    </div>
+                                {% else %}
+                                    <div class="field">
+                                        <label>Line</label>
+                                        <input type="text" name="calc_line" value="{{ calc_line }}" placeholder="Line">
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <details style="margin-top:12px;">
+                                <summary style="cursor:pointer; font-weight:800; color:#e8eef8;">
+                                    ➕ Advanced Compare — Players 4–10
+                                </summary>
+
+                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
+                                    {% for i in range(4, 11) %}
+                                    <div class="field">
+                                        <label>Player {{ i }}</label>
+                                        <select class="player-search" name="calc_compare_{{ i }}">
+                                            <option value="">Select Player</option>
+                                            {% for name in pitcher_names %}
+                                                {% set field_name = 'calc_compare_' ~ i %}
+                                                {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
+                                                <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>{{ name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </details>
+                        {% endif %}
+
+                        <div style="margin-top:14px; display:grid; grid-template-columns: 1fr 290px; gap:14px; align-items:end;">
+                            <button class="run-btn" type="submit">↗ Run Report</button>
+                            <button class="share-btn" type="button" onclick="openShareModal(event)">⇪ Share</button>
+                        </div>
+                    </div>
+
+                    <div class="help-box">
+                        <h4>How to use</h4>
+                        <ul>
+                            <li>Choose a role, stat, and filter mode.</li>
+                            <li>Add up to 10 players to compare.</li>
+                            <li>Green means confirmed, yellow means probable, red means not listed.</li>
+                            <li>Use Vs Team and Vs RHP/LHP for hitter PA splits.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {% if error %}
+                    <div style="margin-top:14px;" class="bad">{{ error }}</div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+        <div class="sub-tabs">
+            <div class="sub-tab {% if custom_result %}active{% elif not compare_result %}active{% endif %}">● Player Summary</div>
+            <div class="sub-tab {% if compare_result %}active{% endif %}">
+                👥 Compare Players{% if compare_result %} ({{ compare_result.players|length }}){% endif %}
+            </div>
+        </div>
+
+        {% if compare_result %}
+            <div class="share-box">
+                <div class="share-row">
+                    <button class="share-btn" type="button" onclick="copyCurrentLink()">Copy Link</button>
+                    <button class="share-btn" type="button" onclick="copyImage('share-report-area')">Copy Image</button>
+                    <button class="share-btn" type="button" onclick="downloadImage('share-report-area', 'hitratehub-comparison.png')">Download PNG</button>
+                    <button class="share-btn" type="button" onclick="shareToX()">Share on X</button>
+                </div>
+            </div>
+
+            <div id="share-report-area" class="share-card-export">
+                <div class="export-head">
+                    <div>
+                        <div class="export-title">Hit Rate <span>Hub</span></div>
+                        <div class="export-sub">
+                            Player comparison report • {{ compare_result.prop_type|replace('_', ' ')|title }} • Last {{ compare_result.window }}
+                            {% if compare_result.filter_text %} • {{ compare_result.filter_text }}{% endif %}
+                        </div>
+                    </div>
+                    <div class="export-brand">Share your findings<br>Hit Rate Hub</div>
+                </div>
+
+                <div class="summary-cards">
+                    {% for p in compare_result.players %}
+                    <div class="summary-card">
+                        <div class="summary-top">
+                            <div class="summary-rank">{{ loop.index }}</div>
+                            <div>
+                                <div class="summary-name">{{ p.player_name }}</div>
+                                <div class="summary-team">Compared player</div>
+                            </div>
+                        </div>
+
+                        <div class="summary-stats">
+                            <div class="summary-stat">
+                                <div class="big">{{ p.hit_rate }}%</div>
+                                <div class="lab">Match Rate</div>
+                            </div>
+                            <div class="summary-stat">
+                                <div class="big">{{ p.hits }}/{{ p.games }}</div>
+                                <div class="lab">Record</div>
+                            </div>
+                        </div>
+
+                        <div class="summary-stat">
+                            <div class="big">{{ p.average }}</div>
+                            <div class="lab">Average</div>
+                        </div>
+
+                        <div class="mini-bar">
+                            <span style="width: {{ p.hit_rate }}%;"></span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="section-title">Date-Matched Comparison</div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                {% for p in compare_result.players %}
+                                    <th>{{ p.player_name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in compare_result.rows %}
+                            <tr>
+                                <td>{{ row.game_date }}</td>
+                                {% for pdata in row.players %}
+                                    <td>
+                                        {% if pdata.played %}
+                                            <div>{{ pdata.stat_value }}</div>
+                                            {% if pdata.hit %}
+                                                <div class="small"><span class="match-pill hit-pill">Match</span></div>
+                                            {% else %}
+                                                <div class="small"><span class="match-pill miss-pill">Miss</span></div>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="no-game">—</span>
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="export-footer">
+                    Generated from Hit Rate Hub • Share your findings and tag us if you want
+                </div>
+            </div>
+
+        {% elif custom_result %}
+            <div class="share-box">
+                <div class="share-row">
+                    <button class="share-btn" type="button" onclick="copyCurrentLink()">Copy Link</button>
+                    <button class="share-btn" type="button" onclick="copyImage('share-report-area')">Copy Image</button>
+                    <button class="share-btn" type="button" onclick="downloadImage('share-report-area', 'hitratehub-report.png')">Download PNG</button>
+                    <button class="share-btn" type="button" onclick="shareToX()">Share on X</button>
+                </div>
+            </div>
+
+            <div id="share-report-area" class="share-card-export">
+                <div class="export-head">
+                    <div>
+                        <div class="export-title">Hit Rate <span>Hub</span></div>
+                        <div class="export-sub">
+                            {{ custom_result.player_name }} • {{ custom_result.prop_type|replace('_', ' ')|title }} • Last {{ custom_result.window }}
+                            {% if custom_result.filter_text %} • {{ custom_result.filter_text }}{% endif %}
+                        </div>
+                    </div>
+                    <div class="export-brand">Share your findings<br>Hit Rate Hub</div>
+                </div>
+
+                <div class="summary-cards" style="grid-template-columns:1fr;">
+                    <div class="summary-card">
+                        <div class="summary-top">
+                            <div class="summary-rank">1</div>
+                            <div>
+                                <div class="summary-name">{{ custom_result.player_name }}</div>
+                                <div class="summary-team">
+                                    {{ custom_result.prop_type }}
+                                    {% if custom_result.calc_mode == "range" %}
+                                        • Range {{ custom_result.min_value }} to {{ custom_result.max_value }}
+                                    {% elif custom_result.calc_mode == "under" %}
+                                        • Under {{ custom_result.line }}
+                                    {% else %}
+                                        • Over {{ custom_result.line }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="summary-stats">
+                            <div class="summary-stat">
+                                <div class="big">{{ custom_result.hit_rate }}%</div>
+                                <div class="lab">Match Rate</div>
+                            </div>
+                            <div class="summary-stat">
+                                <div class="big">{{ custom_result.hits }}/{{ custom_result.games }}</div>
+                                <div class="lab">Record</div>
+                            </div>
+                        </div>
+
+                        <div class="summary-stat">
+                            <div class="big">{{ custom_result.average }}</div>
+                            <div class="lab">Average</div>
+                        </div>
+
+                        <div class="mini-bar">
+                            <span style="width: {{ custom_result.hit_rate }}%;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-title">Recent Games</div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Stat</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for g in custom_result.recent_games %}
+                            <tr>
+                                <td>{{ g.game_date }}</td>
+                                <td>{{ g.stat_value }}</td>
+                                <td>
+                                    {% if g.hit %}
+                                        <span class="match-pill hit-pill">Match</span>
+                                    {% else %}
+                                        <span class="match-pill miss-pill">Miss</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="export-footer">
+                    Generated from Hit Rate Hub • Share your findings and tag us if you want
+                </div>
+            </div>
+        {% else %}
+            <div style="padding:18px; color:#95aac6;">
+                Run a player report above to see summary cards and date-matched comparison results here.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="shareModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <div class="modal-title">Share Hit Rate Hub</div>
+            <button class="modal-close" type="button" onclick="closeShareModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-grid">
+                <button class="share-btn" type="button" onclick="copyCurrentLink()">Copy Current Link</button>
+                <button class="share-btn" type="button" onclick="shareToX()">Share on X</button>
+                <button class="share-btn" type="button" onclick="downloadBestImage()">Download Current Card</button>
+                <button class="share-btn" type="button" onclick="copyBestImage()">Copy Current Card</button>
+            </div>
+            <div class="share-note">
+                Share buttons use the current filters in the URL, so Vs Team and Vs RHP/LHP stay attached.
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<style>
+.ts-wrapper,
+.ts-control,
+.ts-dropdown,
+.ts-dropdown .option {
+    background: #071b2f !important;
+    color: #ffffff !important;
+    border-color: #21466d !important;
+}
+
+.ts-control {
+    min-height: 50px !important;
+    border-radius: 10px !important;
+    padding: 12px 14px !important;
+    font-size: 16px !important;
+    box-shadow: none !important;
+}
+
+.ts-control input {
+    color: #ffffff !important;
+}
+
+.ts-control .item {
+    color: #ffffff !important;
+}
+
+.ts-dropdown {
+    border-radius: 10px !important;
+    border: 1px solid #21466d !important;
+    overflow: hidden !important;
+}
+
+.ts-dropdown .option {
+    padding: 10px 14px !important;
+}
+
+.ts-dropdown .option.active,
+.ts-dropdown .active {
+    background: #123b63 !important;
+    color: #ffffff !important;
+}
+
+.ts-wrapper.focus .ts-control {
+    border-color: #2f8cff !important;
+    box-shadow: 0 0 0 2px rgba(47,140,255,.25) !important;
+}
+
+.ts-control::placeholder,
+.ts-control input::placeholder {
+    color: #92a9c7 !important;
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+    function openShareModal(e) {
+        if (e) e.preventDefault();
+        document.getElementById("shareModal").classList.add("show");
+    }
+
+    function closeShareModal() {
+        document.getElementById("shareModal").classList.remove("show");
+    }
+
+    function getBestShareAreaId() {
+        if (document.getElementById("share-report-area")) return "share-report-area";
+        return null;
+    }
+
+    async function copyCurrentLink() {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            showToast("Link copied");
+        } catch (err) {
+            showToast("Copy failed. Copy the URL from your browser.");
+        }
+    }
+
+    function shareToX() {
+        const text = "Check this Hit Rate Hub report";
+        const url = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(window.location.href);
+        window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    async function renderAreaToCanvas(areaId) {
+        const area = document.getElementById(areaId);
+        if (!area) {
+            showToast("Nothing to share yet");
+            return null;
+        }
+
+        if (typeof html2canvas === "undefined") {
+            showToast("Image tool did not load. Link sharing still works.");
+            return null;
+        }
+
+        return await html2canvas(area, {
+            backgroundColor: "#03101f",
+            scale: 2,
+            useCORS: true
+        });
+    }
+
+    async function downloadImage(areaId, filename) {
+        const canvas = await renderAreaToCanvas(areaId);
+        if (!canvas) return;
+
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+
+        showToast("Image downloaded");
+    }
+
+    async function copyImage(areaId) {
+        const canvas = await renderAreaToCanvas(areaId);
+        if (!canvas) return;
+
+        canvas.toBlob(async function(blob) {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ "image/png": blob })
+                ]);
+                showToast("Image copied");
+            } catch (err) {
+                showToast("Clipboard image copy not supported here. Try Download PNG.");
+            }
+        }, "image/png");
+    }
+
+    function downloadBestImage() {
+        const id = getBestShareAreaId();
+        if (!id) {
+            showToast("Run a report first");
+            return;
+        }
+        downloadImage(id, "hitratehub-share.png");
+    }
+
+    function copyBestImage() {
+        const id = getBestShareAreaId();
+        if (!id) {
+            showToast("Run a report first");
+            return;
+        }
+        copyImage(id);
+    }
+
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".player-search").forEach(function (el) {
+        if (!el.tomselect) {
+            new TomSelect(el, {
+                create: false,
+                allowEmptyOption: true,
+                maxOptions: 5000,
+                sortField: {
+                    field: "text",
+                    direction: "asc"
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

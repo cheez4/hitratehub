@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% macro heat_class(v) -%}
+    {%- if v >= 80 -%}heat-100
+    {%- elif v >= 60 -%}heat-80
+    {%- elif v >= 40 -%}heat-60
+    {%- elif v >= 20 -%}heat-40
+    {%- else -%}heat-20
+    {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+
+<style>
+    .leaderboard-compact-filters{
+        padding:12px 18px 14px;
+        display:grid;
+        grid-template-columns:repeat(7, minmax(120px, 1fr));
+        gap:10px;
+        align-items:end;
+    }
+
+    .leaderboard-compact-filters .field label{
+        font-size:11px;
+        margin-bottom:5px;
+    }
+
+    .leaderboard-compact-filters .field select{
+        height:36px;
+        font-size:13px;
+        padding:0 10px;
+    }
+
+    .leaderboard-actions{
+        padding:12px 18px 14px;
+        display:grid;
+        grid-template-columns:repeat(4, minmax(0, 1fr));
+        gap:12px;
+        border-top:1px solid rgba(75,125,185,.14);
+    }
+
+    .leaderboard-actions .share-btn{
+        height:38px;
+        font-size:14px;
+    }
+
+    @media (max-width:1100px){
+        .leaderboard-compact-filters{
+            grid-template-columns:repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width:700px){
+        .leaderboard-compact-filters,
+        .leaderboard-actions{
+            grid-template-columns:1fr;
+        }
+    }
+</style>
+
+<div class="shell">
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">🏆 Leaderboard</div>
+            <div class="leader-top-note">
+                {% if role == "hitter" %}
+                    Hitter - {{ hitter_prop|replace('_', ' ')|title }}
+                {% else %}
+                    Pitcher - {{ pitcher_prop|replace('_', ' ')|title }}
+                {% endif %}
+            </div>
+        </div>
+
+        {% if error %}
+            <div style="margin:18px;" class="bad">{{ error }}</div>
+        {% endif %}
+
+        <form id="leaderboard-form" method="get">
+            <div class="leaderboard-compact-filters">
+                <div class="field">
+                    <label>Role</label>
+                    <select name="role" onchange="submitLeaderboardFilters()">
+                        <option value="hitter" {% if role == "hitter" %}selected{% endif %}>Hitter</option>
+                        <option value="pitcher" {% if role == "pitcher" %}selected{% endif %}>Pitcher</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Prop</label>
+                    {% if role == "hitter" %}
+                        <select name="hitter_prop" onchange="submitLeaderboardFilters()">
+                            <option value="hits" {% if hitter_prop == "hits" %}selected{% endif %}>Hits</option>
+                            <option value="total_bases" {% if hitter_prop == "total_bases" %}selected{% endif %}>Total Bases</option>
+                            <option value="home_runs" {% if hitter_prop == "home_runs" %}selected{% endif %}>Home Runs</option>
+                            <option value="runs" {% if hitter_prop == "runs" %}selected{% endif %}>Runs</option>
+                            <option value="rbi" {% if hitter_prop == "rbi" %}selected{% endif %}>RBI</option>
+                        </select>
+                    {% else %}
+                        <select name="pitcher_prop" onchange="submitLeaderboardFilters()">
+                            <option value="strikeouts" {% if pitcher_prop == "strikeouts" %}selected{% endif %}>Strikeouts</option>
+                        </select>
+                    {% endif %}
+                </div>
+
+                <div class="field">
+                    <label>Window</label>
+                    <select name="calc_window" onchange="submitLeaderboardFilters()">
+                        <option value="5" {% if calc_window == 5 %}selected{% endif %}>Last 5</option>
+                        <option value="10" {% if calc_window == 10 %}selected{% endif %}>Last 10</option>
+                        <option value="20" {% if calc_window == 20 %}selected{% endif %}>Last 20</option>
+                        <option value="30" {% if calc_window == 30 %}selected{% endif %}>Last 30</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Sort</label>
+                    <select name="sort_line" onchange="submitLeaderboardFilters()">
+                        {% for t in thresholds %}
+                            <option value="{{ t }}" {% if sort_line == t %}selected{% endif %}>{{ t }}+</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if role == "hitter" %}
+                    <div class="field">
+                        <label>Vs Team</label>
+                        <select name="vs_team" onchange="submitLeaderboardFilters()">
+                            <option value="">All Teams</option>
+                            {% for t in teams %}
+                                <option value="{{ t }}" {% if vs_team == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>Vs Hand</label>
+                        <select name="vs_hand" onchange="submitLeaderboardFilters()">
+                            <option value="">All Hands</option>
+                            <option value="R" {% if vs_hand == "R" %}selected{% endif %}>Vs RHP</option>
+                            <option value="L" {% if vs_hand == "L" %}selected{% endif %}>Vs LHP</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>Lineup</label>
+                        <select name="lineup_filter" onchange="submitLeaderboardFilters()">
+                            <option value="confirmed" {% if lineup_filter == "confirmed" %}selected{% endif %}>Confirmed</option>
+                            <option value="confirmed_probable" {% if lineup_filter == "confirmed_probable" %}selected{% endif %}>Confirmed + Probable</option>
+                            <option value="all" {% if lineup_filter == "all" %}selected{% endif %}>All</option>
+                        </select>
+                    </div>
+<div class="field">
+    <label>Show</label>
+    <select name="leaderboard_limit" onchange="submitLeaderboardFilters()">
+        <option value="10" {% if leaderboard_limit == 10 %}selected{% endif %}>Top 10</option>
+        <option value="25" {% if leaderboard_limit == 25 %}selected{% endif %}>Top 25</option>
+        <option value="50" {% if leaderboard_limit == 50 %}selected{% endif %}>Top 50</option>
+        <option value="100" {% if leaderboard_limit == 100 %}selected{% endif %}>Top 100</option>
+    </select>
+</div>
+                {% endif %}
+            </div>
+        </form>
+
+        <div class="leaderboard-actions">
+            <button class="share-btn" type="button" onclick="copyCurrentLink()">Copy Link</button>
+            <button class="share-btn" type="button" onclick="copyImage('share-leaderboard-area')">Copy Image</button>
+            <button class="share-btn" type="button" onclick="downloadImage('share-leaderboard-area', 'hitratehub-leaderboard.png')">Download PNG</button>
+            <button class="share-btn" type="button" onclick="shareToX()">Share on X</button>
+        </div>
+
+        <div id="share-leaderboard-area" class="share-card-export">
+            <div class="export-head">
+                <div>
+                    <div class="export-title">Hit Rate <span>Hub</span></div>
+                    <div class="export-sub">
+                        Leaderboard •
+                        {% if role == "hitter" %}
+                            {{ hitter_prop|replace('_', ' ')|title }}
+                        {% else %}
+                            {{ pitcher_prop|replace('_', ' ')|title }}
+                        {% endif %}
+                        • Last {{ calc_window }}
+                        {% if filter_text %} • {{ filter_text }}{% endif %}
+                    </div>
+                </div>
+                <div class="export-brand">Filtered leaderboard<br>Hit Rate Hub</div>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Player</th>
+                            {% if role == "hitter" %}<th>Team</th>{% endif %}
+                            <th>Games</th>
+                            <th>Avg</th>
+                            {% for t in thresholds %}
+                                <th>{{ t }}+</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in leaderboard %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+
+                            <td>
+                                {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
+
+                                {% if lu and lu.status == "confirmed" %}
+                                    <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+                                {% elif lu and lu.status == "probable" %}
+                                    <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+                                {% else %}
+                                    <span class="lineup-badge lineup-not-listed">—</span>
+                                {% endif %}
+
+                                {{ row.player_name }}
+                            </td>
+
+                            {% if role == "hitter" %}
+                                <td>{{ row.team }}</td>
+                            {% endif %}
+
+                            <td>{{ row.games }}</td>
+                            <td>{{ row.average }}</td>
+
+                            {% for t in thresholds %}
+                                {% set key = ("over_" ~ t|string|replace(".", "_")) %}
+                                {% set rec = ("record_" ~ t|string|replace(".", "_")) %}
+                                <td class="heat-cell {{ heat_class(row[key]) }}">
+                                    {{ row[key] }}
+                                    <div class="small" style="color:#e8eef8;">{{ row[rec] }}</div>
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="10" style="color:#95aac6;">No leaderboard rows found for these filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="export-footer">
+                Generated from Hit Rate Hub • Share your findings and tag us if you want
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<script>
+    function submitLeaderboardFilters() {
+        document.getElementById("leaderboard-form").submit();
+    }
+
+    async function copyCurrentLink() {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            showToast("Link copied");
+        } catch (err) {
+            showToast("Copy failed. Copy the URL from your browser.");
+        }
+    }
+
+    function shareToX() {
+        const text = "Check this Hit Rate Hub leaderboard";
+        const url = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(window.location.href);
+        window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    async function renderAreaToCanvas(areaId) {
+        const area = document.getElementById(areaId);
+
+        if (!area) {
+            showToast("Nothing to share yet");
+            return null;
+        }
+
+        if (typeof html2canvas === "undefined") {
+            showToast("Image tool did not load. Link sharing still works.");
+            return null;
+        }
+
+        return await html2canvas(area, {
+            backgroundColor: "#03101f",
+            scale: 2,
+            useCORS: true
+        });
+    }
+
+    async function downloadImage(areaId, filename) {
+        const canvas = await renderAreaToCanvas(areaId);
+        if (!canvas) return;
+
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+
+        showToast("Image downloaded");
+    }
+
+    async function copyImage(areaId) {
+        const canvas = await renderAreaToCanvas(areaId);
+        if (!canvas) return;
+
+        canvas.toBlob(async function(blob) {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ "image/png": blob })
+                ]);
+                showToast("Image copied");
+            } catch (err) {
+                showToast("Clipboard image copy not supported here. Try Download PNG.");
+            }
+        }, "image/png");
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="shell">
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">⇪ Share</div>
+        </div>
+
+        <div class="panel-body">
+            <div class="summary-cards" style="padding:0; grid-template-columns:repeat(2, minmax(0, 1fr));">
+                <div class="summary-card">
+                    <div class="summary-name">Calculator Reports</div>
+                    <div class="small">Run a calculator report, then use Copy Link, Copy Image, Download PNG, or Share on X.</div>
+                    <div style="margin-top:14px;">
+                        <a href="{{ url_for('index') }}" class="share-btn" style="display:flex; align-items:center; justify-content:center; text-decoration:none;">Open Calculator</a>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-name">Leaderboard Cards</div>
+                    <div class="small">Open the leaderboard page and export the filtered leaderboard as a shareable card.</div>
+                    <div style="margin-top:14px;">
+                        <a href="{{ url_for('leaderboard_page') }}" class="share-btn" style="display:flex; align-items:center; justify-content:center; text-decoration:none;">Open Leaderboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
