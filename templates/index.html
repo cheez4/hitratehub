@@ -637,23 +637,26 @@
 </script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
     document.querySelectorAll(".player-search").forEach(function (el) {
+        if (isIOS) {
+            return; // use normal iPhone dropdown
+        }
+
         if (!el.tomselect) {
             new TomSelect(el, {
                 create: false,
                 allowEmptyOption: true,
                 maxOptions: 5000,
                 searchField: ['text'],
-       searchConjunction: 'or',
-             preload: true,
-               openOnFocus: true,	                
-sortField: {
+                openOnFocus: true,
+                sortField: {
                     field: "text",
                     direction: "asc"
                 }
             });
         }
     });
-});
-</script>
+});</script>
 {% endblock %}
