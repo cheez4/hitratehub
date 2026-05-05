@@ -643,7 +643,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 create: false,
                 allowEmptyOption: true,
                 maxOptions: 5000,
-                sortField: {
+                searchField: ['text'],
+       searchConjunction: 'or',
+             preload: true,
+               openOnFocus: true,	                
+sortField: {
                     field: "text",
                     direction: "asc"
                 }
