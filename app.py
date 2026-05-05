@@ -842,15 +842,7 @@ def build_combo_context():
 
     combo_limit = min(combo_limit, 100)
 
-    prop_min_lookup = {
-        "hits": 25,
-        "total_bases": 35,
-        "home_runs": 3,
-        "runs": 15,
-        "rbi": 15,
-    }
-
-    min_filter_value = prop_min_lookup.get(combo_prop, 25)
+    min_filter_value = None
 
     lineup_map = get_today_lineups()
 
@@ -868,14 +860,12 @@ def build_combo_context():
               AND prop = %s
               AND combo_size = %s
               AND window_games = %s
-              AND min_hr = %s
             ORDER BY edge DESC, rate DESC, games DESC
             LIMIT %s
         """, (
             combo_prop,
             combo_size,
             combo_window,
-            min_filter_value,
             combo_limit
         ))
 
