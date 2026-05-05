@@ -832,7 +832,7 @@ def build_trends_context():
 def build_combo_context():
     combo_prop = request.args.get("combo_prop", "hits")
     combo_size = safe_int(request.args.get("combo_size", 2), 2)
-    combo_window = safe_int(request.args.get("combo_window", 30), 30)
+    combo_window = safe_int(request.args.get("combo_window", 10), 10)
     combo_limit = safe_int(request.args.get("combo_limit", 50), 50)
 
     if combo_size < 2:
@@ -843,35 +843,23 @@ def build_combo_context():
     combo_limit = min(combo_limit, 100)
 
     prop_min_lookup = {
-        "hits": 20,
+        "hits": 25,
         "total_bases": 35,
         "home_runs": 3,
         "runs": 15,
         "rbi": 15,
     }
 
-    min_filter_value = prop_min_lookup.get(combo_prop, 20)
+    min_filter_value = prop_min_lookup.get(combo_prop, 25)
 
     lineup_map = get_today_lineups()
 
     try:
         df = read_sql("""
             SELECT
-                id,
-                run_date,
-                prop,
-                combo_size,
-                lineup_filter,
-                min_hr,
-                window_games,
-                min_games,
-                players,
-                teams,
-                games,
-                all_hit,
-                rate,
-                expected,
-                edge
+                id, run_date, prop, combo_size, lineup_filter, min_hr,
+                window_games, min_games, players, teams, games, all_hit,
+                rate, expected, edge
             FROM mlb_combo_results
             WHERE run_date = (
                 SELECT MAX(run_date)
@@ -898,7 +886,6 @@ def build_combo_context():
             team_names = str(row["teams"]).split(" | ")
 
             players = []
-
             for i, name in enumerate(player_names):
                 players.append({
                     "name": name,
@@ -930,7 +917,6 @@ def build_combo_context():
         "lineup_filter": "confirmed_probable",
         "lineup_map": lineup_map
     }
-
 @app.route("/")
 def index():
     context = get_common_context(active_page="calculator")
