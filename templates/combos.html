@@ -57,59 +57,6 @@
     </div>
 </form>
 
-        <div class="field">
-            <label>Window</label>
-            <select name="combo_window">
-                <option value="10" {% if combo_window == 10 %}selected{% endif %}>Last 10 Shared</option>
-                <option value="20" {% if combo_window == 20 %}selected{% endif %}>Last 20 Shared</option>
-                <option value="30" {% if combo_window == 30 %}selected{% endif %}>Last 30 Shared</option>
-                <option value="45" {% if combo_window == 45 %}selected{% endif %}>Last 45 Shared</option>
-                <option value="60" {% if combo_window == 60 %}selected{% endif %}>Last 60 Shared</option>
-            </select>
-        </div>
-
-        <div class="field">
-            <label>Min Games</label>
-            <select name="combo_min_games">
-                <option value="5" {% if combo_min_games == 5 %}selected{% endif %}>5+</option>
-                <option value="10" {% if combo_min_games == 10 %}selected{% endif %}>10+</option>
-                <option value="15" {% if combo_min_games == 15 %}selected{% endif %}>15+</option>
-                <option value="20" {% if combo_min_games == 20 %}selected{% endif %}>20+</option>
-            </select>
-        </div>
-
-        <div class="field">
-            <label>Scope</label>
-            <select name="combo_scope">
-                <option value="same_team" {% if combo_scope == "same_team" %}selected{% endif %}>Same Team</option>
-                <option value="all" {% if combo_scope == "all" %}selected{% endif %}>All Players</option>
-            </select>
-        </div>
-
-        <div class="field">
-            <label>Lineup</label>
-            <select name="lineup_filter">
-                <option value="confirmed" {% if lineup_filter == "confirmed" %}selected{% endif %}>Confirmed</option>
-                <option value="confirmed_probable" {% if lineup_filter == "confirmed_probable" %}selected{% endif %}>Confirmed + Probable</option>
-                <option value="all" {% if lineup_filter == "all" %}selected{% endif %}>All</option>
-            </select>
-        </div>
-
-        <div class="field">
-            <label>Show</label>
-            <select name="combo_limit">
-                <option value="25" {% if combo_limit == 25 %}selected{% endif %}>Top 25</option>
-                <option value="50" {% if combo_limit == 50 %}selected{% endif %}>Top 50</option>
-                <option value="100" {% if combo_limit == 100 %}selected{% endif %}>Top 100</option>
-            </select>
-        </div>
-    </div>
-
-    <div style="padding:0 18px 14px;">
-        <button class="run-btn" type="submit">Apply Filters</button>
-    </div>
-</form>
-
         <div class="table-wrap">
             <table>
                <thead>
