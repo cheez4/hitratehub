@@ -916,42 +916,39 @@ def odds_snapshot():
         rows = data.get("rows", [])
 
         if not rows:
-            return jsonify({
-                "success": True,
-                "inserted": 0
-            }), 200
+            return jsonify({"success": True, "inserted": 0, "last_seen_updated": 0}), 200
 
-        insert_sql = """
+        snapshot_sql = """
             INSERT INTO odds_snapshots (
-                player,
-                sportsbook,
-                lastupdate,
-                islive,
-                prop,
-                ou,
-                line,
-                odds,
-                ismain,
-                starttime,
-                gameid,
-                home,
-                away
+                player, sportsbook, lastupdate, islive, prop, ou,
+                line, odds, ismain, starttime, gameid, home, away
             )
             VALUES (
-                %(player)s,
-                %(sportsbook)s,
-                %(lastupdate)s,
-                %(islive)s,
-                %(prop)s,
-                %(ou)s,
-                %(line)s,
-                %(odds)s,
-                %(ismain)s,
-                %(starttime)s,
-                %(gameid)s,
-                %(home)s,
-                %(away)s
+                %(player)s, %(sportsbook)s, %(lastupdate)s, %(islive)s, %(prop)s, %(ou)s,
+                %(line)s, %(odds)s, %(ismain)s, %(starttime)s, %(gameid)s, %(home)s, %(away)s
             )
+        """
+
+        last_seen_sql = """
+            INSERT INTO odds_last_seen (
+                player, sportsbook, lastupdate, islive, prop, ou,
+                line, odds, ismain, starttime, gameid, home, away, updated_at
+            )
+            VALUES (
+                %(player)s, %(sportsbook)s, %(lastupdate)s, %(islive)s, %(prop)s, %(ou)s,
+                %(line)s, %(odds)s, %(ismain)s, %(starttime)s, %(gameid)s, %(home)s, %(away)s, NOW()
+            )
+            ON CONFLICT (gameid, player, sportsbook, prop, ou)
+            DO UPDATE SET
+                updated_at = NOW(),
+                lastupdate = EXCLUDED.lastupdate,
+                islive = EXCLUDED.islive,
+                line = EXCLUDED.line,
+                odds = EXCLUDED.odds,
+                ismain = EXCLUDED.ismain,
+                starttime = EXCLUDED.starttime,
+                home = EXCLUDED.home,
+                away = EXCLUDED.away
         """
 
         clean_rows = []
@@ -960,8 +957,13 @@ def odds_snapshot():
             clean_rows.append({
                 "player": clean_text(r.get("player"), None),
                 "sportsbook": clean_text(r.get("sportsbook"), None),
+                "lastupdate": safe_int(r.get("lastupdate")),
+                "islive": safe_int(r.get("islive")),
                 "prop": clean_text(r.get("prop"), None),
                 "ou": clean_text(r.get("ou"), None),
+                "line": safe_float(r.get("line")),
+                "odds": safe_int(r.get("odds")),
+                "ismain": safe_int(r.get("ismain")),
                 "starttime": clean_text(r.get("starttime"), None),
                 "gameid": clean_text(r.get("gameid"), None),
                 "home": clean_text(r.get("home"), None),
@@ -973,11 +975,13 @@ def odds_snapshot():
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.executemany(insert_sql, clean_rows)
+                    cur.executemany(snapshot_sql, clean_rows)
+                    cur.executemany(last_seen_sql, clean_rows)
 
             return jsonify({
                 "success": True,
-                "inserted": len(clean_rows)
+                "inserted": len(clean_rows),
+                "last_seen_updated": len(clean_rows)
             }), 200
 
         finally:
