@@ -903,7 +903,117 @@ def build_combo_context():
 
 @app.route("/api/odds/snapshot", methods=["POST"])
 def odds_snapshot():
-    return jsonify({"success": True, "test": "route works"})
+    try:
+        api_key = request.headers.get("X-API-KEY")
+
+        if api_key != ODDS_API_KEY:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        data = request.get_json(silent=True) or {}
+        rows = data.get("rows", [])
+
+        if not rows:
+            return jsonify({
+                "success": True,
+                "inserted": 0
+            }), 200
+
+        insert_sql = """
+            INSERT INTO odds_snapshots (
+                player,
+                sportsbook,
+                lastupdate,
+                islive,
+                prop,
+                ou,
+                line,
+                odds,
+                ismain,
+                starttime,
+                gameid,
+                home,
+                away
+            )
+            VALUES (
+                %(player)s,
+                %(sportsbook)s,
+                %(lastupdate)s,
+                %(islive)s,
+                %(prop)s,
+                %(ou)s,
+                %(line)s,
+                %(odds)s,
+                %(ismain)s,
+                %(starttime)s,
+                %(gameid)s,
+                %(home)s,
+                %(away)s
+            )
+        """
+
+        clean_rows = []
+
+        for r in rows:
+            clean_rows.append({
+                "player": clean_text(r.get("player")),
+                "sportsbook": clean_text(r.get("sportsbook")),
+                "lastupdate": safe_int(r.get("lastupdate")),
+                "islive": safe_int(r.get("islive")),
+                "prop": clean_text(r.get("prop")),
+                "ou": clean_text(r.get("ou")),
+                "line": safe_float(r.get("line")),
+                "odds": safe_int(r.get("odds")),
+                "ismain": safe_int(r.get("ismain")),
+                "starttime": clean_text(r.get("starttime")),
+                "gameid": clean_text(r.get("gameid")),
+                "home": clean_text(r.get("home")),
+                "away": clean_text(r.get("away")),
+            })
+
+        conn = psycopg2.connect(DATABASE_URL)
+
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.executemany(insert_sql, clean_rows)
+
+            return jsonify({
+                "success": True,
+                "inserted": len(clean_rows)
+            }), 200
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+def clean_text(value):
+    if value in ("", None):
+        return None
+    return str(value).strip()
+
+
+def safe_int(value):
+    if value in ("", None):
+        return None
+    try:
+        return int(float(value))
+    except Exception:
+        return None
+
+
+def safe_float(value):
+    if value in ("", None):
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
 
 @app.route("/")
 def index():
