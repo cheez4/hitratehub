@@ -5,6 +5,9 @@ import pandas as pd
 import psycopg2
 import os
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
+
 app = Flask(__name__)
 
 cache = Cache(app, config={
