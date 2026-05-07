@@ -19,8 +19,7 @@
                 <option value="hits" {% if combo_prop == "hits" %}selected{% endif %}>Hits 20+</option>
                 <option value="total_bases" {% if combo_prop == "total_bases" %}selected{% endif %}>TB 35+</option>
                 <option value="home_runs" {% if combo_prop == "home_runs" %}selected{% endif %}>HR 3+</option>
-                <option value="runs" {% if combo_prop == "runs" %}selected{% endif %}>Runs 15+</option>
-                <option value="rbi" {% if combo_prop == "rbi" %}selected{% endif %}>RBI 15+</option>
+            
             </select>
         </div>
 
@@ -67,7 +66,10 @@
         <th>All Hit</th>
         <th>Actual</th>
         <th>Expected</th>
-        <th>Edge</th>
+        <th>
+    Edge
+    <button type="button" class="edge-help-btn" onclick="openEdgeModal()">?</button>
+</th>
     </tr>
 </thead>
 
@@ -110,6 +112,58 @@
     <tr>
         <td colspan="7" style="color:#95aac6;">No combos found for these filters.</td>
     </tr>
+<div id="edgeModal" class="modal-backdrop">
+    <div class="modal">
+        <div class="modal-head">
+            <div class="modal-title">What does Edge mean?</div>
+            <button class="modal-close" type="button" onclick="closeEdgeModal()">×</button>
+        </div>
+
+        <div class="modal-body">
+            <p>
+                <strong>Edge</strong> shows how much better a combo has performed compared to what we would expect based on each player’s individual hit rate.
+            </p>
+
+            <p>
+                <strong>Formula:</strong><br>
+                Edge = Actual Combo Rate − Expected Combo Rate
+            </p>
+
+            <p>
+                <strong>Actual Combo Rate</strong> is how often all players in the combo hit the selected prop on the same day.
+            </p>
+
+            <p>
+                <strong>Expected Combo Rate</strong> is calculated by multiplying each player’s individual rate together.
+            </p>
+
+            <p>
+                Example: if Player A hits 70% and Player B hits 60%, the expected combo rate is:
+                <br><strong>70% × 60% = 42%</strong>
+            </p>
+
+            <p>
+                If that combo actually hit 55% of the time, then:
+                <br><strong>Edge = 55% − 42% = +13%</strong>
+            </p>
+
+            <p>
+                A positive edge means the players have hit together more often than expected. A negative edge means they have hit together less often than expected.
+            </p>
+        </div>
+    </div>
+</div>
+<script>
+function openEdgeModal() {
+    document.getElementById("edgeModal").classList.add("show");
+}
+
+function closeEdgeModal() {
+    document.getElementById("edgeModal").classList.remove("show");
+}
+</script>
+
+{% endblock %}
     {% endfor %}
 </tbody>
             </table>
