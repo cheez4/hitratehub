@@ -925,7 +925,8 @@ def odds_snapshot():
                 "deleted_from_last_seen": 0
             }), 200
 
-        run_id = str(uuid.uuid4())
+        run_id = data.get("run_id") or str(uuid.uuid4())
+        is_final_chunk = bool(data.get("is_final_chunk"))
 
         snapshot_sql = """
             INSERT INTO odds_snapshots (
@@ -1014,11 +1015,15 @@ def odds_snapshot():
                     cur.executemany(snapshot_sql, clean_rows)
                     cur.executemany(last_seen_sql, clean_rows)
 
-                    cur.execute(close_sql, (run_id,))
-                    closed_count = cur.rowcount
+                    closed_count = 0
+                    deleted_count = 0
 
-                    cur.execute(delete_sql, (run_id,))
-                    deleted_count = cur.rowcount
+                    if is_final_chunk:
+                        cur.execute(close_sql, (run_id,))
+                        closed_count = cur.rowcount
+
+                        cur.execute(delete_sql, (run_id,))
+                        deleted_count = cur.rowcount
 
             return jsonify({
                 "success": True,
