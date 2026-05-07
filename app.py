@@ -832,26 +832,22 @@ def build_trends_context():
 def build_combo_context():
     combo_prop = request.args.get("combo_prop", "hits")
     combo_size = safe_int(request.args.get("combo_size", 2), 2)
-    combo_window = safe_int(request.args.get("combo_window", 10), 10)
+    combo_window = safe_int(request.args.get("combo_window", 30), 30)
     combo_limit = safe_int(request.args.get("combo_limit", 50), 50)
 
-    if combo_size < 2:
-        combo_size = 2
-    if combo_size > 7:
-        combo_size = 7
-
     combo_limit = min(combo_limit, 100)
-
-    min_filter_value = None
-
     lineup_map = get_today_lineups()
 
     try:
         df = read_sql("""
             SELECT
-                id, run_date, prop, combo_size, lineup_filter, min_hr,
-                window_games, min_games, players, teams, games, all_hit,
-                rate, expected, edge
+                players,
+                teams,
+                games,
+                all_hit,
+                rate,
+                expected,
+                edge
             FROM mlb_combo_results
             WHERE run_date = (
                 SELECT MAX(run_date)
@@ -860,7 +856,7 @@ def build_combo_context():
               AND prop = %s
               AND combo_size = %s
               AND window_games = %s
-            ORDER BY edge DESC, rate DESC, games DESC
+            ORDER BY rate DESC, games DESC, edge DESC
             LIMIT %s
         """, (
             combo_prop,
@@ -902,9 +898,6 @@ def build_combo_context():
         "combo_size": combo_size,
         "combo_window": combo_window,
         "combo_limit": combo_limit,
-        "combo_min_games": 5,
-        "combo_min_filter": min_filter_value,
-        "lineup_filter": "confirmed_probable",
         "lineup_map": lineup_map
     }
 @app.route("/")
