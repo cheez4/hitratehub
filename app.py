@@ -4,6 +4,7 @@ import unicodedata
 import pandas as pd
 import psycopg2
 import os
+import uuid
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -916,7 +917,15 @@ def odds_snapshot():
         rows = data.get("rows", [])
 
         if not rows:
-            return jsonify({"success": True, "inserted": 0, "last_seen_updated": 0}), 200
+            return jsonify({
+                "success": True,
+                "inserted": 0,
+                "last_seen_updated": 0,
+                "closed": 0,
+                "deleted_from_last_seen": 0
+            }), 200
+
+        run_id = str(uuid.uuid4())
 
         snapshot_sql = """
             INSERT INTO odds_snapshots (
@@ -932,11 +941,13 @@ def odds_snapshot():
         last_seen_sql = """
             INSERT INTO odds_last_seen (
                 player, sportsbook, lastupdate, islive, prop, ou,
-                line, odds, ismain, starttime, gameid, home, away, updated_at
+                line, odds, ismain, starttime, gameid, home, away,
+                updated_at, seen_run_id
             )
             VALUES (
                 %(player)s, %(sportsbook)s, %(lastupdate)s, %(islive)s, %(prop)s, %(ou)s,
-                %(line)s, %(odds)s, %(ismain)s, %(starttime)s, %(gameid)s, %(home)s, %(away)s, NOW()
+                %(line)s, %(odds)s, %(ismain)s, %(starttime)s, %(gameid)s, %(home)s, %(away)s,
+                NOW(), %(seen_run_id)s
             )
             ON CONFLICT (gameid, player, sportsbook, prop, ou)
             DO UPDATE SET
@@ -948,7 +959,31 @@ def odds_snapshot():
                 ismain = EXCLUDED.ismain,
                 starttime = EXCLUDED.starttime,
                 home = EXCLUDED.home,
-                away = EXCLUDED.away
+                away = EXCLUDED.away,
+                seen_run_id = EXCLUDED.seen_run_id
+        """
+
+        close_sql = """
+            INSERT INTO closing_odds (
+                player, sportsbook, lastupdate, islive,
+                prop, ou, line, odds, ismain,
+                starttime, gameid, home, away, closed_at
+            )
+            SELECT
+                player, sportsbook, lastupdate, islive,
+                prop, ou, line, odds, ismain,
+                starttime, gameid, home, away, NOW()
+            FROM odds_last_seen
+            WHERE seen_run_id IS NOT NULL
+              AND seen_run_id != %s
+            ON CONFLICT (gameid, player, sportsbook, prop, ou)
+            DO NOTHING
+        """
+
+        delete_sql = """
+            DELETE FROM odds_last_seen
+            WHERE seen_run_id IS NOT NULL
+              AND seen_run_id != %s
         """
 
         clean_rows = []
@@ -968,6 +1003,7 @@ def odds_snapshot():
                 "gameid": clean_text(r.get("gameid"), None),
                 "home": clean_text(r.get("home"), None),
                 "away": clean_text(r.get("away"), None),
+                "seen_run_id": run_id
             })
 
         conn = psycopg2.connect(DATABASE_URL)
@@ -978,10 +1014,19 @@ def odds_snapshot():
                     cur.executemany(snapshot_sql, clean_rows)
                     cur.executemany(last_seen_sql, clean_rows)
 
+                    cur.execute(close_sql, (run_id,))
+                    closed_count = cur.rowcount
+
+                    cur.execute(delete_sql, (run_id,))
+                    deleted_count = cur.rowcount
+
             return jsonify({
                 "success": True,
+                "run_id": run_id,
                 "inserted": len(clean_rows),
-                "last_seen_updated": len(clean_rows)
+                "last_seen_updated": len(clean_rows),
+                "closed": closed_count,
+                "deleted_from_last_seen": deleted_count
             }), 200
 
         finally:
@@ -992,7 +1037,6 @@ def odds_snapshot():
             "success": False,
             "error": str(e)
         }), 500
-
 
 def clean_text(value, default=""):
     if value in ("", None):
