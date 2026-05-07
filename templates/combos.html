@@ -7,111 +7,117 @@
         <div class="panel-header">
             <div>
                 <div class="panel-title">🔥 Combo Finder</div>
-                <div style="color:#92a9c7;">Find hitter pairs who get hits on the same day</div>
+                <div style="color:#92a9c7;">Find hitter combos who hit the selected prop on the same day</div>
             </div>
         </div>
 
         <form method="get">
-    <div class="leaderboard-compact-filters">
-        <div class="field">
-            <label>Prop</label>
-            <select name="combo_prop">
-                <option value="hits" {% if combo_prop == "hits" %}selected{% endif %}>Hits 20+</option>
-                <option value="total_bases" {% if combo_prop == "total_bases" %}selected{% endif %}>TB 35+</option>
-                <option value="home_runs" {% if combo_prop == "home_runs" %}selected{% endif %}>HR 3+</option>
-            
-            </select>
-        </div>
+            <div class="leaderboard-compact-filters">
+                <div class="field">
+                    <label>Prop</label>
+                    <select name="combo_prop">
+                        <option value="hits" {% if combo_prop == "hits" %}selected{% endif %}>Hits 20+</option>
+                        <option value="total_bases" {% if combo_prop == "total_bases" %}selected{% endif %}>TB 35+</option>
+                        <option value="home_runs" {% if combo_prop == "home_runs" %}selected{% endif %}>HR 3+</option>
+                    </select>
+                </div>
 
-        <div class="field">
-            <label>Combo Size</label>
-            <select name="combo_size">
-                {% for n in [2,3,4,5,6,7] %}
-                    <option value="{{ n }}" {% if combo_size == n %}selected{% endif %}>{{ n }} Players</option>
-                {% endfor %}
-            </select>
-        </div>
+                <div class="field">
+                    <label>Combo Size</label>
+                    <select name="combo_size">
+                        {% for n in [2,3,4,5,6,7] %}
+                            <option value="{{ n }}" {% if combo_size == n %}selected{% endif %}>{{ n }} Players</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-        <div class="field">
-            <label>Window</label>
-            <select name="combo_window">
-                {% for n in [10,20,30,45,60] %}
-                    <option value="{{ n }}" {% if combo_window == n %}selected{% endif %}>Last {{ n }}</option>
-                {% endfor %}
-            </select>
-        </div>
+                <div class="field">
+                    <label>Window</label>
+                    <select name="combo_window">
+                        {% for n in [10,20,30,45,60] %}
+                            <option value="{{ n }}" {% if combo_window == n %}selected{% endif %}>Last {{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-        <div class="field">
-            <label>Show</label>
-            <select name="combo_limit">
-                <option value="25" {% if combo_limit == 25 %}selected{% endif %}>Top 25</option>
-                <option value="50" {% if combo_limit == 50 %}selected{% endif %}>Top 50</option>
-                <option value="100" {% if combo_limit == 100 %}selected{% endif %}>Top 100</option>
-            </select>
-        </div>
-    </div>
+                <div class="field">
+                    <label>Show</label>
+                    <select name="combo_limit">
+                        <option value="25" {% if combo_limit == 25 %}selected{% endif %}>Top 25</option>
+                        <option value="50" {% if combo_limit == 50 %}selected{% endif %}>Top 50</option>
+                        <option value="100" {% if combo_limit == 100 %}selected{% endif %}>Top 100</option>
+                    </select>
+                </div>
+            </div>
 
-    <div style="padding:0 18px 14px;">
-        <button class="run-btn" type="submit">Apply Filters</button>
-    </div>
-</form>
+            <div style="padding:0 18px 14px;">
+                <button class="run-btn" type="submit">Apply Filters</button>
+            </div>
+        </form>
 
         <div class="table-wrap">
             <table>
-               <thead>
-    <tr>
-        <th>#</th>
-        <th>Players</th>
-        <th>Games</th>
-        <th>All Hit</th>
-        <th>Actual</th>
-        <th>Expected</th>
-        <th>
-    Edge
-    <button type="button" class="edge-help-btn" onclick="openEdgeModal()">?</button>
-</th>
-    </tr>
-</thead>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Players</th>
+                        <th>Games</th>
+                        <th>All Hit</th>
+                        <th>Actual</th>
+                        <th>Expected</th>
+                        <th>
+                            Edge
+                            <button type="button" class="edge-help-btn" onclick="openEdgeModal()">?</button>
+                        </th>
+                    </tr>
+                </thead>
 
                 <tbody>
-    {% for row in combo_rows %}
-    <tr>
-        <td>{{ loop.index }}</td>
+                    {% for row in combo_rows %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
 
-        <td>
-            {% for p in row.players %}
-                <div style="margin-bottom:6px;">
-                    {% set lu = lineup_map.get(p.name) or lineup_map.get(p.name|lower) %}
-                    {% if lu and lu.status == "confirmed" %}
-                        <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
-                    {% elif lu and lu.status == "probable" %}
-                        <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+                        <td>
+                            {% for p in row.players %}
+                                <div style="margin-bottom:6px;">
+                                    {% set lu = lineup_map.get(p.name) or lineup_map.get(p.name|lower) %}
+                                    {% if lu and lu.status == "confirmed" %}
+                                        <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+                                    {% elif lu and lu.status == "probable" %}
+                                        <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+                                    {% else %}
+                                        <span class="lineup-badge lineup-not-listed">—</span>
+                                    {% endif %}
+                                    {{ p.name }}
+                                    <span class="small">({{ p.team }})</span>
+                                </div>
+                            {% endfor %}
+                        </td>
+
+                        <td>{{ row.games }}</td>
+                        <td>{{ row.all_hit }}/{{ row.games }}</td>
+                        <td class="heat-cell heat-80">{{ row.rate }}%</td>
+                        <td>{{ row.expected }}%</td>
+
+                        <td>
+                            {% if row.edge > 0 %}
+                                <span class="match-pill hit-pill">+{{ row.edge }}%</span>
+                            {% else %}
+                                <span class="match-pill miss-pill">{{ row.edge }}%</span>
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% else %}
-                        <span class="lineup-badge lineup-not-listed">—</span>
-                    {% endif %}
-                    {{ p.name }}
-                    <span class="small">({{ p.team }})</span>
-                </div>
-            {% endfor %}
-        </td>
+                    <tr>
+                        <td colspan="7" style="color:#95aac6;">No combos found for these filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-        <td>{{ row.games }}</td>
-        <td>{{ row.all_hit }}/{{ row.games }}</td>
-        <td class="heat-cell heat-80">{{ row.rate }}%</td>
-        <td>{{ row.expected }}%</td>
-
-        <td>
-            {% if row.edge > 0 %}
-                <span class="match-pill hit-pill">+{{ row.edge }}%</span>
-            {% else %}
-                <span class="match-pill miss-pill">{{ row.edge }}%</span>
-            {% endif %}
-        </td>
-    </tr>
-    {% else %}
-    <tr>
-        <td colspan="7" style="color:#95aac6;">No combos found for these filters.</td>
-    </tr>
 <div id="edgeModal" class="modal-backdrop">
     <div class="modal">
         <div class="modal-head">
@@ -120,39 +126,17 @@
         </div>
 
         <div class="modal-body">
-            <p>
-                <strong>Edge</strong> shows how much better a combo has performed compared to what we would expect based on each player’s individual hit rate.
-            </p>
-
-            <p>
-                <strong>Formula:</strong><br>
-                Edge = Actual Combo Rate − Expected Combo Rate
-            </p>
-
-            <p>
-                <strong>Actual Combo Rate</strong> is how often all players in the combo hit the selected prop on the same day.
-            </p>
-
-            <p>
-                <strong>Expected Combo Rate</strong> is calculated by multiplying each player’s individual rate together.
-            </p>
-
-            <p>
-                Example: if Player A hits 70% and Player B hits 60%, the expected combo rate is:
-                <br><strong>70% × 60% = 42%</strong>
-            </p>
-
-            <p>
-                If that combo actually hit 55% of the time, then:
-                <br><strong>Edge = 55% − 42% = +13%</strong>
-            </p>
-
-            <p>
-                A positive edge means the players have hit together more often than expected. A negative edge means they have hit together less often than expected.
-            </p>
+            <p><strong>Edge</strong> shows how much better a combo has performed compared to what we would expect based on each player’s individual hit rate.</p>
+            <p><strong>Formula:</strong><br>Edge = Actual Combo Rate − Expected Combo Rate</p>
+            <p><strong>Actual Combo Rate</strong> is how often all players in the combo hit the selected prop on the same day.</p>
+            <p><strong>Expected Combo Rate</strong> is calculated by multiplying each player’s individual rate together.</p>
+            <p>Example: if Player A hits 70% and Player B hits 60%, the expected combo rate is:<br><strong>70% × 60% = 42%</strong></p>
+            <p>If that combo actually hit 55% of the time, then:<br><strong>Edge = 55% − 42% = +13%</strong></p>
+            <p>A positive edge means the players have hit together more often than expected. A negative edge means they have hit together less often than expected.</p>
         </div>
     </div>
 </div>
+
 <script>
 function openEdgeModal() {
     document.getElementById("edgeModal").classList.add("show");
@@ -162,13 +146,5 @@ function closeEdgeModal() {
     document.getElementById("edgeModal").classList.remove("show");
 }
 </script>
-
-{% endblock %}
-    {% endfor %}
-</tbody>
-            </table>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
