@@ -900,6 +900,11 @@ def build_combo_context():
         "combo_limit": combo_limit,
         "lineup_map": lineup_map
     }
+
+@app.route("/api/odds/snapshot", methods=["POST"])
+def odds_snapshot():
+    return jsonify({"success": True, "test": "route works"})
+
 @app.route("/")
 def index():
     context = get_common_context(active_page="calculator")
