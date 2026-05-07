@@ -958,19 +958,14 @@ def odds_snapshot():
 
         for r in rows:
             clean_rows.append({
-                "player": clean_text(r.get("player")),
-                "sportsbook": clean_text(r.get("sportsbook")),
-                "lastupdate": safe_int(r.get("lastupdate")),
-                "islive": safe_int(r.get("islive")),
-                "prop": clean_text(r.get("prop")),
-                "ou": clean_text(r.get("ou")),
-                "line": safe_float(r.get("line")),
-                "odds": safe_int(r.get("odds")),
-                "ismain": safe_int(r.get("ismain")),
-                "starttime": clean_text(r.get("starttime")),
-                "gameid": clean_text(r.get("gameid")),
-                "home": clean_text(r.get("home")),
-                "away": clean_text(r.get("away")),
+                "player": clean_text(r.get("player"), None),
+                "sportsbook": clean_text(r.get("sportsbook"), None),
+                "prop": clean_text(r.get("prop"), None),
+                "ou": clean_text(r.get("ou"), None),
+                "starttime": clean_text(r.get("starttime"), None),
+                "gameid": clean_text(r.get("gameid"), None),
+                "home": clean_text(r.get("home"), None),
+                "away": clean_text(r.get("away"), None),
             })
 
         conn = psycopg2.connect(DATABASE_URL)
@@ -995,9 +990,9 @@ def odds_snapshot():
         }), 500
 
 
-def clean_text(value):
+def clean_text(value, default=""):
     if value in ("", None):
-        return None
+        return default
     return str(value).strip()
 
 
