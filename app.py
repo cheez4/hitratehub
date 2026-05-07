@@ -1001,22 +1001,22 @@ def clean_text(value):
     return str(value).strip()
 
 
-def safe_int(value):
+def safe_int(value, default=None):
     if value in ("", None):
-        return None
+        return default
     try:
         return int(float(value))
     except Exception:
-        return None
+        return default
 
 
-def safe_float(value):
+def safe_float(value, default=None):
     if value in ("", None):
-        return None
+        return default
     try:
         return float(value)
     except Exception:
-        return None
+        return default
 
 @app.route("/")
 def index():
