@@ -597,7 +597,7 @@ def get_common_context(active_page="calculator"):
     hitter_names = []
     pitcher_names = []
     lineup_map = {}
-    weather_lookup = load_team_weather()
+    weather_lookup = {}
 
     thresholds = thresholds_for(role, hitter_prop if role == "hitter" else pitcher_prop)
     sort_line = safe_float(request.args.get("sort_line", thresholds[0]), thresholds[0])
@@ -607,6 +607,12 @@ def get_common_context(active_page="calculator"):
         hitter_names = get_hitter_names()
         pitcher_names = get_pitcher_names()
         lineup_map = get_today_lineups()
+
+        try:
+            weather_lookup = load_team_weather()
+        except Exception as e:
+            print("Weather lookup error:", e)
+            weather_lookup = {}
 
         pa_df = pd.DataFrame()
         pitcher_df = pd.DataFrame()
@@ -625,11 +631,11 @@ def get_common_context(active_page="calculator"):
         selected_players = []
 
         for i in range(1, 11):
-           field_name = "calc_player" if i == 1 else f"calc_compare_{i}"
-           player_name = clean_text(request.args.get(field_name, ""))
+            field_name = "calc_player" if i == 1 else f"calc_compare_{i}"
+            player_name = clean_text(request.args.get(field_name, ""))
 
-           if player_name and player_name not in selected_players:
-               selected_players.append(player_name)
+            if player_name and player_name not in selected_players:
+                selected_players.append(player_name)
 
         if selected_players:
             if calc_role == "hitter":
@@ -637,18 +643,40 @@ def get_common_context(active_page="calculator"):
 
                 if len(selected_players) == 1:
                     rows = build_hitter_game_rows(
-                        source_df, selected_players[0], calc_prop, calc_window,
-                        calc_mode, calc_line, calc_min, calc_max
+                        source_df,
+                        selected_players[0],
+                        calc_prop,
+                        calc_window,
+                        calc_mode,
+                        calc_line,
+                        calc_min,
+                        calc_max
                     )
 
                     custom_result = summarize_player(
-                        selected_players[0], rows, calc_prop, calc_window,
-                        calc_mode, calc_line, calc_min, calc_max, ftext
+                        selected_players[0],
+                        rows,
+                        calc_prop,
+                        calc_window,
+                        calc_mode,
+                        calc_line,
+                        calc_min,
+                        calc_max,
+                        ftext
                     )
+
                 else:
                     compare_result = build_compare_result(
-                        selected_players, calc_role, source_df, calc_prop, calc_window,
-                        calc_mode, calc_line, calc_min, calc_max, ftext
+                        selected_players,
+                        calc_role,
+                        source_df,
+                        calc_prop,
+                        calc_window,
+                        calc_mode,
+                        calc_line,
+                        calc_min,
+                        calc_max,
+                        ftext
                     )
 
             else:
@@ -656,18 +684,40 @@ def get_common_context(active_page="calculator"):
 
                 if len(selected_players) == 1:
                     rows = build_pitcher_game_rows(
-                        source_df, selected_players[0], calc_prop, calc_window,
-                        calc_mode, calc_line, calc_min, calc_max
+                        source_df,
+                        selected_players[0],
+                        calc_prop,
+                        calc_window,
+                        calc_mode,
+                        calc_line,
+                        calc_min,
+                        calc_max
                     )
 
                     custom_result = summarize_player(
-                        selected_players[0], rows, calc_prop, calc_window,
-                        calc_mode, calc_line, calc_min, calc_max, ""
+                        selected_players[0],
+                        rows,
+                        calc_prop,
+                        calc_window,
+                        calc_mode,
+                        calc_line,
+                        calc_min,
+                        calc_max,
+                        ""
                     )
+
                 else:
                     compare_result = build_compare_result(
-                        selected_players, calc_role, source_df, calc_prop, calc_window,
-                        calc_mode, calc_line, calc_min, calc_max, ""
+                        selected_players,
+                        calc_role,
+                        source_df,
+                        calc_prop,
+                        calc_window,
+                        calc_mode,
+                        calc_line,
+                        calc_min,
+                        calc_max,
+                        ""
                     )
 
         if role == "hitter":
@@ -688,7 +738,6 @@ def get_common_context(active_page="calculator"):
             for item in leaderboard:
                 team = item.get("team", "")
                 today = datetime.now().strftime("%Y-%m-%d")
-
                 weather_key = f"{today}|{team}"
 
                 weather = weather_lookup.get(weather_key, {})
