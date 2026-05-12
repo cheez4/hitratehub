@@ -1140,28 +1140,20 @@ def safe_float(value, default=None):
         return default
 
 def load_team_weather():
-    import gspread
-    from oauth2client.service_account import ServiceAccountCredentials
 
-    SHEET_ID = "1E6kFeHjR3csmwrFVGHYjbOYCnUoEKtZ5VBIoMmDiod0"
-    CREDS_FILE = "/home/ch3353/mlb-pitchers-a51e182606da.json"
+    query = """
+    SELECT *
+    FROM mlb_game_context
+    WHERE game_date = CURRENT_DATE
+    """
 
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_FILE, scope)
-    client = gspread.authorize(creds)
-
-    ws = client.open_by_key(SHEET_ID).worksheet("api_team_weather")
-    rows = ws.get_all_records()
+    df = pd.read_sql(query, engine)
 
     weather_lookup = {}
 
-    for row in rows:
-        key = f"{row.get('game_date')}|{row.get('team_code')}"
-        weather_lookup[key] = row
+    for _, row in df.iterrows():
+        key = f"{row['game_date']}|{row['team_code']}"
+        weather_lookup[key] = row.to_dict()
 
     return weather_lookup
 
