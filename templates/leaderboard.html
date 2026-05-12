@@ -228,45 +228,47 @@
                                     <span class="lineup-badge lineup-not-listed">—</span>
                                 {% endif %}
 
-                                <td>
-    {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
+                                <tr>
+    <td>{{ loop.index }}</td>
 
-    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-        {% if lu and lu.status == "confirmed" %}
-            <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
-        {% elif lu and lu.status == "probable" %}
-            <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
-        {% else %}
-            <span class="lineup-badge lineup-not-listed">—</span>
-        {% endif %}
+    <td>
+        {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
 
-        <span>{{ row.player_name }}</span>
-    </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            {% if lu and lu.status == "confirmed" %}
+                <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+            {% elif lu and lu.status == "probable" %}
+                <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+            {% else %}
+                <span class="lineup-badge lineup-not-listed">—</span>
+            {% endif %}
 
-    {% if row.weather_display %}
-        <div class="weather-pill">
-            vs {{ row.opp_pitcher_hand }}HP • {{ row.weather_display }}
+            <span>{{ row.player_name }}</span>
         </div>
+
+        {% if row.weather_display %}
+            <div class="weather-pill">
+                vs {{ row.opp_pitcher_hand }}HP • {{ row.weather_display }}
+            </div>
+        {% endif %}
+    </td>
+
+    {% if role == "hitter" %}
+        <td>{{ row.team }}</td>
     {% endif %}
-</td>
-                            
 
-                            {% if role == "hitter" %}
-                                <td>{{ row.team }}</td>
-                            {% endif %}
+    <td>{{ row.games }}</td>
+    <td>{{ row.average }}</td>
 
-                            <td>{{ row.games }}</td>
-                            <td>{{ row.average }}</td>
-
-                            {% for t in thresholds %}
-                                {% set key = ("over_" ~ t|string|replace(".", "_")) %}
-                                {% set rec = ("record_" ~ t|string|replace(".", "_")) %}
-                                <td class="heat-cell {{ heat_class(row[key]) }}">
-                                    {{ row[key] }}
-                                    <div class="small" style="color:#e8eef8;">{{ row[rec] }}</div>
-                                </td>
-                            {% endfor %}
-                        </tr>
+    {% for t in thresholds %}
+        {% set key = ("over_" ~ t|string|replace(".", "_")) %}
+        {% set rec = ("record_" ~ t|string|replace(".", "_")) %}
+        <td class="heat-cell {{ heat_class(row[key]) }}">
+            {{ row[key] }}
+            <div class="small" style="color:#e8eef8;">{{ row[rec] }}</div>
+        </td>
+    {% endfor %}
+</tr>
                         {% else %}
                         <tr>
                             <td colspan="10" style="color:#95aac6;">No leaderboard rows found for these filters.</td>
