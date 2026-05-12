@@ -671,36 +671,46 @@ def get_common_context(active_page="calculator"):
                     )
 
         if role == "hitter":
-    thresholds = thresholds_for(role, hitter_prop)
+            thresholds = thresholds_for(role, hitter_prop)
 
-    if sort_line not in thresholds:
-        sort_line = thresholds[0]
+            if sort_line not in thresholds:
+                sort_line = thresholds[0]
 
-    leaderboard = build_hitter_leaderboard(
-        pa_df, hitter_prop, calc_window, thresholds, sort_line, leaderboard_limit
-    )
+            leaderboard = build_hitter_leaderboard(
+                pa_df,
+                hitter_prop,
+                calc_window,
+                thresholds,
+                sort_line,
+                leaderboard_limit
+            )
 
-    for item in leaderboard:
-        team = item.get("team", "")
-        today = datetime.now().strftime("%Y-%m-%d")
+            for item in leaderboard:
+                team = item.get("team", "")
+                today = datetime.now().strftime("%Y-%m-%d")
 
-        weather_key = f"{today}|{team}"
+                weather_key = f"{today}|{team}"
 
-        weather = weather_lookup.get(weather_key, {})
+                weather = weather_lookup.get(weather_key, {})
 
-        item["weather_display"] = weather.get("weather_display", "")
-        item["opp_pitcher"] = weather.get("opp_pitcher", "")
-        item["opp_pitcher_hand"] = weather.get("opp_pitcher_hand", "")
+                item["weather_display"] = weather.get("weather_display", "")
+                item["opp_pitcher"] = weather.get("opp_pitcher", "")
+                item["opp_pitcher_hand"] = weather.get("opp_pitcher_hand", "")
 
-else:
-    thresholds = thresholds_for(role, pitcher_prop)
+        else:
+            thresholds = thresholds_for(role, pitcher_prop)
 
-    if sort_line not in thresholds:
-        sort_line = thresholds[0]
+            if sort_line not in thresholds:
+                sort_line = thresholds[0]
 
-    leaderboard = build_pitcher_leaderboard(
-        pitcher_df, pitcher_prop, calc_window, thresholds, sort_line, leaderboard_limit
-    )
+            leaderboard = build_pitcher_leaderboard(
+                pitcher_df,
+                pitcher_prop,
+                calc_window,
+                thresholds,
+                sort_line,
+                leaderboard_limit
+            )
 
     except Exception as e:
         error = f"Error loading report: {e}"
