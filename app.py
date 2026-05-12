@@ -5,6 +5,7 @@ import pandas as pd
 import psycopg2
 import os
 import uuid
+from datetime import datetime
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -596,6 +597,7 @@ def get_common_context(active_page="calculator"):
     hitter_names = []
     pitcher_names = []
     lineup_map = {}
+    weather_lookup = load_team_weather()
 
     thresholds = thresholds_for(role, hitter_prop if role == "hitter" else pitcher_prop)
     sort_line = safe_float(request.args.get("sort_line", thresholds[0]), thresholds[0])
@@ -669,24 +671,36 @@ def get_common_context(active_page="calculator"):
                     )
 
         if role == "hitter":
-            thresholds = thresholds_for(role, hitter_prop)
+    thresholds = thresholds_for(role, hitter_prop)
 
-            if sort_line not in thresholds:
-                sort_line = thresholds[0]
+    if sort_line not in thresholds:
+        sort_line = thresholds[0]
 
-            leaderboard = build_hitter_leaderboard(
-                pa_df, hitter_prop, calc_window, thresholds, sort_line, leaderboard_limit
-            )
+    leaderboard = build_hitter_leaderboard(
+        pa_df, hitter_prop, calc_window, thresholds, sort_line, leaderboard_limit
+    )
 
-        else:
-            thresholds = thresholds_for(role, pitcher_prop)
+    for item in leaderboard:
+        team = item.get("team", "")
+        today = datetime.now().strftime("%Y-%m-%d")
 
-            if sort_line not in thresholds:
-                sort_line = thresholds[0]
+        weather_key = f"{today}|{team}"
 
-            leaderboard = build_pitcher_leaderboard(
-                pitcher_df, pitcher_prop, calc_window, thresholds, sort_line, leaderboard_limit
-            )
+        weather = weather_lookup.get(weather_key, {})
+
+        item["weather_display"] = weather.get("weather_display", "")
+        item["opp_pitcher"] = weather.get("opp_pitcher", "")
+        item["opp_pitcher_hand"] = weather.get("opp_pitcher_hand", "")
+
+else:
+    thresholds = thresholds_for(role, pitcher_prop)
+
+    if sort_line not in thresholds:
+        sort_line = thresholds[0]
+
+    leaderboard = build_pitcher_leaderboard(
+        pitcher_df, pitcher_prop, calc_window, thresholds, sort_line, leaderboard_limit
+    )
 
     except Exception as e:
         error = f"Error loading report: {e}"
@@ -1065,6 +1079,32 @@ def safe_float(value, default=None):
         return float(value)
     except Exception:
         return default
+
+def load_team_weather():
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    SHEET_ID = "1E6kFeHjR3csmwrFVGHYjbOYCnUoEKtZ5VBIoMmDiod0"
+    CREDS_FILE = "/home/ch3353/mlb-pitchers-a51e182606da.json"
+
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
+    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_FILE, scope)
+    client = gspread.authorize(creds)
+
+    ws = client.open_by_key(SHEET_ID).worksheet("api_team_weather")
+    rows = ws.get_all_records()
+
+    weather_lookup = {}
+
+    for row in rows:
+        key = f"{row.get('game_date')}|{row.get('team_code')}"
+        weather_lookup[key] = row
+
+    return weather_lookup
 
 @app.route("/")
 def index():
