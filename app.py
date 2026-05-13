@@ -422,10 +422,78 @@ def summarize_player(player_name, rows, prop, window, mode, line, min_value, max
         "best_miss_streak": streaks["best_miss_streak"],
     }
 
+def prop_to_odds_prop(prop):
+    mapping = {
+        "hits": "HITS",
+        "total_bases": "TB",
+        "home_runs": "HR",
+        "runs": "RUNS",
+        "rbi": "RBI",
+        "strikeouts": "SO"
+    }
+    return mapping.get(prop, prop.upper())
+
+def american_to_implied_prob(odds):
+    try:
+        odds = int(odds)
+    except Exception:
+        return None
+
+    if odds > 0:
+        return round((100 / (odds + 100)) * 100, 1)
+
+    return round((abs(odds) / (abs(odds) + 100)) * 100, 1)
+
+def get_closing_odds_lookup(players, prop):
+    if not players:
+        return {}
+
+    odds_prop = prop_to_odds_prop(prop)
+
+    placeholders = ",".join(["%s"] * len(players))
+
+    query = f"""
+        SELECT
+            player,
+            DATE(starttime) AS game_date,
+            odds,
+            sportsbook,
+            line
+        FROM closing_odds
+        WHERE player IN ({placeholders})
+          AND prop = %s
+          AND sportsbook = 'fanduel'
+          AND ou = 'over'
+          AND ismain = 1
+    """
+
+    params = players + [odds_prop]
+
+    df = read_sql(query, params)
+
+    lookup = {}
+
+    for _, row in df.iterrows():
+        key = (
+            str(row["player"]).strip(),
+            str(row["game_date"])
+        )
+
+        implied = american_to_implied_prob(row["odds"])
+
+        lookup[key] = {
+            "odds": int(row["odds"]),
+            "sportsbook": row["sportsbook"],
+            "line": float(row["line"]) if row["line"] is not None else None,
+            "implied_prob": implied
+        }
+
+    return lookup
 
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext):
     summaries = []
     rows_by_player = {}
+    odds_lookup = get_closing_odds_lookup(players, prop) if role == "hitter" else {}
 
     for player_name in players:
         if role == "hitter":
