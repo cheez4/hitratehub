@@ -294,20 +294,44 @@
                         </div>
 
                         <div class="summary-stats">
-                            <div class="summary-stat">
-                                <div class="big">{{ p.hit_rate }}%</div>
-                                <div class="lab">Match Rate</div>
-                            </div>
-                            <div class="summary-stat">
-                                <div class="big">{{ p.hits }}/{{ p.games }}</div>
-                                <div class="lab">Record</div>
-                            </div>
-                        </div>
+    <div class="summary-stat">
+        <div class="big">{{ p.hit_rate }}%</div>
+        <div class="lab">Match Rate</div>
+    </div>
 
-                        <div class="summary-stat">
-                            <div class="big">{{ p.average }}</div>
-                            <div class="lab">Average</div>
-                        </div>
+    <div class="summary-stat">
+        <div class="big">{{ p.hits }}/{{ p.games }}</div>
+        <div class="lab">Record</div>
+    </div>
+
+    <div class="summary-stat">
+        {% if p.current_streak_type == "hit" %}
+            <div class="big">🔥 {{ p.current_streak_count }}</div>
+            <div class="lab">Hit Streak</div>
+        {% elif p.current_streak_type == "miss" %}
+            <div class="big">❄️ {{ p.current_streak_count }}</div>
+            <div class="lab">Miss Streak</div>
+        {% else %}
+            <div class="big">—</div>
+            <div class="lab">Streak</div>
+        {% endif %}
+    </div>
+
+    <div class="summary-stat">
+        <div class="big">{{ p.best_hit_streak }}</div>
+        <div class="lab">Best Hit</div>
+    </div>
+
+    <div class="summary-stat">
+        <div class="big">{{ p.best_miss_streak }}</div>
+        <div class="lab">Worst Miss</div>
+    </div>
+
+    <div class="summary-stat">
+        <div class="big">{{ p.average }}</div>
+        <div class="lab">Average</div>
+    </div>
+</div>
 
                         <div class="mini-bar">
                             <span style="width: {{ p.hit_rate }}%;"></span>
