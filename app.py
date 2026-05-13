@@ -533,11 +533,15 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
 
                 if isinstance(row, pd.DataFrame):
                     row = row.iloc[0]
+                odds_data = odds_lookup.get((player_name, game_date), {})
 
                 player_cells.append({
                     "played": True,
                     "stat_value": float(row["stat_value"]) if not pd.isna(row["stat_value"]) else 0,
-                    "hit": bool(row["hit"])
+                    "hit": bool(row["hit"]),
+                    "odds": odds_data.get("odds"),
+                    "odds_line": odds_data.get("line"),
+                    "implied_prob": odds_data.get("implied_prob")
                 })
 
         compare_rows.append({

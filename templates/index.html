@@ -359,13 +359,26 @@
                                 {% for pdata in row.players %}
                                     <td>
                                         {% if pdata.played %}
-                                            <div>{{ pdata.stat_value }}</div>
-                                            {% if pdata.hit %}
-                                                <div class="small"><span class="match-pill hit-pill">Match</span></div>
-                                            {% else %}
-                                                <div class="small"><span class="match-pill miss-pill">Miss</span></div>
-                                            {% endif %}
-                                        {% else %}
+
+    <div>{{ pdata.stat_value }}</div>
+
+    {% if pdata.odds %}
+        <div style="font-size:12px; color:#8ecbff; margin-top:4px;">
+            {{ pdata.odds }}
+        </div>
+
+        <div style="font-size:11px; color:#7dffb3;">
+            {{ pdata.implied_prob }}%
+        </div>
+    {% endif %}
+
+    {% if pdata.hit %}
+        <div class="small"><span class="match-pill hit-pill">Match</span></div>
+    {% else %}
+        <div class="small"><span class="match-pill miss-pill">Miss</span></div>
+    {% endif %}
+
+{% else %}
                                             <span class="no-game">—</span>
                                         {% endif %}
                                     </td>
