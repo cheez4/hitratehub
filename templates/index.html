@@ -399,15 +399,39 @@
                         </div>
 
                         <div class="summary-stats">
-                            <div class="summary-stat">
-                                <div class="big">{{ custom_result.hit_rate }}%</div>
-                                <div class="lab">Match Rate</div>
-                            </div>
-                            <div class="summary-stat">
-                                <div class="big">{{ custom_result.hits }}/{{ custom_result.games }}</div>
-                                <div class="lab">Record</div>
-                            </div>
-                        </div>
+    <div class="summary-stat">
+        <div class="big">{{ custom_result.hit_rate }}%</div>
+        <div class="lab">Match Rate</div>
+    </div>
+
+    <div class="summary-stat">
+        <div class="big">{{ custom_result.hits }}/{{ custom_result.games }}</div>
+        <div class="lab">Record</div>
+    </div>
+
+    <div class="summary-stat">
+        {% if custom_result.current_streak_type == "hit" %}
+            <div class="big">🔥 {{ custom_result.current_streak_count }}</div>
+            <div class="lab">Hit Streak</div>
+        {% elif custom_result.current_streak_type == "miss" %}
+            <div class="big">❄️ {{ custom_result.current_streak_count }}</div>
+            <div class="lab">Miss Streak</div>
+        {% else %}
+            <div class="big">—</div>
+            <div class="lab">Streak</div>
+        {% endif %}
+    </div>
+
+    <div class="summary-stat">
+        <div class="big">{{ custom_result.best_hit_streak }}</div>
+        <div class="lab">Best Hit</div>
+    </div>
+
+    <div class="summary-stat">
+        <div class="big">{{ custom_result.best_miss_streak }}</div>
+        <div class="lab">Worst Miss</div>
+    </div>
+</div>
 
                         <div class="summary-stat">
                             <div class="big">{{ custom_result.average }}</div>

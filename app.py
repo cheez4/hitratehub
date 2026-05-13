@@ -81,6 +81,46 @@ def get_compare_players_from_request():
 
     return players
 
+def calculate_streaks(results):
+    if not results:
+        return {
+            "current_streak_type": "-",
+            "current_streak_count": 0,
+            "best_hit_streak": 0,
+            "best_miss_streak": 0,
+        }
+
+    first = results[0]
+    current_count = 0
+
+    for r in results:
+        if r == first:
+            current_count += 1
+        else:
+            break
+
+    best_hit = 0
+    best_miss = 0
+    cur_hit = 0
+    cur_miss = 0
+
+    for r in results:
+        if r:
+            cur_hit += 1
+            cur_miss = 0
+        else:
+            cur_miss += 1
+            cur_hit = 0
+
+        best_hit = max(best_hit, cur_hit)
+        best_miss = max(best_miss, cur_miss)
+
+    return {
+        "current_streak_type": "hit" if first else "miss",
+        "current_streak_count": current_count,
+        "best_hit_streak": best_hit,
+        "best_miss_streak": best_miss,
+    }
 
 @cache.cached(timeout=300, key_prefix="pa_data")
 def get_pa_data():
@@ -358,6 +398,10 @@ def summarize_player(player_name, rows, prop, window, mode, line, min_value, max
                 "hit": bool(item["hit"])
             })
 
+    results = rows["hit"].tolist() if "hit" in rows.columns else []
+
+    streaks = calculate_streaks(results)
+
     return {
         "player_name": player_name,
         "prop_type": prop,
@@ -372,6 +416,10 @@ def summarize_player(player_name, rows, prop, window, mode, line, min_value, max
         "average": avg,
         "recent_games": recent_games,
         "filter_text": ftext
+        "current_streak_type": streaks["current_streak_type"],
+        "current_streak_count": streaks["current_streak_count"],
+        "best_hit_streak": streaks["best_hit_streak"],
+        "best_miss_streak": streaks["best_miss_streak"],
     }
 
 

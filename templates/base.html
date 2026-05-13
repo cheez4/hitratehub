@@ -710,6 +710,34 @@
     color:white;
 }
 
+.streak-box {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.streak-badge,
+.mini-streak {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.08);
+}
+
+.streak-badge.hit {
+    color: #22c55e;
+    background: rgba(34,197,94,0.14);
+}
+
+.streak-badge.miss {
+    color: #ef4444;
+    background: rgba(239,68,68,0.14);
+}
+
 .lineup-badge{
     display:inline-flex;
     align-items:center;
