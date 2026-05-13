@@ -415,7 +415,7 @@ def summarize_player(player_name, rows, prop, window, mode, line, min_value, max
         "games": games,
         "average": avg,
         "recent_games": recent_games,
-        "filter_text": ftext
+        "filter_text": ftext,
         "current_streak_type": streaks["current_streak_type"],
         "current_streak_count": streaks["current_streak_count"],
         "best_hit_streak": streaks["best_hit_streak"],
