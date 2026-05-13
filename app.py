@@ -736,11 +736,9 @@ def get_common_context(active_page="calculator"):
             )
 
             for item in leaderboard:
-                team = item.get("team", "")
-                today = datetime.now().strftime("%Y-%m-%d")
-                weather_key = f"{today}|{team}"
+                team = str(item.get("team", "")).strip()
 
-                weather = weather_lookup.get(weather_key, {})
+                weather = weather_lookup.get(team, {})
 
                 item["weather_display"] = weather.get("weather_display", "")
                 item["opp_pitcher"] = weather.get("opp_pitcher", "")
@@ -1146,24 +1144,24 @@ def load_team_weather():
     query = """
     SELECT *
     FROM mlb_game_context
-    WHERE game_date = CURRENT_DATE
+    WHERE game_date = (
+        SELECT MAX(game_date)
+        FROM mlb_game_context
+    )
     """
 
     try:
         df = pd.read_sql(query, conn)
-
     finally:
         conn.close()
 
     weather_lookup = {}
 
     for _, row in df.iterrows():
+        team_code = str(row["team_code"]).strip()
+        weather_lookup[team_code] = row.to_dict()
 
-        game_date = str(row["game_date"])[:10]
-
-        key = f"{game_date}|{row['team_code']}"
-
-        weather_lookup[key] = row.to_dict()
+    print("Weather teams loaded:", list(weather_lookup.keys()))
 
     return weather_lookup
 
