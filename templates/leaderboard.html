@@ -214,21 +214,7 @@
 
                     <tbody>
                         {% for row in leaderboard %}
-                        <tr>
-                            <td>{{ loop.index }}</td>
-
-                            <td>
-                                {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
-
-                                {% if lu and lu.status == "confirmed" %}
-                                    <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
-                                {% elif lu and lu.status == "probable" %}
-                                    <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
-                                {% else %}
-                                    <span class="lineup-badge lineup-not-listed">—</span>
-                                {% endif %}
-
-                                <tr>
+<tr>
     <td>{{ loop.index }}</td>
 
     <td>

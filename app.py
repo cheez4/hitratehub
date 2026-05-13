@@ -1141,18 +1141,28 @@ def safe_float(value, default=None):
 
 def load_team_weather():
 
+    conn = get_conn()
+
     query = """
     SELECT *
     FROM mlb_game_context
     WHERE game_date = CURRENT_DATE
     """
 
-    df = pd.read_sql(query, engine)
+    try:
+        df = pd.read_sql(query, conn)
+
+    finally:
+        conn.close()
 
     weather_lookup = {}
 
     for _, row in df.iterrows():
-        key = f"{row['game_date']}|{row['team_code']}"
+
+        game_date = str(row["game_date"])[:10]
+
+        key = f"{game_date}|{row['team_code']}"
+
         weather_lookup[key] = row.to_dict()
 
     return weather_lookup
