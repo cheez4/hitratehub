@@ -746,7 +746,7 @@ def get_common_context(active_page="calculator"):
     calc_line = safe_float(request.args.get("calc_line", 0.5), 0.5)
     calc_min = safe_float(request.args.get("calc_min", 0), 0)
     calc_max = safe_float(request.args.get("calc_max", 0), 0)
-
+    
     hitter_prop = request.args.get("hitter_prop", calc_prop if calc_role == "hitter" else "hits")
     pitcher_prop = request.args.get("pitcher_prop", calc_prop if calc_role == "pitcher" else "strikeouts")
 
@@ -758,7 +758,7 @@ def get_common_context(active_page="calculator"):
 
     leaderboard_limit = safe_int(request.args.get("leaderboard_limit", 50), 50)
     lineup_filter = request.args.get("lineup_filter", "all")
-
+    compare_values = get_compare_values()
     custom_result = None
     compare_result = None
     leaderboard = []
@@ -771,7 +771,7 @@ def get_common_context(active_page="calculator"):
     thresholds = thresholds_for(role, hitter_prop if role == "hitter" else pitcher_prop)
     sort_line = safe_float(request.args.get("sort_line", thresholds[0]), thresholds[0])
     ftext = filter_text(vs_team, vs_hand)
-
+      
     try:
         hitter_names = get_hitter_names()
         pitcher_names = get_pitcher_names()
@@ -933,6 +933,7 @@ def get_common_context(active_page="calculator"):
 
     return {
         "active_page": active_page,
+        "compare_values": compare_values,
         "error": error,
         "custom_result": custom_result,
         "compare_result": compare_result,
