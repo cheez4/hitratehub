@@ -322,15 +322,15 @@
 
 <div class="summary-stat">
     <div class="big
-        {% if p.edge_diff >= 10 %}
-            edge-heavy-positive
-        {% elif p.edge_diff >= 5 %}
-            edge-positive
-        {% elif p.edge_diff <= -10 %}
-            edge-heavy-negative
-        {% elif p.edge_diff <= -5 %}
-            edge-negative
-        {% endif %}
+        {% if p.edge_diff is not none and p.edge_diff >= 10 %}
+    edge-heavy-positive
+{% elif p.edge_diff is not none and p.edge_diff >= 5 %}
+    edge-positive
+{% elif p.edge_diff is not none and p.edge_diff <= -10 %}
+    edge-heavy-negative
+{% elif p.edge_diff is not none and p.edge_diff <= -5 %}
+    edge-negative
+{% endif %}
     ">
         {{ p.edge_label }}
     </div>
