@@ -298,7 +298,44 @@
         <div class="big">{{ p.hit_rate }}%</div>
         <div class="lab">Match Rate</div>
     </div>
+<div class="summary-stat">
+    <div class="big">
+        {% if p.current_odds %}
+            {{ p.current_odds }}
+        {% else %}
+            —
+        {% endif %}
+    </div>
+    <div class="lab">Current Odds</div>
+</div>
 
+<div class="summary-stat">
+    <div class="big">
+        {% if p.implied_prob %}
+            {{ p.implied_prob }}%
+        {% else %}
+            —
+        {% endif %}
+    </div>
+    <div class="lab">Implied</div>
+</div>
+
+<div class="summary-stat">
+    <div class="big
+        {% if p.edge_diff >= 10 %}
+            edge-heavy-positive
+        {% elif p.edge_diff >= 5 %}
+            edge-positive
+        {% elif p.edge_diff <= -10 %}
+            edge-heavy-negative
+        {% elif p.edge_diff <= -5 %}
+            edge-negative
+        {% endif %}
+    ">
+        {{ p.edge_label }}
+    </div>
+    <div class="lab">Edge</div>
+</div>
     <div class="summary-stat">
         <div class="big">{{ p.hits }}/{{ p.games }}</div>
         <div class="lab">Record</div>
@@ -686,6 +723,29 @@
         downloadImage(id, "hitratehub-share.png");
     }
 
+.edge-heavy-positive {
+    color: #00ff99 !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.edge-positive {
+    color: #7dff9b !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.edge-negative {
+    color: #ffb347 !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.edge-heavy-negative {
+    color: #ff5c5c !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
     function copyBestImage() {
         const id = getBestShareAreaId();
         if (!id) {

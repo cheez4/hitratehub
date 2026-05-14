@@ -420,6 +420,11 @@ def summarize_player(player_name, rows, prop, window, mode, line, min_value, max
         "current_streak_count": streaks["current_streak_count"],
         "best_hit_streak": streaks["best_hit_streak"],
         "best_miss_streak": streaks["best_miss_streak"],
+
+        "current_odds": None,
+        "implied_prob": None,
+        "edge_diff": None,
+        "edge_label": "⚖️ Fair Price",
     }
 
 def prop_to_odds_prop(prop):
@@ -504,6 +509,41 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
         summaries.append(
             summarize_player(player_name, rows, prop, window, mode, line, min_value, max_value, ftext)
         )
+latest_odds = None
+
+player_odds = [
+    v for (p, d), v in odds_lookup.items()
+    if p == player_name
+]
+
+if player_odds:
+    latest_odds = player_odds[0]
+
+if latest_odds:
+
+    summaries[-1]["current_odds"] = latest_odds.get("odds")
+    summaries[-1]["implied_prob"] = latest_odds.get("implied_prob")
+
+    match_rate = summaries[-1]["hit_rate"]
+    implied_prob = latest_odds.get("implied_prob")
+
+    if implied_prob is not None:
+
+        edge_diff = round(match_rate - implied_prob, 1)
+
+        summaries[-1]["edge_diff"] = edge_diff
+
+        if edge_diff >= 10:
+            summaries[-1]["edge_label"] = "🔥 Heavy Overpriced"
+
+        elif edge_diff >= 5:
+            summaries[-1]["edge_label"] = "✅ Overpriced"
+
+        elif edge_diff <= -10:
+            summaries[-1]["edge_label"] = "❌ Heavy Underpriced"
+
+        elif edge_diff <= -5:
+            summaries[-1]["edge_label"] = "⚠️ Underpriced"
 
         rows_by_player[player_name] = rows.set_index("game_date") if not rows.empty else rows
 
@@ -535,14 +575,41 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
                     row = row.iloc[0]
                 odds_data = odds_lookup.get((player_name, game_date), {})
 
+                match_rate = summaries[len(player_cells)]["hit_rate"]
+
+  	        implied_prob = odds_data.get("implied_prob")
+
+                edge_diff = None
+                edge_label = "⚖️ Fair Price"
+
+                if implied_prob is not None:
+
+                    edge_diff = round(match_rate - implied_prob, 1)
+
+                    if edge_diff >= 10:
+                        edge_label = "🔥 Heavy Overpriced"
+
+                    elif edge_diff >= 5:
+                        edge_label = "✅ Overpriced"
+
+                    elif edge_diff <= -10:
+                        edge_label = "❌ Heavy Underpriced"
+
+                    elif edge_diff <= -5:
+                        edge_label = "⚠️ Underpriced"
+ 
                 player_cells.append({
                     "played": True,
                     "stat_value": float(row["stat_value"]) if not pd.isna(row["stat_value"]) else 0,
                     "hit": bool(row["hit"]),
+
                     "odds": odds_data.get("odds"),
                     "odds_line": odds_data.get("line"),
-                    "implied_prob": odds_data.get("implied_prob")
-                })
+                    "implied_prob": implied_prob,
+
+                    "edge_diff": edge_diff,
+                    "edge_label": edge_label
+    })
 
         compare_rows.append({
             "game_date": game_date,
