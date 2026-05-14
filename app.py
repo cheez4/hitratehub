@@ -577,7 +577,7 @@ if latest_odds:
 
                 match_rate = summaries[len(player_cells)]["hit_rate"]
 
-  	        implied_prob = odds_data.get("implied_prob")
+                implied_prob = odds_data.get("implied_prob")
 
                 edge_diff = None
                 edge_label = "⚖️ Fair Price"
