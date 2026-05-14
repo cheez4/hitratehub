@@ -506,48 +506,37 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
         else:
             rows = build_pitcher_game_rows(source_df, player_name, prop, window, mode, line, min_value, max_value)
 
-        summaries.append(
-            summarize_player(player_name, rows, prop, window, mode, line, min_value, max_value, ftext)
-        )
-latest_odds = None
+        summary = summarize_player(player_name, rows, prop, window, mode, line, min_value, max_value, ftext)
 
-player_odds = [
-    v for (p, d), v in odds_lookup.items()
-    if p == player_name
-]
+        player_odds = [
+            v for (p, d), v in odds_lookup.items()
+            if p == player_name
+        ]
 
-if player_odds:
-    latest_odds = player_odds[0]
+        if player_odds:
+            latest_odds = player_odds[0]
+            summary["current_odds"] = latest_odds.get("odds")
+            summary["implied_prob"] = latest_odds.get("implied_prob")
 
-if latest_odds:
+            implied_prob = latest_odds.get("implied_prob")
 
-    summaries[-1]["current_odds"] = latest_odds.get("odds")
-    summaries[-1]["implied_prob"] = latest_odds.get("implied_prob")
+            if implied_prob is not None:
+                edge_diff = round(summary["hit_rate"] - implied_prob, 1)
+                summary["edge_diff"] = edge_diff
 
-    match_rate = summaries[-1]["hit_rate"]
-    implied_prob = latest_odds.get("implied_prob")
+                if edge_diff >= 10:
+                    summary["edge_label"] = "🔥 Heavy Overpriced"
+                elif edge_diff >= 5:
+                    summary["edge_label"] = "✅ Overpriced"
+                elif edge_diff <= -10:
+                    summary["edge_label"] = "❌ Heavy Underpriced"
+                elif edge_diff <= -5:
+                    summary["edge_label"] = "⚠️ Underpriced"
 
-    if implied_prob is not None:
-
-        edge_diff = round(match_rate - implied_prob, 1)
-
-        summaries[-1]["edge_diff"] = edge_diff
-
-        if edge_diff >= 10:
-            summaries[-1]["edge_label"] = "🔥 Heavy Overpriced"
-
-        elif edge_diff >= 5:
-            summaries[-1]["edge_label"] = "✅ Overpriced"
-
-        elif edge_diff <= -10:
-            summaries[-1]["edge_label"] = "❌ Heavy Underpriced"
-
-        elif edge_diff <= -5:
-            summaries[-1]["edge_label"] = "⚠️ Underpriced"
-
+        summaries.append(summary)
         rows_by_player[player_name] = rows.set_index("game_date") if not rows.empty else rows
 
-        all_dates = sorted(
+    all_dates = sorted(
         set().union(*[
             set(rows.index.tolist()) for rows in rows_by_player.values() if not rows.empty
         ]),
@@ -617,7 +606,6 @@ if latest_odds:
         "window": window,
         "filter_text": ftext
     }
-
 
 def thresholds_for(role, prop):
     if role == "pitcher":
