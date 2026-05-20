@@ -833,6 +833,17 @@ def get_common_context(active_page="calculator"):
                         calc_max,
                         ftext
                     )
+                    conn = get_conn()
+
+                    try:
+                        custom_result["pa_breakdown"] = get_pa_props_breakdown(
+                            conn,
+                            selected_players[0],
+                            rolling_games=calc_window,
+                            season=2026
+                        )
+                    finally:
+                        conn.close()
 
                 else:
                     compare_result = build_compare_result(
@@ -1145,6 +1156,74 @@ def build_combo_context():
         "combo_limit": combo_limit,
         "lineup_map": lineup_map
     }
+
+def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, season=2026):
+    sql = """
+    WITH recent_games AS (
+        SELECT DISTINCT game_date
+        FROM mlb_pa_gamelog
+        WHERE batter_name = %(player)s
+          AND season = %(season)s
+        ORDER BY game_date DESC
+        LIMIT %(rolling_games)s
+    ),
+    pa_rows AS (
+        SELECT
+            game_date,
+            batter_name,
+            pa_index,
+            CASE
+                WHEN bb = 1 OR hbp = 1 THEN 'Walk/HBP'
+                WHEN single = 1 THEN 'Single'
+                WHEN double = 1 OR triple = 1 OR hr = 1 THEN 'XBH'
+                WHEN so = 1 THEN 'SO'
+                WHEN ab = 1 AND h = 0 THEN 'Other Out'
+                ELSE 'Other'
+            END AS result_bucket
+        FROM mlb_pa_gamelog
+        WHERE batter_name = %(player)s
+          AND season = %(season)s
+          AND game_date IN (SELECT game_date FROM recent_games)
+    )
+    SELECT
+        CASE
+            WHEN pa_index = 1 THEN '1st PA'
+            WHEN pa_index = 2 THEN '2nd PA'
+            WHEN pa_index = 3 THEN '3rd PA'
+            WHEN pa_index = 4 THEN '4th PA'
+            ELSE '5+ PA'
+        END AS pa_slot,
+        result_bucket,
+        COUNT(*) AS hits,
+        COUNT(DISTINCT game_date) AS games_with_result,
+        (SELECT COUNT(*) FROM recent_games) AS games_sample
+    FROM pa_rows
+    WHERE result_bucket IN ('Walk/HBP', 'Single', 'XBH', 'SO', 'Other Out')
+    GROUP BY pa_slot, result_bucket
+    ORDER BY pa_slot, result_bucket;
+    """
+
+    df = pd.read_sql(sql, conn, params={
+        "player": player_name,
+        "season": season,
+        "rolling_games": rolling_games
+    })
+
+    rows = []
+    for _, r in df.iterrows():
+        games = int(r["games_sample"] or 0)
+        count = int(r["hits"] or 0)
+
+        rows.append({
+            "pa_slot": r["pa_slot"],
+            "result": r["result_bucket"],
+            "count": count,
+            "games": games,
+            "avg": round(count / games, 3) if games else 0,
+            "hit_rate": round((count / games) * 100, 1) if games else 0
+        })
+
+    return rows
 
 @app.route("/api/odds/snapshot", methods=["POST"])
 def odds_snapshot():

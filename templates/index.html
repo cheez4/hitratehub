@@ -514,7 +514,33 @@
 
                         <div class="mini-bar">
                             <span style="width: {{ custom_result.hit_rate }}%;"></span>
-                        </div>
+</div>
+<details class="pa-breakdown">
+    <summary>PA Props Breakdown</summary>
+
+    <table class="pa-table">
+        <thead>
+            <tr>
+                <th>PA</th>
+                <th>Result</th>
+                <th>Avg</th>
+                <th>Hit Rate</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for row in custom_result.pa_breakdown %}
+            <tr>
+                <td>{{ row.pa_slot }}</td>
+                <td>{{ row.result }}</td>
+                <td>{{ row.avg }}</td>
+                <td>{{ row.hit_rate }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</details>
+                        
                     </div>
                 </div>
 
@@ -634,6 +660,38 @@
 .ts-control input::placeholder {
     color: #92a9c7 !important;
 }
+
+.pa-breakdown {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #111827;
+}
+
+.pa-breakdown summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: white;
+}
+
+.pa-table {
+    width: 100%;
+    margin-top: 8px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pa-table th,
+.pa-table td {
+    padding: 6px;
+    border-bottom: 1px solid #2d3748;
+    text-align: center;
+}
+
+.pa-table th {
+    color: #9ca3af;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
