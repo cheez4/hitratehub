@@ -1204,11 +1204,11 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
     WHERE result_bucket IN ('Walk/HBP', 'Single', 'XBH', 'SO', 'Other Out')
     GROUP BY pa_slot, result_bucket
     ORDER BY
-        CASE pa_slot
-            WHEN '1st PA' THEN 1
-            WHEN '2nd PA' THEN 2
-            WHEN '3rd PA' THEN 3
-            WHEN '4th PA' THEN 4
+        CASE
+            WHEN MIN(pa_number) = 1 THEN 1
+            WHEN MIN(pa_number) = 2 THEN 2
+            WHEN MIN(pa_number) = 3 THEN 3
+            WHEN MIN(pa_number) = 4 THEN 4
             ELSE 5
         END,
         result_bucket;
