@@ -1163,7 +1163,7 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
         SELECT DISTINCT game_date
         FROM mlb_pa_gamelog
         WHERE batter_name = %(player)s
-          AND season = %(season)s
+          AND season = %(season)s::text
         ORDER BY game_date DESC
         LIMIT %(rolling_games)s
     ),
@@ -1182,7 +1182,7 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
             END AS result_bucket
         FROM mlb_pa_gamelog
         WHERE batter_name = %(player)s
-          AND season = %(season)s
+          AND season = %(season)s::text
           AND game_date IN (SELECT game_date FROM recent_games)
     )
     SELECT
