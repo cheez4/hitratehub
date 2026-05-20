@@ -1171,7 +1171,10 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
         SELECT
             game_date,
             batter_name,
-            pa_index,
+            ROW_NUMBER() OVER (
+                PARTITION BY game_date, batter_name
+                ORDER BY pa_index
+            ) AS pa_number,
             CASE
                 WHEN bb = 1 OR hbp = 1 THEN 'Walk/HBP'
                 WHEN single = 1 THEN 'Single'
@@ -1187,10 +1190,10 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
     )
     SELECT
         CASE
-            WHEN pa_index = 1 THEN '1st PA'
-            WHEN pa_index = 2 THEN '2nd PA'
-            WHEN pa_index = 3 THEN '3rd PA'
-            WHEN pa_index = 4 THEN '4th PA'
+            WHEN pa_number = 1 THEN '1st PA'
+            WHEN pa_number = 2 THEN '2nd PA'
+            WHEN pa_number = 3 THEN '3rd PA'
+            WHEN pa_number = 4 THEN '4th PA'
             ELSE '5+ PA'
         END AS pa_slot,
         result_bucket,
@@ -1200,7 +1203,15 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
     FROM pa_rows
     WHERE result_bucket IN ('Walk/HBP', 'Single', 'XBH', 'SO', 'Other Out')
     GROUP BY pa_slot, result_bucket
-    ORDER BY pa_slot, result_bucket;
+    ORDER BY
+        CASE pa_slot
+            WHEN '1st PA' THEN 1
+            WHEN '2nd PA' THEN 2
+            WHEN '3rd PA' THEN 3
+            WHEN '4th PA' THEN 4
+            ELSE 5
+        END,
+        result_bucket;
     """
 
     df = pd.read_sql(sql, conn, params={
