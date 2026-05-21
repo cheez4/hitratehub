@@ -72,7 +72,7 @@
                                 {% for i in range(1, 4) %}
                                 <div class="field">
                                     <label>Player {{ i }}</label>
-                                    <select class="player-search" name="{{ 'calc_player' if i == 1 else 'calc_compare_' ~ i }}">
+                                    <select class="player-select"name="{{ 'calc_player' if i == 1 else 'calc_compare_' ~ i }}">
                                         <option value="">Select Player</option>
 
                                         {% for name in hitter_names %}
@@ -124,7 +124,7 @@
                                     {% for i in range(4, 11) %}
                                     <div class="field">
                                         <label>Player {{ i }}</label>
-                                        <select class="player-search" name="calc_compare_{{ i }}">
+                                        <select class="player-select" name="calc_compare_{{ i }}">
                                             <option value="">Select Player</option>
 
                                             {% for name in hitter_names %}
@@ -171,6 +171,15 @@
             <option value="L" {% if vs_hand == "L" %}selected{% endif %}>Vs LHP</option>
         </select>
     </div>
+
+<div class="field">
+    <label>Day/Night</label>
+    <select name="day_night">
+        <option value="" {% if day_night == "" %}selected{% endif %}>All Games</option>
+        <option value="day" {% if day_night == "day" %}selected{% endif %}>Day</option>
+        <option value="night" {% if day_night == "night" %}selected{% endif %}>Night</option>
+    </select>
+</div>
 
     <div class="field">
         <label>Day of Week</label>
@@ -228,7 +237,7 @@
                                     {% for i in range(4, 11) %}
                                     <div class="field">
                                         <label>Player {{ i }}</label>
-                                        <select class="player-search" name="calc_compare_{{ i }}">
+                                        <select class="player-select" name="calc_compare_{{ i }}">
                                             <option value="">Select Player</option>
                                             {% for name in pitcher_names %}
                                                 {% set field_name = 'calc_compare_' ~ i %}
@@ -848,26 +857,33 @@
 </script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-    document.querySelectorAll(".player-search").forEach(function (el) {
-        if (isIOS) {
-            return; // use normal iPhone dropdown
+    document.querySelectorAll(".player-select").forEach((el) => {
+        if (el.tomselect) {
+            el.tomselect.destroy();
         }
 
-        if (!el.tomselect) {
-            new TomSelect(el, {
-                create: false,
-                allowEmptyOption: true,
-                maxOptions: 5000,
-                searchField: ['text'],
-                openOnFocus: true,
-                sortField: {
-                    field: "text",
-                    direction: "asc"
-                }
-            });
-        }
+        new TomSelect(el, {
+            create: false,
+            maxOptions: 50,
+            dropdownParent: "body",
+            openOnFocus: false,
+
+            onFocus: function () {
+                document.querySelectorAll(".player-select").forEach((other) => {
+                    if (other !== el && other.tomselect) {
+                        other.tomselect.close();
+                    }
+                });
+            },
+
+            onChange: function () {
+                this.close();
+
+                setTimeout(() => {
+                    this.blur();
+                }, 100);
+            }
+        });
     });
-});</script>
-{% endblock %}
+});
+</script>{% endblock %}

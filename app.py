@@ -264,7 +264,7 @@ def calculate_pitcher_stat(df, prop):
     return pd.Series([0] * len(df), index=df.index)
 
 
-def filter_hitter_df(df, vs_team="", vs_hand=""):
+def filter_hitter_df(df, vs_team="", vs_hand="", day_night=""):
     out = df
 
     if vs_team:
@@ -272,6 +272,9 @@ def filter_hitter_df(df, vs_team="", vs_hand=""):
 
     if vs_hand:
         out = out[out["pitcher_hand"].astype(str).str.upper() == vs_hand.upper()]
+
+    if day_night:
+        out = out[out["day_night"].astype(str).str.lower() == day_night]
 
     return out
 
@@ -306,7 +309,7 @@ def apply_lineup_filter(df, lineup_map, lineup_filter):
     ].drop(columns=["_name_key"])
 
 
-def filter_text(vs_team="", vs_hand="", weekday="all"):
+def filter_text(vs_team="", vs_hand="", weekday="all", day_night=""):
     parts = []
 
     if vs_team:
@@ -316,6 +319,12 @@ def filter_text(vs_team="", vs_hand="", weekday="all"):
         parts.append("Vs RHP")
     elif vs_hand == "L":
         parts.append("Vs LHP")
+
+    if day_night == "day":
+        parts.append("Day Games")
+
+    elif day_night == "night":
+        parts.append("Night Games")
 
     weekday_names = {
         "0": "Monday",
@@ -769,6 +778,8 @@ def get_common_context(active_page="calculator"):
     vs_team = clean_text(request.args.get("vs_team", ""))
     vs_hand = clean_text(request.args.get("vs_hand", "")).upper()
 
+    day_night = clean_text(request.args.get("day_night", "")).lower()
+    
     selected_weekday = request.args.get("weekday", "all")
 
     if selected_weekday not in ("all", "0", "1", "2", "3", "4", "5", "6"):
@@ -776,6 +787,9 @@ def get_common_context(active_page="calculator"):
 
     if vs_hand not in ("", "R", "L"):
         vs_hand = ""
+
+    if day_night not in ("", "day", "night"):
+        day_night = ""
 
     leaderboard_limit = safe_int(request.args.get("leaderboard_limit", 50), 50)
     lineup_filter = request.args.get("lineup_filter", "all")
@@ -791,7 +805,7 @@ def get_common_context(active_page="calculator"):
 
     thresholds = thresholds_for(role, hitter_prop if role == "hitter" else pitcher_prop)
     sort_line = safe_float(request.args.get("sort_line", thresholds[0]), thresholds[0])
-    ftext = filter_text(vs_team, vs_hand, selected_weekday)
+    ftext = filter_text(vs_team, vs_hand, selected_weekday, day_night)
       
     try:
         hitter_names = get_hitter_names()
@@ -810,7 +824,7 @@ def get_common_context(active_page="calculator"):
         if calc_role == "hitter" or role == "hitter":
             pa_df_raw = get_pa_data()
             teams = get_teams_from_pa(pa_df_raw)
-            pa_df = filter_hitter_df(pa_df_raw, vs_team, vs_hand)
+            pa_df = filter_hitter_df(pa_df_raw, vs_team, vs_hand, day_night)
 
             if active_page in ("leaderboard", "trends"):
                 pa_df = apply_lineup_filter(pa_df, lineup_map, lineup_filter)
@@ -989,6 +1003,7 @@ def get_common_context(active_page="calculator"):
         "teams": teams,
         "vs_team": vs_team,
         "vs_hand": vs_hand,
+        "day_night": day_night,
         "selected_weekday": selected_weekday,
         "filter_text": ftext,
         "lineup_map": lineup_map,
