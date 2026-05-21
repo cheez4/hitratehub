@@ -264,19 +264,14 @@ def calculate_pitcher_stat(df, prop):
     return pd.Series([0] * len(df), index=df.index)
 
 
-def filter_hitter_df(df, vs_team="", vs_hand="", weekday="all"):
-    out = df.copy()
+def filter_hitter_df(df, vs_team="", vs_hand=""):
+    out = df
 
     if vs_team:
         out = out[out["opp_team"].astype(str) == vs_team]
 
     if vs_hand:
         out = out[out["pitcher_hand"].astype(str).str.upper() == vs_hand.upper()]
-
-    if weekday != "all":
-        out["game_date"] = pd.to_datetime(out["game_date"], errors="coerce")
-        out = out.dropna(subset=["game_date"])
-        out = out[out["game_date"].dt.dayofweek == int(weekday)]
 
     return out
 
@@ -346,7 +341,7 @@ def hit_check(value, mode, line, min_value, max_value):
     return value > line
 
 
-def build_hitter_game_rows(df, player_name, prop, window, mode, line, min_value, max_value):
+def build_hitter_game_rows(df, player_name, prop, window, mode, line, min_value, max_value, weekday="all"):
     player_df = df[df["batter_name"].astype(str) == player_name].copy()
 
     if player_df.empty:
@@ -354,6 +349,9 @@ def build_hitter_game_rows(df, player_name, prop, window, mode, line, min_value,
 
     player_df["game_date"] = pd.to_datetime(player_df["game_date"], errors="coerce")
     player_df = player_df.dropna(subset=["game_date"])
+
+    if weekday != "all":
+        player_df = player_df[player_df["game_date"].dt.dayofweek == int(weekday)]
 
     grouped = (
         player_df
@@ -513,14 +511,14 @@ def get_closing_odds_lookup(players, prop):
 
     return lookup
 
-def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext):
+def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
     summaries = []
     rows_by_player = {}
     odds_lookup = get_closing_odds_lookup(players, prop) if role == "hitter" else {}
 
     for player_name in players:
         if role == "hitter":
-            rows = build_hitter_game_rows(source_df, player_name, prop, window, mode, line, min_value, max_value)
+            rows = build_hitter_game_rows(source_df, player_name, prop, window, mode, line, min_value, max_value, weekday)
         else:
             rows = build_pitcher_game_rows(source_df, player_name, prop, window, mode, line, min_value, max_value)
 
@@ -812,7 +810,7 @@ def get_common_context(active_page="calculator"):
         if calc_role == "hitter" or role == "hitter":
             pa_df_raw = get_pa_data()
             teams = get_teams_from_pa(pa_df_raw)
-            pa_df = filter_hitter_df(pa_df_raw, vs_team, vs_hand, selected_weekday)
+            pa_df = filter_hitter_df(pa_df_raw, vs_team, vs_hand)
 
             if active_page in ("leaderboard", "trends"):
                 pa_df = apply_lineup_filter(pa_df, lineup_map, lineup_filter)
@@ -842,7 +840,8 @@ def get_common_context(active_page="calculator"):
                         calc_mode,
                         calc_line,
                         calc_min,
-                        calc_max
+                        calc_max,
+                        selected_weekday
                     )
 
                     custom_result = summarize_player(
@@ -879,7 +878,8 @@ def get_common_context(active_page="calculator"):
                         calc_line,
                         calc_min,
                         calc_max,
-                        ftext
+                        ftext,
+                        selected_weekday
                     )
 
             else:
