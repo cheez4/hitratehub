@@ -518,27 +518,23 @@
 <details class="pa-breakdown">
     <summary>PA Props Breakdown</summary>
 
-    <table class="pa-table">
-        <thead>
-            <tr>
-                <th>PA</th>
-                <th>Result</th>
-                <th>Avg</th>
-                <th>Hit Rate</th>
-            </tr>
-        </thead>
+    <div class="pa-grid">
+        {% for slot in ["1st PA", "2nd PA", "3rd PA", "4th PA", "5+ PA"] %}
+            <div class="pa-card">
+                <div class="pa-card-title">{{ slot }}</div>
 
-        <tbody>
-            {% for row in custom_result.pa_breakdown %}
-            <tr>
-                <td>{{ row.pa_slot }}</td>
-                <td>{{ row.result }}</td>
-                <td>{{ row.avg }}</td>
-                <td>{{ row.hit_rate }}%</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                {% for row in custom_result.pa_breakdown %}
+                    {% if row.pa_slot == slot %}
+                        <div class="pa-row">
+                            <span>{{ row.result }}</span>
+                            <strong>{{ row.hit_rate }}%</strong>
+                            <small>Avg {{ row.avg }}</small>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
 </details>
                         
                     </div>
@@ -674,22 +670,44 @@
     color: white;
 }
 
-.pa-table {
-    width: 100%;
-    margin-top: 8px;
-    border-collapse: collapse;
-    font-size: 13px;
+.pa-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-top: 12px;
 }
 
-.pa-table th,
-.pa-table td {
-    padding: 6px;
-    border-bottom: 1px solid #2d3748;
+.pa-card {
+    background: #071b2f;
+    border: 1px solid #21466d;
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.pa-card-title {
+    font-weight: 800;
+    color: #8ecbff;
+    margin-bottom: 8px;
     text-align: center;
 }
 
-.pa-table th {
+.pa-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px solid #1f334a;
+    font-size: 13px;
+}
+
+.pa-row small {
+    grid-column: 1 / -1;
     color: #9ca3af;
+    font-size: 11px;
+}
+
+.pa-row strong {
+    color: #7dffb3;
 }
 
 </style>
