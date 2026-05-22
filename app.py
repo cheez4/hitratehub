@@ -140,6 +140,7 @@ def get_pa_data():
         FROM mlb_pa_gamelog
         WHERE batter_name IS NOT NULL
           AND game_date IS NOT NULL
+          AND season IN ('2025', '2026')
     """)
 
 @cache.cached(timeout=300, key_prefix="pitcher_data")
