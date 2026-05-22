@@ -130,6 +130,7 @@ def get_pa_data():
             team,
             opp_team,
             pitcher_hand,
+            day_night,
             game_date,
             COALESCE(h, 0) AS h,
             COALESCE(tb, 0) AS tb,
@@ -140,7 +141,6 @@ def get_pa_data():
         WHERE batter_name IS NOT NULL
           AND game_date IS NOT NULL
     """)
-
 
 @cache.cached(timeout=300, key_prefix="pitcher_data")
 def get_pitcher_data():
