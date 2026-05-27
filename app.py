@@ -1471,7 +1471,7 @@ def edge_finder():
     view = request.args.get("view", "overpriced")
     sort_by = request.args.get("sort", "edge_l20")
 
-    conn = get_db_connection()
+    conn = get_conn()
 
     sql = """
         SELECT *
