@@ -1470,6 +1470,7 @@ def edge_finder():
     prop = request.args.get("prop", "HR")
     view = request.args.get("view", "overpriced")
     sort_by = request.args.get("sort", "edge_l20")
+    selected_date = request.args.get("date", "today")
 
     conn = get_conn()
 
@@ -1513,6 +1514,7 @@ def edge_finder():
         prop=prop,
         view=view,
         sort_by=sort_by,
+        selected_date=selected_date,
         active_page="edge_finder"
 )
 

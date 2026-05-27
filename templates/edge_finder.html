@@ -81,6 +81,16 @@ th a {
         Finds plays where the player hit rate is higher or lower than the sportsbook implied probability.
     </div>
 
+<div class="filters">
+    <a class="{% if selected_date == 'today' %}active{% endif %}" href="/edge-finder?date=today&view={{ view }}&prop={{ prop }}">
+        Today
+    </a>
+
+    <a class="{% if selected_date == 'yesterday' %}active{% endif %}" href="/edge-finder?date=yesterday&view={{ view }}&prop={{ prop }}">
+        Yesterday
+    </a>
+</div>
+
     <div class="filters">
         <a class="{% if view == 'overpriced' %}active{% endif %}" href="/edge-finder?view=overpriced&prop={{ prop }}">
             Overpriced
