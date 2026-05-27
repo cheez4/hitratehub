@@ -1,92 +1,9 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Edge Finder - HitRateHub</title>
-    <style>
-        body {
-            background: #0b0f14;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-        }
+{% extends "base.html" %}
 
-        .page-title {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
+{% block content %}
 
-        .subtext {
-            color: #aaa;
-            margin-bottom: 20px;
-        }
-
-        .filters {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .filters a {
-            padding: 9px 14px;
-            background: #18202b;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            border: 1px solid #2d3848;
-        }
-
-        .filters a.active {
-            background: #1f8f4d;
-            border-color: #35c46f;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #111822;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        th, td {
-            padding: 10px;
-            border-bottom: 1px solid #263241;
-            text-align: center;
-        }
-
-        th {
-            background: #17202b;
-            color: #ddd;
-        }
-
-        th a {
-            color: white;
-            text-decoration: none;
-        }
-
-        tr:hover {
-            background: #182333;
-        }
-
-        .positive {
-            color: #41d67d;
-            font-weight: bold;
-        }
-
-        .negative {
-            color: #ff6464;
-            font-weight: bold;
-        }
-
-        .label {
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-
+<div class="shell">
+    <div class="panel">
     <div class="page-title">Edge Finder</div>
     <div class="subtext">
         Finds plays where the player hit rate is higher or lower than the sportsbook implied probability.
@@ -160,6 +77,6 @@
             {% endfor %}
         </tbody>
     </table>
-
-</body>
-</html>
+    </div>
+</div>
+{% endblock %}
