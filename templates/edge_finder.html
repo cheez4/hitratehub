@@ -110,10 +110,10 @@ th a {
                 <th>Line</th>
                 <th>Odds</th>
                 <th>Implied %</th>
-                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10">L10 Edge</a></th>
-                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20">L20 Edge</a></th>
-                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30">L30 Edge</a></th>
-                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45">L45 Edge</a></th>
+                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10">L10 Hit Rate / Edge</a></th>
+<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20">L20 Hit Rate / Edge</a></th>
+<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30">L30 Hit Rate / Edge</a></th>
+<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45">L45 Hit Rate / Edge</a></th>
                 <th>Label</th>
             </tr>
         </thead>
@@ -128,21 +128,33 @@ th a {
                 <td>{{ row.odds }}</td>
                 <td>{{ "%.1f"|format(row.implied_prob) }}%</td>
 
-                <td class="{% if row.edge_l10 >= 0 %}positive{% else %}negative{% endif %}">
-                    {{ "%.1f"|format(row.edge_l10) }}%
-                </td>
+                <td>
+    <div>{{ "%.1f"|format(row.hit_rate_l10) }}%</div>
+    <div class="{% if row.edge_l10 >= 0 %}positive{% else %}negative{% endif %}">
+        {{ "%.1f"|format(row.edge_l10) }}%
+    </div>
+</td>
 
-                <td class="{% if row.edge_l20 >= 0 %}positive{% else %}negative{% endif %}">
-                    {{ "%.1f"|format(row.edge_l20) }}%
-                </td>
+<td>
+    <div>{{ "%.1f"|format(row.hit_rate_l20) }}%</div>
+    <div class="{% if row.edge_l20 >= 0 %}positive{% else %}negative{% endif %}">
+        {{ "%.1f"|format(row.edge_l20) }}%
+    </div>
+</td>
 
-                <td class="{% if row.edge_l30 >= 0 %}positive{% else %}negative{% endif %}">
-                    {{ "%.1f"|format(row.edge_l30) }}%
-                </td>
+<td>
+    <div>{{ "%.1f"|format(row.hit_rate_l30) }}%</div>
+    <div class="{% if row.edge_l30 >= 0 %}positive{% else %}negative{% endif %}">
+        {{ "%.1f"|format(row.edge_l30) }}%
+    </div>
+</td>
 
-                <td class="{% if row.edge_l45 >= 0 %}positive{% else %}negative{% endif %}">
-                    {{ "%.1f"|format(row.edge_l45) }}%
-                </td>
+<td>
+    <div>{{ "%.1f"|format(row.hit_rate_l45) }}%</div>
+    <div class="{% if row.edge_l45 >= 0 %}positive{% else %}negative{% endif %}">
+        {{ "%.1f"|format(row.edge_l45) }}%
+    </div>
+</td>
 
                 <td class="label">{{ row.label_l20 }}</td>
             </tr>
