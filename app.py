@@ -1465,6 +1465,57 @@ def load_team_weather():
 
     return weather_lookup
 
+@app.route("/edge-finder")
+def edge_finder():
+    prop = request.args.get("prop", "HR")
+    view = request.args.get("view", "overpriced")
+    sort_by = request.args.get("sort", "edge_l20")
+
+    conn = get_db_connection()
+
+    sql = """
+        SELECT *
+        FROM edge_finder_cache
+        WHERE prop = %s
+    """
+
+    params = [prop]
+
+    if view == "overpriced":
+        sql += " AND edge_l20 >= 5 "
+    elif view == "underpriced":
+        sql += " AND edge_l20 <= -5 "
+
+    allowed_sorts = {
+        "edge_l10": "edge_l10",
+        "edge_l20": "edge_l20",
+        "edge_l30": "edge_l30",
+        "edge_l45": "edge_l45",
+        "implied_prob": "implied_prob",
+        "odds": "odds"
+    }
+
+    sort_col = allowed_sorts.get(sort_by, "edge_l20")
+
+    if view == "underpriced":
+        sql += f" ORDER BY {sort_col} ASC LIMIT 100"
+    else:
+        sql += f" ORDER BY {sort_col} DESC LIMIT 100"
+
+    df = pd.read_sql(sql, conn, params=params)
+    conn.close()
+
+    rows = df.to_dict("records")
+
+    return render_template(
+        "edge_finder.html",
+        rows=rows,
+        prop=prop,
+        view=view,
+        sort_by=sort_by,
+        active_page="edge_finder"
+)
+
 @app.route("/")
 def index():
     context = get_common_context(active_page="calculator")

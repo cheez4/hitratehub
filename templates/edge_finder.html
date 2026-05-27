@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edge Finder - HitRateHub</title>
+    <style>
+        body {
+            background: #0b0f14;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .subtext {
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filters a {
+            padding: 9px 14px;
+            background: #18202b;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            border: 1px solid #2d3848;
+        }
+
+        .filters a.active {
+            background: #1f8f4d;
+            border-color: #35c46f;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #111822;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #263241;
+            text-align: center;
+        }
+
+        th {
+            background: #17202b;
+            color: #ddd;
+        }
+
+        th a {
+            color: white;
+            text-decoration: none;
+        }
+
+        tr:hover {
+            background: #182333;
+        }
+
+        .positive {
+            color: #41d67d;
+            font-weight: bold;
+        }
+
+        .negative {
+            color: #ff6464;
+            font-weight: bold;
+        }
+
+        .label {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page-title">Edge Finder</div>
+    <div class="subtext">
+        Finds plays where the player hit rate is higher or lower than the sportsbook implied probability.
+    </div>
+
+    <div class="filters">
+        <a class="{% if view == 'overpriced' %}active{% endif %}" href="/edge-finder?view=overpriced&prop={{ prop }}">
+            Overpriced
+        </a>
+
+        <a class="{% if view == 'underpriced' %}active{% endif %}" href="/edge-finder?view=underpriced&prop={{ prop }}">
+            Underpriced
+        </a>
+
+        <a class="{% if view == 'all' %}active{% endif %}" href="/edge-finder?view=all&prop={{ prop }}">
+            All
+        </a>
+
+        <a class="{% if prop == 'HR' %}active{% endif %}" href="/edge-finder?prop=HR&view={{ view }}">HR</a>
+        <a class="{% if prop == 'HITS' %}active{% endif %}" href="/edge-finder?prop=HITS&view={{ view }}">Hits</a>
+        <a class="{% if prop == 'TB' %}active{% endif %}" href="/edge-finder?prop=TB&view={{ view }}">Total Bases</a>
+        <a class="{% if prop == 'RBI' %}active{% endif %}" href="/edge-finder?prop=RBI&view={{ view }}">RBI</a>
+        <a class="{% if prop == 'RUNS' %}active{% endif %}" href="/edge-finder?prop=RUNS&view={{ view }}">Runs</a>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Player</th>
+                <th>Team</th>
+                <th>Prop</th>
+                <th>Line</th>
+                <th>Odds</th>
+                <th>Implied %</th>
+                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10">L10 Edge</a></th>
+                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20">L20 Edge</a></th>
+                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30">L30 Edge</a></th>
+                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45">L45 Edge</a></th>
+                <th>Label</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.player }}</td>
+                <td>{{ row.team }}</td>
+                <td>{{ row.prop }}</td>
+                <td>{{ row.ou }} {{ row.line }}</td>
+                <td>{{ row.odds }}</td>
+                <td>{{ "%.1f"|format(row.implied_prob) }}%</td>
+
+                <td class="{% if row.edge_l10 >= 0 %}positive{% else %}negative{% endif %}">
+                    {{ "%.1f"|format(row.edge_l10) }}%
+                </td>
+
+                <td class="{% if row.edge_l20 >= 0 %}positive{% else %}negative{% endif %}">
+                    {{ "%.1f"|format(row.edge_l20) }}%
+                </td>
+
+                <td class="{% if row.edge_l30 >= 0 %}positive{% else %}negative{% endif %}">
+                    {{ "%.1f"|format(row.edge_l30) }}%
+                </td>
+
+                <td class="{% if row.edge_l45 >= 0 %}positive{% else %}negative{% endif %}">
+                    {{ "%.1f"|format(row.edge_l45) }}%
+                </td>
+
+                <td class="label">{{ row.label_l20 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

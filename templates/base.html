@@ -811,12 +811,30 @@
             <div class="top-nav-inner">
 
                 <div class="nav-left">
-                    <a href="{{ url_for('index') }}" class="nav-tab {% if active_page == 'calculator' %}active{% endif %}">▮▮ Calculator</a>
-                    <a href="{{ url_for('leaderboard_page') }}" class="nav-tab {% if active_page == 'leaderboard' %}active{% endif %}">🏆 Leaderboard</a>
-                    <a href="{{ url_for('combos_page') }}" class="{% if active_page == 'combos' %}active{% endif %}">🔥 Combos</a>
-                    <a href="{{ url_for('trends_page') }}" class="nav-tab {% if active_page == 'trends' %}active{% endif %}">↗ Trends</a>
-                    <a href="{{ url_for('share_page') }}" class="nav-tab {% if active_page == 'share' %}active{% endif %}">⇪ Share</a>
-                </div>
+    <a href="{{ url_for('index') }}" class="nav-tab {% if active_page == 'calculator' %}active{% endif %}">
+        ▮▮ Calculator
+    </a>
+
+    <a href="{{ url_for('leaderboard_page') }}" class="nav-tab {% if active_page == 'leaderboard' %}active{% endif %}">
+        🏆 Leaderboard
+    </a>
+
+    <a href="{{ url_for('combos_page') }}" class="{% if active_page == 'combos' %}active{% endif %}">
+        🔥 Combos
+    </a>
+
+    <a href="{{ url_for('trends_page') }}" class="nav-tab {% if active_page == 'trends' %}active{% endif %}">
+        ↗ Trends
+    </a>
+
+    <a href="{{ url_for('edge_finder') }}" class="nav-tab {% if active_page == 'edge_finder' %}active{% endif %}">
+        ⚡ Edge Finder
+    </a>
+
+    <a href="{{ url_for('share_page') }}" class="nav-tab {% if active_page == 'share' %}active{% endif %}">
+        ⇪ Share
+    </a>
+</div>
 
                 <div class="nav-right">
                     <button class="league-pill active-league" type="button">MLB</button>
