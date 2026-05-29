@@ -111,9 +111,18 @@ th a {
         <a class="{% if prop == 'RUNS' %}active{% endif %}" href="/edge-finder?prop=RUNS&view={{ view }}">Runs</a>
     </div>
 
+<div style="margin-bottom:12px;">
+    <button class="run-btn" type="button" onclick="compareSelectedPlayers()">
+        Compare Selected Players
+    </button>
+    <span style="color:#95aac6; margin-left:10px;">
+        Select up to 10 players
+    </span>
+</div>
     <table>
         <thead>
             <tr>
+                <th>Select</th>
                 <th>Player</th>
                 <th>Team</th>
                 <th>Prop</th>
@@ -130,9 +139,15 @@ th a {
 
         <tbody>
             {% for row in rows %}
-            <tr>
-                <td>{{ row.player }}</td>
-                <td>{{ row.team }}</td>
+<tr>
+    <td>
+        <input type="checkbox"
+               class="edge-player-check"
+               value="{{ row.player }}">
+    </td>
+
+    <td>{{ row.player }}</td>
+    <td>{{ row.team }}</td>
                 <td>{{ row.prop }}</td>
                 <td>{{ row.ou }} {{ row.line }}</td>
                 <td>{{ row.odds }}</td>
@@ -173,4 +188,48 @@ th a {
     </table>
     </div>
 </div>
+<script>
+function compareSelectedPlayers() {
+    const checked = Array.from(document.querySelectorAll(".edge-player-check:checked"));
+
+    if (checked.length === 0) {
+        alert("Select at least 1 player.");
+        return;
+    }
+
+    if (checked.length > 10) {
+        alert("You can compare up to 10 players.");
+        return;
+    }
+
+    const params = new URLSearchParams();
+
+    params.set("calc_role", "hitter");
+    params.set("calc_mode", "over");
+
+    const prop = "{{ prop }}";
+
+    const propMap = {
+        "HITS": "hits",
+        "TB": "total_bases",
+        "HR": "home_runs",
+        "RBI": "rbi",
+        "RUNS": "runs"
+    };
+
+    params.set("calc_prop", propMap[prop] || "hits");
+    params.set("calc_window", "20");
+    params.set("calc_line", "{{ rows[0].line if rows else 0.5 }}");
+
+    checked.forEach((box, index) => {
+        if (index === 0) {
+            params.set("calc_player", box.value);
+        } else {
+            params.set("calc_compare_" + (index + 1), box.value);
+        }
+    });
+
+    window.location.href = "/?" + params.toString();
+}
+</script>
 {% endblock %}
