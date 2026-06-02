@@ -1553,6 +1553,13 @@ def clear_cache():
     cache.clear()
     return "Cache cleared"
 
+@app.route("/strategy-finder")
+def strategy_finder():
+    return render_template(
+        "strategy_finder.html",
+        active_page="strategy_finder"
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)

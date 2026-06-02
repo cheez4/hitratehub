@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+    <div class="panel">
+        <div class="page-title">Strategy Finder</div>
+        <div class="subtext">
+            Build and test betting systems using props, odds ranges, game filters, and historical P/L.
+        </div>
+
+        <div class="panel-body">
+            <form method="get" action="{{ url_for('strategy_finder') }}">
+                <div class="filter-row">
+                    <div class="field">
+                        <label>Prop</label>
+                        <select name="prop">
+                            <option value="HR">Home Runs</option>
+                            <option value="HITS">Hits</option>
+                            <option value="TB">Total Bases</option>
+                            <option value="RBI">RBI</option>
+                            <option value="RUNS">Runs</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>Odds Min</label>
+                        <input type="text" name="odds_min" placeholder="ex: 300">
+                    </div>
+
+                    <div class="field">
+                        <label>Odds Max</label>
+                        <input type="text" name="odds_max" placeholder="ex: 700">
+                    </div>
+
+                    <div class="field">
+                        <label>Window</label>
+                        <select name="window">
+                            <option value="10">Last 10 Days</option>
+                            <option value="20">Last 20 Days</option>
+                            <option value="30" selected>Last 30 Days</option>
+                            <option value="45">Last 45 Days</option>
+                            <option value="60">Last 60 Days</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="run-btn" type="submit">Find Strategies</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+            <div class="panel-title">Strategy Results</div>
+        </div>
+
+        <div class="panel-body" style="color:#95aac6;">
+            Strategy results will show here after we connect the P/L engine.
+        </div>
+    </div>
+</div>
+
+{% endblock %}
