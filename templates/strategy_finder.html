@@ -15,32 +15,32 @@
                     <div class="field">
                         <label>Prop</label>
                         <select name="prop">
-                            <option value="HR">Home Runs</option>
-                            <option value="HITS">Hits</option>
-                            <option value="TB">Total Bases</option>
-                            <option value="RBI">RBI</option>
-                            <option value="RUNS">Runs</option>
+                            <option value="HR" {% if prop == "HR" %}selected{% endif %}>Home Runs</option>
+<option value="HITS" {% if prop == "HITS" %}selected{% endif %}>Hits</option>
+<option value="TB" {% if prop == "TB" %}selected{% endif %}>Total Bases</option>
+<option value="RBI" {% if prop == "RBI" %}selected{% endif %}>RBI</option>
+<option value="RUNS" {% if prop == "RUNS" %}selected{% endif %}>Runs</option>
                         </select>
                     </div>
 
                     <div class="field">
                         <label>Odds Min</label>
-                        <input type="text" name="odds_min" placeholder="ex: 300">
+                        <input type="text" name="odds_min" value="{{ odds_min }}" placeholder="ex: 300">
                     </div>
 
                     <div class="field">
                         <label>Odds Max</label>
-                        <input type="text" name="odds_max" placeholder="ex: 700">
+                        <input type="text" name="odds_max" value="{{ odds_max }}" placeholder="ex: 700">
                     </div>
 
                     <div class="field">
                         <label>Window</label>
                         <select name="window">
-                            <option value="10">Last 10 Days</option>
-                            <option value="20">Last 20 Days</option>
-                            <option value="30" selected>Last 30 Days</option>
-                            <option value="45">Last 45 Days</option>
-                            <option value="60">Last 60 Days</option>
+                            <option value="10" {% if window == "10" %}selected{% endif %}>Last 10 Days</option>
+<option value="20" {% if window == "20" %}selected{% endif %}>Last 20 Days</option>
+<option value="30" {% if window == "30" %}selected{% endif %}>Last 30 Days</option>
+<option value="45" {% if window == "45" %}selected{% endif %}>Last 45 Days</option>
+<option value="60" {% if window == "60" %}selected{% endif %}>Last 60 Days</option>
                         </select>
                     </div>
                 </div>
@@ -56,8 +56,39 @@
         </div>
 
         <div class="panel-body" style="color:#95aac6;">
-            Strategy results will show here after we connect the P/L engine.
+
+{% if results %}
+    <div class="summary-stats">
+        <div class="summary-stat">
+            <div class="big">{{ results.bets }}</div>
+            <div class="lab">Bets</div>
         </div>
+
+        <div class="summary-stat">
+            <div class="big">{{ results.wins }}-{{ results.losses }}</div>
+            <div class="lab">Record</div>
+        </div>
+
+        <div class="summary-stat">
+            <div class="big">{{ results.hit_rate }}%</div>
+            <div class="lab">Hit Rate</div>
+        </div>
+
+        <div class="summary-stat">
+            <div class="big">{{ results.units }}u</div>
+            <div class="lab">Units</div>
+        </div>
+
+        <div class="summary-stat">
+            <div class="big">{{ results.roi }}%</div>
+            <div class="lab">ROI</div>
+        </div>
+    </div>
+{% else %}
+    Strategy results will show here after you enter filters and click Find Strategies.
+{% endif %}
+
+</div>
     </div>
 </div>
 

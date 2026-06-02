@@ -1555,11 +1555,89 @@ def clear_cache():
 
 @app.route("/strategy-finder")
 def strategy_finder():
+    prop = request.args.get("prop", "HR")
+    odds_min = request.args.get("odds_min", "")
+    odds_max = request.args.get("odds_max", "")
+    window = request.args.get("window", "30")
+
+    results = None
+
+    if odds_min or odds_max:
+        conn = get_conn()
+
+        sql = """
+            SELECT
+                player,
+                prop,
+                odds,
+                line,
+                result_status
+            FROM edge_finder_cache
+            WHERE prop = %s
+              AND result_status IN ('Won', 'Lost')
+        """
+
+        params = [prop]
+
+        if odds_min:
+            sql += " AND odds >= %s"
+            params.append(int(odds_min))
+
+        if odds_max:
+            sql += " AND odds <= %s"
+            params.append(int(odds_max))
+
+        df = pd.read_sql(sql, conn, params=params)
+        conn.close()
+
+        bets = len(df)
+
+        if bets > 0:
+            wins = int((df["result_status"] == "Won").sum())
+            losses = int((df["result_status"] == "Lost").sum())
+
+            profit = 0
+
+            for _, row in df.iterrows():
+                odds = int(row["odds"])
+
+                if row["result_status"] == "Won":
+                    if odds > 0:
+                        profit += odds / 100
+                    else:
+                        profit += 100 / abs(odds)
+                else:
+                    profit -= 1
+
+            roi = (profit / bets) * 100
+
+            results = {
+                "bets": bets,
+                "wins": wins,
+                "losses": losses,
+                "hit_rate": round((wins / bets) * 100, 1),
+                "units": round(profit, 2),
+                "roi": round(roi, 1),
+            }
+        else:
+            results = {
+                "bets": 0,
+                "wins": 0,
+                "losses": 0,
+                "hit_rate": 0,
+                "units": 0,
+                "roi": 0,
+            }
+
     return render_template(
         "strategy_finder.html",
-        active_page="strategy_finder"
+        active_page="strategy_finder",
+        prop=prop,
+        odds_min=odds_min,
+        odds_max=odds_max,
+        window=window,
+        results=results
     )
-
 
 if __name__ == "__main__":
     app.run(debug=True)
