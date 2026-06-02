@@ -1595,6 +1595,7 @@ def strategy_finder():
                 FROM odds_snapshots
                 WHERE prop = %s
                   AND LOWER(ou) = 'over'
+                  AND sportsbook = 'fanduel'
                   AND odds IS NOT NULL
                   AND line IS NOT NULL
                   AND ismain = 1
@@ -1613,7 +1614,7 @@ def strategy_finder():
 
         sql += f"""
                 ORDER BY player, prop, ou, line, DATE(starttime), captured_at DESC
-                LIMIT 5000
+                LIMIT 1000
             )
             SELECT
                 o.player,
