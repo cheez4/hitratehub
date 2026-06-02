@@ -1580,39 +1580,59 @@ def strategy_finder():
         stat_col = stat_map.get(prop, "home_runs")
 
         sql = f"""
-            SELECT DISTINCT ON (o.player, o.prop, o.ou, o.line, DATE(o.starttime))
+            WITH filtered_odds AS (
+                SELECT DISTINCT ON (player, prop, ou, line, DATE(starttime))
+                    player,
+                    prop,
+                    ou,
+                    line,
+                    odds,
+                    sportsbook,
+                    DATE(starttime) AS game_date,
+                    home,
+                    away,
+                    captured_at
+                FROM odds_snapshots
+                WHERE prop = %s
+                  AND LOWER(ou) = 'over'
+                  AND odds IS NOT NULL
+                  AND line IS NOT NULL
+                  AND ismain = 1
+                  AND DATE(starttime) >= CURRENT_DATE - (%s || ' days')::interval
+        """
+
+        params = [prop, window]
+
+        if odds_min:
+            sql += " AND odds >= %s"
+            params.append(int(odds_min))
+
+        if odds_max:
+            sql += " AND odds <= %s"
+            params.append(int(odds_max))
+
+        sql += f"""
+                ORDER BY player, prop, ou, line, DATE(starttime), captured_at DESC
+                LIMIT 5000
+            )
+            SELECT
                 o.player,
                 o.prop,
                 o.ou,
                 o.line,
                 o.odds,
                 o.sportsbook,
-                DATE(o.starttime) AS game_date,
+                o.game_date,
                 h.team,
                 h.opponent,
                 h.is_home,
                 h.{stat_col} AS result_stat
-            FROM odds_snapshots o
+            FROM filtered_odds o
             JOIN mlb_hitter_gamelogs h
               ON LOWER(TRIM(h.player_name)) = LOWER(TRIM(o.player))
-             AND h.game_date = DATE(o.starttime)
-            WHERE o.prop = %s
-              AND LOWER(o.ou) = 'over'
-              AND o.odds IS NOT NULL
-              AND o.line IS NOT NULL
-              AND o.ismain = 1
-              AND DATE(o.starttime) >= CURRENT_DATE - (%s || ' days')::interval
+             AND h.game_date = o.game_date
+            WHERE 1=1
         """
-
-        params = [prop, window]
-
-        if odds_min:
-            sql += " AND o.odds >= %s"
-            params.append(int(odds_min))
-
-        if odds_max:
-            sql += " AND o.odds <= %s"
-            params.append(int(odds_max))
 
         if team:
             sql += " AND UPPER(h.team) = %s"
@@ -1627,16 +1647,6 @@ def strategy_finder():
 
         if home_away == "away":
             sql += " AND h.is_home = FALSE"
-
-        sql += """
-            ORDER BY
-                o.player,
-                o.prop,
-                o.ou,
-                o.line,
-                DATE(o.starttime),
-                o.captured_at DESC
-        """
 
         df = pd.read_sql(sql, conn, params=params)
         conn.close()
