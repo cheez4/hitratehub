@@ -1559,7 +1559,11 @@ def strategy_finder():
     odds_min = request.args.get("odds_min", "")
     odds_max = request.args.get("odds_max", "")
     window = request.args.get("window", "30")
-
+    day_night = request.args.get("day_night", "")
+    home_away = request.args.get("home_away", "")
+    team = request.args.get("team", "")
+    vs_team = request.args.get("vs_team", "")
+    
     results = None
 
     if odds_min or odds_max:
@@ -1636,6 +1640,10 @@ def strategy_finder():
         odds_min=odds_min,
         odds_max=odds_max,
         window=window,
+        day_night=day_night,
+        home_away=home_away,
+        team=team,
+        vs_team=vs_team,
         results=results
     )
 

@@ -43,6 +43,33 @@
 <option value="60" {% if window == "60" %}selected{% endif %}>Last 60 Days</option>
                         </select>
                     </div>
+<div class="field">
+    <label>Day/Night</label>
+    <select name="day_night">
+        <option value="" {% if day_night == "" %}selected{% endif %}>All</option>
+<option value="day" {% if day_night == "day" %}selected{% endif %}>Day</option>
+<option value="night" {% if day_night == "night" %}selected{% endif %}>Night</option>
+    </select>
+</div>
+
+<div class="field">
+    <label>Home/Away</label>
+    <select name="home_away">
+        <option value="" {% if home_away == "" %}selected{% endif %}>All</option>
+<option value="home" {% if home_away == "home" %}selected{% endif %}>Home</option>
+<option value="away" {% if home_away == "away" %}selected{% endif %}>Away</option>
+    </select>
+</div>
+
+<div class="field">
+    <label>Team</label>
+    <input type="text" name="team" value="{{ team }}" placeholder="ex: NYY">
+</div>
+
+<div class="field">
+    <label>Vs Team</label>
+    <input type="text" name="vs_team" value="{{ vs_team }}" placeholder="ex: BOS">
+</div>
                 </div>
 
                 <button class="run-btn" type="submit">Find Strategies</button>
