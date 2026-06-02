@@ -1569,40 +1569,19 @@ def strategy_finder():
     if odds_min or odds_max:
         conn = get_conn()
 
-        stat_map = {
-            "HR": "home_runs",
-            "HITS": "hits",
-            "TB": "total_bases",
-            "RBI": "rbi",
-            "RUNS": "runs",
-        }
-
-        stat_col = stat_map.get(prop, "home_runs")
-
-        sql = f"""
-            WITH filtered_odds AS (
-                SELECT DISTINCT ON (player, prop, ou, line, DATE(starttime))
-                    player,
-                    prop,
-                    ou,
-                    line,
-                    odds,
-                    sportsbook,
-                    DATE(starttime) AS game_date,
-                    home,
-                    away,
-                    captured_at
-                FROM odds_snapshots
-                WHERE prop = %s
-                  AND LOWER(ou) = 'over'
-                  AND sportsbook = 'fanduel'
-                  AND odds IS NOT NULL
-                  AND line IS NOT NULL
-                  AND ismain = 1
-                  AND DATE(starttime) >= CURRENT_DATE - (%s || ' days')::interval
+        sql = """
+            SELECT
+                player,
+                prop,
+                odds,
+                line,
+                result_status
+            FROM edge_finder_cache
+            WHERE prop = %s
+              AND result_status IN ('Won', 'Lost')
         """
 
-        params = [prop, window]
+        params = [prop]
 
         if odds_min:
             sql += " AND odds >= %s"
@@ -1612,42 +1591,9 @@ def strategy_finder():
             sql += " AND odds <= %s"
             params.append(int(odds_max))
 
-        sql += f"""
-                ORDER BY player, prop, ou, line, DATE(starttime), captured_at DESC
-                LIMIT 1000
-            )
-            SELECT
-                o.player,
-                o.prop,
-                o.ou,
-                o.line,
-                o.odds,
-                o.sportsbook,
-                o.game_date,
-                h.team,
-                h.opponent,
-                h.is_home,
-                h.{stat_col} AS result_stat
-            FROM filtered_odds o
-            JOIN mlb_hitter_gamelogs h
-              ON LOWER(TRIM(h.player_name)) = LOWER(TRIM(o.player))
-             AND h.game_date = o.game_date
-            WHERE 1=1
-        """
-
         if team:
-            sql += " AND UPPER(h.team) = %s"
+            sql += " AND UPPER(team) = %s"
             params.append(team.upper().strip())
-
-        if vs_team:
-            sql += " AND UPPER(h.opponent) = %s"
-            params.append(vs_team.upper().strip())
-
-        if home_away == "home":
-            sql += " AND h.is_home = TRUE"
-
-        if home_away == "away":
-            sql += " AND h.is_home = FALSE"
 
         df = pd.read_sql(sql, conn, params=params)
         conn.close()
@@ -1655,11 +1601,6 @@ def strategy_finder():
         bets = len(df)
 
         if bets > 0:
-            df["result_status"] = df.apply(
-                lambda r: "Won" if float(r["result_stat"]) > float(r["line"]) else "Lost",
-                axis=1
-            )
-
             wins = int((df["result_status"] == "Won").sum())
             losses = int((df["result_status"] == "Lost").sum())
 
