@@ -33,6 +33,15 @@
                         <input type="text" name="odds_max" value="{{ odds_max }}" placeholder="ex: 700">
                     </div>
 
+<div class="field">
+    <label>Odds Checkpoint</label>
+    <select name="checkpoint">
+        <option value="close" {% if checkpoint == "close" %}selected{% endif %}>Close</option>
+        <option value="3h" {% if checkpoint == "3h" %}selected{% endif %}>3 Hours Before</option>
+        <option value="12h" {% if checkpoint == "12h" %}selected{% endif %}>12 Hours Before</option>
+        <option value="open" {% if checkpoint == "open" %}selected{% endif %}>Open</option>
+    </select>
+</div>
                     <div class="field">
                         <label>Window</label>
                         <select name="window">
