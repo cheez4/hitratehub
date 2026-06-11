@@ -54,11 +54,19 @@
                 <button class="run-btn" type="submit">Apply Filters</button>
             </div>
         </form>
-
+<div style="padding:0 18px 14px;">
+    <button class="run-btn" type="button" onclick="compareSelectedCombo()">
+    📊 Compare Combo
+</button>
+    <span style="color:#95aac6; margin-left:9px;">
+        Opens this combo in the calculator
+    </span>
+</div>
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
+                        <th>Select</th>
                         <th>#</th>
                         <th>Players</th>
                         <th>Games</th>
@@ -75,6 +83,11 @@
                 <tbody>
                     {% for row in combo_rows %}
                     <tr>
+<td>
+    <input type="checkbox"
+           class="combo-check"
+           value="{% for p in row.players %}{{ p.name }}{% if not loop.last %}|{% endif %}{% endfor %}">
+</td>
                         <td>{{ loop.index }}</td>
 
                         <td>
@@ -109,7 +122,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" style="color:#95aac6;">No combos found for these filters.</td>
+                        <td colspan="8" style="color:#95aac6;">No combos found for these filters.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -138,6 +151,58 @@
 </div>
 
 <script>
+function compareSelectedCombo() {
+    const checked = Array.from(document.querySelectorAll(".combo-check:checked"));
+
+    if (checked.length === 0) {
+        alert("Select 1 combo.");
+        return;
+    }
+
+    if (checked.length > 1) {
+        alert("Only select 1 combo at a time.");
+        return;
+    }
+
+    const players = checked[0].value.split("|").map(p => p.trim()).filter(Boolean);
+
+    const params = new URLSearchParams();
+
+    params.set("calc_role", "hitter");
+params.set("calc_mode", "over");
+params.set("calc_window", "{{ combo_window }}");
+
+const prop = "{{ combo_prop }}";
+
+if (prop == "home_runs") {
+    params.set("calc_line", "0.5");
+}
+else if (prop == "hits") {
+    params.set("calc_line", "0.5");
+}
+else if (prop == "total_bases") {
+    params.set("calc_line", "1.5");
+}
+
+    const propMap = {
+        "hits": "hits",
+        "total_bases": "total_bases",
+        "home_runs": "home_runs"
+    };
+
+    params.set("calc_prop", propMap[prop] || "hits");
+
+    players.forEach((player, index) => {
+        if (index === 0) {
+            params.set("calc_player", player);
+        } else {
+            params.set("calc_compare_" + (index + 1), player);
+        }
+    });
+
+    window.location.href = "/?" + params.toString();
+}
+
 function openEdgeModal() {
     document.getElementById("edgeModal").classList.add("show");
 }

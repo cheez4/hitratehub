@@ -5,7 +5,7 @@ import pandas as pd
 import psycopg2
 import os
 import uuid
-from datetime import datetime
+from datetime import date, timedelta
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -1472,52 +1472,26 @@ def edge_finder():
     sort_by = request.args.get("sort", "edge_l20")
     selected_date = request.args.get("date", "today")
 
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    if selected_date == "today":
+        filter_date = today
+    elif selected_date == "yesterday":
+        filter_date = yesterday
+    else:
+        filter_date = selected_date
+
     conn = get_conn()
 
     sql = """
         SELECT *
         FROM edge_finder_cache
         WHERE prop = %s
+          AND snapshot_date = %s
     """
 
-    params = [prop]
-
-    if view == "overpriced":
-        sql += " AND edge_l20 >= 5 "
-    elif view == "underpriced":
-        sql += " AND edge_l20 <= -5 "
-
-    allowed_sorts = {
-        "edge_l10": "edge_l10",
-        "edge_l20": "edge_l20",
-        "edge_l30": "edge_l30",
-        "edge_l45": "edge_l45",
-        "implied_prob": "implied_prob",
-        "odds": "odds"
-    }
-
-    sort_col = allowed_sorts.get(sort_by, "edge_l20")
-
-    if view == "underpriced":
-        sql += f" ORDER BY {sort_col} ASC LIMIT 100"
-    else:
-        sql += f" ORDER BY {sort_col} DESC LIMIT 100"
-
-    df = pd.read_sql(sql, conn, params=params)
-    conn.close()
-
-    rows = df.to_dict("records")
-
-    return render_template(
-        "edge_finder.html",
-        rows=rows,
-        prop=prop,
-        view=view,
-        sort_by=sort_by,
-        selected_date=selected_date,
-        active_page="edge_finder"
-)
-
+    params = [prop, filter_date]
 @app.route("/")
 def index():
     context = get_common_context(active_page="calculator")
