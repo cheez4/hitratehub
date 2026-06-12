@@ -475,7 +475,7 @@ def american_to_implied_prob(odds):
 
     return round((abs(odds) / (abs(odds) + 100)) * 100, 1)
 
-def get_closing_odds_lookup(players, prop, line):
+def get_historical_odds_lookup(players, prop, line):
     if not players:
         return {}
 
@@ -490,13 +490,13 @@ def get_closing_odds_lookup(players, prop, line):
             odds,
             sportsbook,
             line
-        FROM closing_odds
+        FROM odds_market_timeline
         WHERE player IN ({placeholders})
           AND prop = %s
-          AND line = %s
           AND sportsbook = 'fanduel'
-          AND ou = 'over'
-          AND ismain = 1
+          AND LOWER(ou) = 'over'
+          AND line = %s
+          AND checkpoint = 'close'
     """
 
     params = players + [odds_prop, line]
@@ -525,7 +525,7 @@ def get_closing_odds_lookup(players, prop, line):
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
     summaries = []
     rows_by_player = {}
-    odds_lookup = get_closing_odds_lookup(players, prop, line) if role == "hitter" else {}
+    odds_lookup = get_historical_odds_lookup(players, prop, line) if role == "hitter" else {}
 
     for player_name in players:
         if role == "hitter":
