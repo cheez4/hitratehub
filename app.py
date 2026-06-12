@@ -480,27 +480,43 @@ def get_historical_odds_lookup(players, prop, line):
         return {}
 
     odds_prop = prop_to_odds_prop(prop)
-
     placeholders = ",".join(["%s"] * len(players))
 
     query = f"""
-        SELECT
-            player,
-            DATE(starttime) AS game_date,
-            odds,
-            sportsbook,
-            line
-        FROM odds_market_timeline
-        WHERE player IN ({placeholders})
-          AND prop = %s
-          AND sportsbook = 'fanduel'
-          AND LOWER(ou) = 'over'
-          AND line = %s
-          AND checkpoint = 'close'
+        WITH ranked AS (
+            SELECT
+                player,
+                game_date,
+                odds,
+                sportsbook,
+                line,
+                checkpoint,
+                ROW_NUMBER() OVER (
+                    PARTITION BY player, game_date
+                    ORDER BY
+                        CASE checkpoint
+                            WHEN 'close' THEN 1
+                            WHEN '3h' THEN 2
+                            WHEN '12h' THEN 3
+                            WHEN 'open' THEN 4
+                            ELSE 99
+                        END
+                ) AS rn
+            FROM odds_market_timeline
+            WHERE player IN ({placeholders})
+              AND prop = %s
+              AND sportsbook = 'fanduel'
+              AND LOWER(ou) = 'over'
+              AND line = %s
+              AND checkpoint IN ('close', '3h', '12h', 'open')
+              AND odds IS NOT NULL
+        )
+        SELECT *
+        FROM ranked
+        WHERE rn = 1
     """
 
     params = players + [odds_prop, line]
-
     df = read_sql(query, params)
 
     lookup = {}
