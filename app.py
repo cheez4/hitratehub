@@ -475,7 +475,7 @@ def american_to_implied_prob(odds):
 
     return round((abs(odds) / (abs(odds) + 100)) * 100, 1)
 
-def get_closing_odds_lookup(players, prop):
+def get_closing_odds_lookup(players, prop, line):
     if not players:
         return {}
 
@@ -493,12 +493,13 @@ def get_closing_odds_lookup(players, prop):
         FROM closing_odds
         WHERE player IN ({placeholders})
           AND prop = %s
+          AND line = %s
           AND sportsbook = 'fanduel'
           AND ou = 'over'
           AND ismain = 1
     """
 
-    params = players + [odds_prop]
+    params = players + [odds_prop, line]
 
     df = read_sql(query, params)
 
@@ -524,7 +525,7 @@ def get_closing_odds_lookup(players, prop):
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
     summaries = []
     rows_by_player = {}
-    odds_lookup = get_closing_odds_lookup(players, prop) if role == "hitter" else {}
+    odds_lookup = get_closing_odds_lookup(players, prop, line) if role == "hitter" else {}
 
     for player_name in players:
         if role == "hitter":
@@ -1130,6 +1131,7 @@ def build_combo_context():
     combo_size = safe_int(request.args.get("combo_size", 2), 2)
     combo_window = safe_int(request.args.get("combo_window", 30), 30)
     combo_limit = safe_int(request.args.get("combo_limit", 50), 50)
+    combo_line = safe_float(request.args.get("combo_line", 0.5), 0.5)
 
     combo_limit = min(combo_limit, 100)
     lineup_map = get_today_lineups()
@@ -1152,12 +1154,14 @@ def build_combo_context():
               AND prop = %s
               AND combo_size = %s
               AND window_games = %s
+              AND line = %s
             ORDER BY rate DESC, games DESC, edge DESC
             LIMIT %s
         """, (
             combo_prop,
             combo_size,
             combo_window,
+            combo_line,
             combo_limit
         ))
 
@@ -1194,6 +1198,7 @@ def build_combo_context():
         "combo_size": combo_size,
         "combo_window": combo_window,
         "combo_limit": combo_limit,
+        "combo_line": combo_line,
         "lineup_map": lineup_map
     }
 

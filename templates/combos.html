@@ -39,7 +39,24 @@
                         {% endfor %}
                     </select>
                 </div>
+<div class="field">
+    <label>Line</label>
+    <select name="combo_line">
+        <option value="0.5" {% if combo_line == 0.5 %}selected{% endif %}>0.5</option>
 
+        {% if combo_prop != "home_runs" %}
+        <option value="1.5" {% if combo_line == 1.5 %}selected{% endif %}>1.5</option>
+        {% endif %}
+
+        {% if combo_prop == "hits" or combo_prop == "total_bases" %}
+        <option value="2.5" {% if combo_line == 2.5 %}selected{% endif %}>2.5</option>
+        {% endif %}
+
+        {% if combo_prop == "total_bases" %}
+        <option value="3.5" {% if combo_line == 3.5 %}selected{% endif %}>3.5</option>
+        {% endif %}
+    </select>
+</div>
                 <div class="field">
                     <label>Show</label>
                     <select name="combo_limit">
@@ -174,15 +191,10 @@ params.set("calc_window", "{{ combo_window }}");
 
 const prop = "{{ combo_prop }}";
 
-if (prop == "home_runs") {
-    params.set("calc_line", "0.5");
-}
-else if (prop == "hits") {
-    params.set("calc_line", "0.5");
-}
-else if (prop == "total_bases") {
-    params.set("calc_line", "1.5");
-}
+params.set(
+    "calc_line",
+    document.querySelector('select[name="combo_line"]').value
+);
 
     const propMap = {
         "hits": "hits",
