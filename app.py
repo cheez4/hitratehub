@@ -1297,6 +1297,7 @@ def odds_snapshot():
                 "success": True,
                 "inserted": 0,
                 "last_seen_updated": 0,
+                "timeline_updated": 0,
                 "closed": 0,
                 "deleted_from_last_seen": 0
             }), 200
@@ -1338,6 +1339,55 @@ def odds_snapshot():
                 home = EXCLUDED.home,
                 away = EXCLUDED.away,
                 seen_run_id = EXCLUDED.seen_run_id
+        """
+
+        timeline_sql = """
+            INSERT INTO odds_market_timeline (
+                game_date,
+                checkpoint,
+                player,
+                sportsbook,
+                prop,
+                ou,
+                line,
+                odds,
+                gameid,
+                home,
+                away,
+                starttime,
+                captured_at
+            )
+            SELECT DISTINCT ON (DATE(starttime), player, sportsbook, prop, ou, line)
+                DATE(starttime) AS game_date,
+                'close' AS checkpoint,
+                player,
+                sportsbook,
+                prop,
+                ou,
+                line,
+                odds,
+                gameid,
+                home,
+                away,
+                starttime,
+                NOW() AS captured_at
+            FROM odds_last_seen
+            WHERE seen_run_id = %s
+              AND odds IS NOT NULL
+              AND line IS NOT NULL
+              AND player IS NOT NULL
+              AND prop IS NOT NULL
+              AND LOWER(ou) = 'over'
+              AND COALESCE(ismain, 1) = 1
+            ORDER BY DATE(starttime), player, sportsbook, prop, ou, line, updated_at DESC
+            ON CONFLICT (game_date, checkpoint, player, sportsbook, prop, ou, line)
+            DO UPDATE SET
+                odds = EXCLUDED.odds,
+                gameid = EXCLUDED.gameid,
+                home = EXCLUDED.home,
+                away = EXCLUDED.away,
+                starttime = EXCLUDED.starttime,
+                captured_at = EXCLUDED.captured_at
         """
 
         close_sql = """
@@ -1391,10 +1441,14 @@ def odds_snapshot():
                     cur.executemany(snapshot_sql, clean_rows)
                     cur.executemany(last_seen_sql, clean_rows)
 
+                    timeline_count = 0
                     closed_count = 0
                     deleted_count = 0
 
                     if is_final_chunk:
+                        cur.execute(timeline_sql, (run_id,))
+                        timeline_count = cur.rowcount
+
                         cur.execute(close_sql, (run_id,))
                         closed_count = cur.rowcount
 
@@ -1406,6 +1460,7 @@ def odds_snapshot():
                 "run_id": run_id,
                 "inserted": len(clean_rows),
                 "last_seen_updated": len(clean_rows),
+                "timeline_updated": timeline_count,
                 "closed": closed_count,
                 "deleted_from_last_seen": deleted_count
             }), 200
