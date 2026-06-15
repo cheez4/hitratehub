@@ -1403,7 +1403,7 @@ def odds_snapshot():
                 home = EXCLUDED.home,
                 away = EXCLUDED.away,
                 starttime = EXCLUDED.starttime,
-                captured_at = EXCLUDED.captured_at
+                source_captured_at = EXCLUDED.source_captured_at
         """
 
         close_sql = """
