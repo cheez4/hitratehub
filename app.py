@@ -1371,7 +1371,7 @@ def odds_snapshot():
                 home,
                 away,
                 starttime,
-                captured_at
+                source_captured_at
             )
             SELECT DISTINCT ON (DATE(starttime), player, sportsbook, prop, ou, line)
                 DATE(starttime) AS game_date,
@@ -1386,7 +1386,7 @@ def odds_snapshot():
                 home,
                 away,
                 starttime,
-                NOW() AS captured_at
+                NOW() AS source_captured_at
             FROM odds_last_seen
             WHERE seen_run_id = %s
               AND odds IS NOT NULL
