@@ -1460,11 +1460,12 @@ def odds_snapshot():
                     timeline_count = 0
                     closed_count = 0
                     deleted_count = 0
+                   
+                     # <-- ALWAYS update the timeline
+                    cur.execute(timeline_sql, (run_id,))
+                    timeline_count = cur.rowcount
 
                     if is_final_chunk:
-                        cur.execute(timeline_sql, (run_id,))
-                        timeline_count = cur.rowcount
-
                         cur.execute(close_sql, (run_id,))
                         closed_count = cur.rowcount
 
