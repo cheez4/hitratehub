@@ -344,20 +344,24 @@
 </div>
 
 <div class="summary-stat">
-    <div class="big
-        {% if p.edge_diff is not none and p.edge_diff >= 10 %}
-    edge-heavy-positive
-{% elif p.edge_diff is not none and p.edge_diff >= 5 %}
-    edge-positive
-{% elif p.edge_diff is not none and p.edge_diff <= -10 %}
-    edge-heavy-negative
-{% elif p.edge_diff is not none and p.edge_diff <= -5 %}
-    edge-negative
-{% endif %}
-    ">
+
+    {% set edgeClass = "" %}
+    {% if p.edge_diff is not none and p.edge_diff >= 10 %}
+        {% set edgeClass = "edge-heavy-positive" %}
+    {% elif p.edge_diff is not none and p.edge_diff >= 5 %}
+        {% set edgeClass = "edge-positive" %}
+    {% elif p.edge_diff is not none and p.edge_diff <= -10 %}
+        {% set edgeClass = "edge-heavy-negative" %}
+    {% elif p.edge_diff is not none and p.edge_diff <= -5 %}
+        {% set edgeClass = "edge-negative" %}
+    {% endif %}
+
+    <div class="big {{ edgeClass }}">
         {{ p.edge_label }}
     </div>
+
     <div class="lab">Edge</div>
+
 </div>
     <div class="summary-stat">
         <div class="big">{{ p.hits }}/{{ p.games }}</div>
@@ -1169,14 +1173,11 @@ function updateComboCount() {
     }
 }
     
-</script>
-
-<script>
 document.addEventListener("DOMContentLoaded", function () {
 
     updateComboCount();
 
-    document.querySelectorAll(".player-select").forEach((el) => {{
+    document.querySelectorAll(".player-select").forEach((el) => {
         if (el.tomselect) {
             el.tomselect.destroy();
         }
@@ -1205,4 +1206,5 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 });
-</script>{% endblock %}
+</script>
+{% endblock %}
