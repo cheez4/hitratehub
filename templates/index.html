@@ -403,13 +403,23 @@
                 <div class="section-title">Date-Matched Comparison</div>
 
                 <div class="table-wrap">
-                    <table>
+                     <table id="compareTable">
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                {% for p in compare_result.players %}
-                                    <th>{{ p.player_name }}</th>
-                                {% endfor %}
+{% for p in compare_result.players %}
+    <th>
+        <label class="combo-head-check">
+            <input
+                type="checkbox"
+                class="combo-player-check"
+                data-player-index="{{ loop.index0 }}"
+                data-player-name="{{ p.player_name }}"
+            >
+            {{ p.player_name }}
+        </label>
+    </th>
+{% endfor %}
                             </tr>
                         </thead>
                         <tbody>
@@ -421,6 +431,7 @@
                                         {% if pdata.played %}
 
     <div>{{ pdata.stat_value }}</div>
+
 
     {% if pdata.odds %}
         <div style="font-size:12px; color:#8ecbff; margin-top:4px;">
@@ -448,7 +459,44 @@
                         </tbody>
                     </table>
                 </div>
+<div class="combo-analyzer">
+    <div class="combo-title">🔥 Combo Analyzer</div>
+    <div class="combo-note">
+    Select players from the table above.
+    <br>
+    <span id="comboSelectedCount">(0 / 5 Selected)</span>
+</div>
 
+    <div class="combo-controls">
+        <label><input type="checkbox" class="combo-size-check" value="2" checked> 2 Legs</label>
+        <label><input type="checkbox" class="combo-size-check" value="3" checked> 3 Legs</label>
+        <label><input type="checkbox" class="combo-size-check" value="4" checked> 4 Legs</label>
+        <label><input type="checkbox" class="combo-size-check" value="5" checked> 5 Legs</label>
+
+        <button type="button" class="share-btn" onclick="analyzeCombos()">Analyze Combos</button>
+    </div>
+
+    <div id="comboMessage" class="combo-message"></div>
+    <div id="comboBest" class="combo-best"></div>
+
+    <div class="table-wrap" id="comboResultsWrap" style="display:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Combo</th>
+                    <th>Legs</th>
+                    <th>Games</th>
+                    <th>Wins</th>
+                    <th>Losses</th>
+                    <th>Win %</th>
+                </tr>
+            </thead>
+            <tbody id="comboResultsBody"></tbody>
+        </table>
+    </div>
+</div>
+
+ 
                 <div class="export-footer">
                     Generated from Hit Rate Hub • Share your findings and tag us if you want
                 </div>
@@ -732,7 +780,113 @@
 .pa-row strong {
     color: #7dffb3;
 }
+.combo-head-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
 
+.combo-head-check input {
+    transform: scale(1.15);
+}
+
+.combo-analyzer {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid #21466d;
+    border-radius: 14px;
+    background: #071b2f;
+}
+
+.combo-title {
+    font-size: 20px;
+    font-weight: 900;
+    color: #ffffff;
+}
+
+.combo-note {
+    margin-top: 6px;
+    color: #95aac6;
+    font-size: 14px;
+}
+
+.combo-controls {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.combo-controls label {
+    color: #e8eef8;
+    font-weight: 700;
+}
+
+.combo-message {
+    margin-top: 12px;
+    color: #ffcc66;
+    font-weight: 800;
+}
+
+.combo-best {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.combo-best-card {
+    background: #0b2742;
+    border: 1px solid #21466d;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.combo-best-card .label {
+    color: #8ecbff;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.combo-best-card .name {
+    margin-top: 6px;
+    color: #ffffff;
+    font-weight: 900;
+}
+
+.combo-best-card .rate {
+    margin-top: 6px;
+    color: #7dffb3;
+    font-size: 22px;
+    font-weight: 900;
+}
+.edge-heavy-positive {
+    color: #00ff99 !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.edge-positive {
+    color: #7dff9b !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.edge-negative {
+    color: #ffb347 !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.edge-heavy-negative {
+    color: #ff5c5c !important;
+    font-weight: 800;
+    line-height: 1.2;
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -822,29 +976,7 @@
         downloadImage(id, "hitratehub-share.png");
     }
 
-.edge-heavy-positive {
-    color: #00ff99 !important;
-    font-weight: 800;
-    line-height: 1.2;
-}
 
-.edge-positive {
-    color: #7dff9b !important;
-    font-weight: 800;
-    line-height: 1.2;
-}
-
-.edge-negative {
-    color: #ffb347 !important;
-    font-weight: 800;
-    line-height: 1.2;
-}
-
-.edge-heavy-negative {
-    color: #ff5c5c !important;
-    font-weight: 800;
-    line-height: 1.2;
-}
     function copyBestImage() {
         const id = getBestShareAreaId();
         if (!id) {
@@ -854,10 +986,197 @@
         copyImage(id);
     }
 
+
 </script>
 <script>
+function getCombinations(arr, size) {
+    const results = [];
+
+    function helper(start, combo) {
+        if (combo.length === size) {
+            results.push([...combo]);
+            return;
+        }
+
+        for (let i = start; i < arr.length; i++) {
+            combo.push(arr[i]);
+            helper(i + 1, combo);
+            combo.pop();
+        }
+    }
+
+    helper(0, []);
+    return results;
+}
+
+function analyzeCombos() {
+    const message = document.getElementById("comboMessage");
+    const bestBox = document.getElementById("comboBest");
+    const wrap = document.getElementById("comboResultsWrap");
+    const body = document.getElementById("comboResultsBody");
+
+    message.innerHTML = "";
+    bestBox.innerHTML = "";
+    body.innerHTML = "";
+    wrap.style.display = "none";
+
+    const selectedPlayers = Array.from(document.querySelectorAll(".combo-player-check:checked"))
+        .map(cb => ({
+            index: parseInt(cb.dataset.playerIndex),
+            name: cb.dataset.playerName
+        }));
+
+    if (selectedPlayers.length < 2) {
+        message.innerHTML = "Select at least 2 players.";
+        return;
+    }
+
+    if (selectedPlayers.length > 5) {
+        message.innerHTML = "Maximum 5 players can be analyzed at once.";
+        return;
+    }
+
+    const selectedSizes = Array.from(document.querySelectorAll(".combo-size-check:checked"))
+        .map(cb => parseInt(cb.value))
+        .filter(size => size <= selectedPlayers.length);
+
+    if (!selectedSizes.length) {
+        message.innerHTML = "Select at least one combo size.";
+        return;
+    }
+
+    const rows = Array.from(document.querySelectorAll("#compareTable tbody tr"));
+    const results = [];
+
+    selectedSizes.forEach(size => {
+        const combos = getCombinations(selectedPlayers, size);
+
+        combos.forEach(combo => {
+            let games = 0;
+            let wins = 0;
+
+            rows.forEach(row => {
+                const cells = Array.from(row.querySelectorAll("td"));
+                let allPlayed = true;
+                let allHit = true;
+
+                combo.forEach(player => {
+                    const cell = cells[player.index + 1];
+
+                    if (!cell || cell.querySelector(".no-game")) {
+                        allPlayed = false;
+                        return;
+                    }
+
+                    if (!cell.querySelector(".hit-pill")) {
+                        allHit = false;
+                    }
+                });
+
+                if (allPlayed) {
+                    games++;
+                    if (allHit) wins++;
+                }
+            });
+
+            const losses = games - wins;
+            const winPct = games ? ((wins / games) * 100) : 0;
+
+            results.push({
+                combo: combo.map(p => p.name).join(" + "),
+                legs: size,
+                games,
+                wins,
+                losses,
+                winPct
+            });
+        });
+    });
+
+    results.sort((a, b) => {
+        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+        if (b.games !== a.games) return b.games - a.games;
+        return b.wins - a.wins;
+    });
+
+    results.forEach(r => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+            <td><strong>${r.combo}</strong></td>
+            <td>${r.legs}</td>
+            <td>${r.games}</td>
+            <td>${r.wins}</td>
+            <td>${r.losses}</td>
+            <td><strong>${r.winPct.toFixed(1)}%</strong></td>
+        `;
+
+        body.appendChild(tr);
+    });
+
+    const bestByLeg = {};
+
+    results.forEach(r => {
+        if (!bestByLeg[r.legs]) {
+            bestByLeg[r.legs] = r;
+        }
+    });
+
+    Object.keys(bestByLeg).sort().forEach(legs => {
+        const r = bestByLeg[legs];
+
+        const card = document.createElement("div");
+        card.className = "combo-best-card";
+        card.innerHTML = `
+            <div class="label">Best ${legs}-Leg</div>
+            <div class="name">${r.combo}</div>
+            <div class="rate">${r.winPct.toFixed(1)}%</div>
+            <div style="color:#95aac6; font-size:13px;">${r.wins}-${r.losses} over ${r.games} games</div>
+        `;
+
+        bestBox.appendChild(card);
+    });
+
+    wrap.style.display = "block";
+}
+
+document.addEventListener("change", function(e) {
+
+    if (!e.target.classList.contains("combo-player-check")) return;
+
+    updateComboCount();
+
+    const checked = document.querySelectorAll(".combo-player-check:checked");
+
+    if (checked.length > 5) {
+        e.target.checked = false;
+        updateComboCount();
+
+        const message = document.getElementById("comboMessage");
+
+        if (message) {
+            message.innerHTML = "Maximum 5 players can be analyzed at once.";
+        }
+    }
+});
+function updateComboCount() {
+    const count = document.querySelectorAll(".combo-player-check:checked").length;
+
+    const el = document.getElementById("comboSelectedCount");
+
+    if (el) {
+        el.innerHTML = `(${count} / 5 Selected)`;
+    }
+}
+    
+</script>
+
+<script>
 document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll(".player-select").forEach((el) => {
+
+    updateComboCount();
+
+    document.querySelectorAll(".player-select").forEach((el) => {{
         if (el.tomselect) {
             el.tomselect.destroy();
         }
