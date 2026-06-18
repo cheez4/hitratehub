@@ -135,41 +135,33 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for row in hot_trends %}
-                        <td>
-    <input
-        type="checkbox"
-        class="trend-player-check"
-        data-player-name="{{ row.player_name }}">
-</td>
-
-<td>{{ loop.index }}</td>
-    {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
-
-    {% if lu and lu.status == "confirmed" %}
-        <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
-    {% elif lu and lu.status == "probable" %}
-        <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
-    {% else %}
-        <span class="lineup-badge lineup-not-listed">—</span>
-    {% endif %}
-
-    {{ row.player_name }}
-</td>
-                            <td>{{ row.team }}</td>
-                            <td class="heat-cell heat-100">{{ row.rate }}%</td>
-                            <td>{{ row.hits }}/{{ row.games }}</td>
-                            <td>{{ row.avg }}</td>
-                            <td>🔥 {{ row.streak }}</td>
-                            <td>{{ row.last_value }} on {{ row.last_date }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="8" style="color:#95aac6;">No hot trends found.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+{% for row in hot_trends %}
+<tr>
+    <td><input type="checkbox" class="trend-player-check" data-player-name="{{ row.player_name }}"></td>
+    <td>{{ loop.index }}</td>
+    <td>
+        {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
+        {% if lu and lu.status == "confirmed" %}
+            <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+        {% elif lu and lu.status == "probable" %}
+            <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+        {% else %}
+            <span class="lineup-badge lineup-not-listed">—</span>
+        {% endif %}
+        {{ row.player_name }}
+    </td>
+    <td>{{ row.team }}</td>
+    <td class="heat-cell heat-100">{{ row.rate }}%</td>
+    <td>{{ row.hits }}/{{ row.games }}</td>
+    <td>{{ row.avg }}</td>
+    <td>🔥 {{ row.streak }}</td>
+    <td>{{ row.last_value }} on {{ row.last_date }}</td>
+</tr>
+{% else %}
+<tr><td colspan="9" style="color:#95aac6;">No hot trends found.</td></tr>
+{% endfor %}
+</tbody>
+</table>
             </div>
         </div>
 
@@ -225,7 +217,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" style="color:#95aac6;">No cold trends found.</td>
+                            <td colspan="8" style="color:#95aac6;">No cold trends found.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -255,41 +247,59 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in mover_trends %}
-                    <td>
-    <input
-        type="checkbox"
-        class="trend-player-check"
-        data-player-name="{{ row.player_name }}">
-</td>
+{% for row in mover_trends %}
+<tr>
 
-<td>{{ loop.index }}</td>
-    {% set lu = lineup_map.get(row.player_name) %}
+    <td>
+        <input
+            type="checkbox"
+            class="trend-player-check"
+            data-player-name="{{ row.player_name }}">
+    </td>
 
-    {% if lu and lu.status == "confirmed" %}
-        <span class="lineup-badge lineup-confirmed">{{ lu.order }}</span>
-    {% elif lu and lu.status == "probable" %}
-        <span class="lineup-badge lineup-probable">{{ lu.order }}</span>
-    {% else %}
-        <span class="lineup-badge lineup-not-listed">—</span>
-    {% endif %}
+    <td>{{ loop.index }}</td>
 
-    {{ row.player_name }}
-</td>
-                        <td>{{ row.team }}</td>
-                        <td class="heat-cell heat-100">+{{ row.jump }}%</td>
-                        <td>{{ row.rate }}%</td>
-                        <td>{{ row.hits }}/{{ row.games }}</td>
-                        <td>{{ row.avg }}</td>
-                        <td>{{ row.last_value }} on {{ row.last_date }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="8" style="color:#95aac6;">No movers found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <td>
+        {% set lu = lineup_map.get(row.player_name) %}
+
+        {% if lu and lu.status == "confirmed" %}
+            <span class="lineup-badge lineup-confirmed">BO{{ lu.order }} 🟢</span>
+        {% elif lu and lu.status == "probable" %}
+            <span class="lineup-badge lineup-probable">BO{{ lu.order }} 🟡</span>
+        {% else %}
+            <span class="lineup-badge lineup-not-listed">—</span>
+        {% endif %}
+
+        {{ row.player_name }}
+    </td>
+
+    <td>{{ row.team }}</td>
+
+    <td class="heat-cell heat-100">
+        +{{ row.jump }}%
+    </td>
+
+    <td>{{ row.rate }}%</td>
+
+    <td>{{ row.hits }}/{{ row.games }}</td>
+
+    <td>{{ row.avg }}</td>
+
+    <td>{{ row.last_value }} on {{ row.last_date }}</td>
+
+</tr>
+
+{% else %}
+
+<tr>
+    <td colspan="9" style="color:#95aac6;">
+        No movers found.
+    </td>
+</tr>
+
+{% endfor %}
+</tbody>
+</table>
         </div>
     </div>
 </div>
