@@ -123,6 +123,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>✓</th>
                             <th>#</th>
                             <th>Player</th>
                             <th>Team</th>
@@ -135,9 +136,14 @@
                     </thead>
                     <tbody>
                         {% for row in hot_trends %}
-                        <tr>
-                            <td>{{ loop.index }}</td>
-                            <td>
+                        <td>
+    <input
+        type="checkbox"
+        class="trend-player-check"
+        data-player-name="{{ row.player_name }}">
+</td>
+
+<td>{{ loop.index }}</td>
     {% set lu = lineup_map.get(row.player_name) or lineup_map.get(row.player_name|lower) %}
 
     {% if lu and lu.status == "confirmed" %}
@@ -237,6 +243,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>✓</th>
                         <th>#</th>
                         <th>Player</th>
                         <th>Team</th>
@@ -249,9 +256,14 @@
                 </thead>
                 <tbody>
                     {% for row in mover_trends %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>
+                    <td>
+    <input
+        type="checkbox"
+        class="trend-player-check"
+        data-player-name="{{ row.player_name }}">
+</td>
+
+<td>{{ loop.index }}</td>
     {% set lu = lineup_map.get(row.player_name) %}
 
     {% if lu and lu.status == "confirmed" %}
