@@ -500,6 +500,53 @@
     </div>
 </div>
 
+<div class="portfolio-builder">
+    <div class="combo-title">🏆 Portfolio Builder</div>
+    <div class="combo-note">Build a ticket portfolio from the combo results above.</div>
+
+    <div class="portfolio-controls">
+        <div class="field">
+            <label>Portfolio Type</label>
+            <select id="portfolioType">
+                <option value="max_roi">🏆 Max ROI</option>
+                <option value="diversified">🛡 Diversified</option>
+                <option value="safe">🟢 Safest</option>
+                <option value="custom">⚙ Custom</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Starting Bankroll</label>
+            <input type="number" id="portfolioBankroll" value="1000">
+        </div>
+
+        <div class="field">
+            <label>Daily Risk %</label>
+            <input type="number" id="portfolioRiskPct" value="10">
+        </div>
+
+        <div class="field">
+            <label>Tickets</label>
+            <input type="number" id="portfolioTicketCount" value="8">
+        </div>
+
+        <div class="field">
+            <label>Min Games</label>
+            <input type="number" id="portfolioMinGames" value="20">
+        </div>
+
+        <div class="field">
+            <label>Max Exposure %</label>
+            <input type="number" id="portfolioMaxExposure" value="75">
+        </div>
+    </div>
+
+    <button type="button" class="share-btn" onclick="generatePortfolio()">
+        Generate Portfolio
+    </button>
+
+    <div id="portfolioResults"></div>
+</div>
  
                 <div class="export-footer">
                     Generated from Hit Rate Hub • Share your findings and tag us if you want
@@ -891,6 +938,37 @@
     font-weight: 800;
     line-height: 1.2;
 }
+
+.portfolio-builder {
+    margin-top: 22px;
+    padding: 16px;
+    border: 1px solid #21466d;
+    border-radius: 14px;
+    background: #061526;
+}
+
+.portfolio-controls {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.portfolio-ticket-card {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #21466d;
+    border-radius: 12px;
+    background: #0b2742;
+}
+
+.portfolio-summary-box {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid #21466d;
+    border-radius: 12px;
+    background: #071b2f;
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1171,6 +1249,128 @@ function updateComboCount() {
     if (el) {
         el.innerHTML = `(${count} / 5 Selected)`;
     }
+}
+
+function generatePortfolio() {
+    const ticketCount = parseInt(document.getElementById("portfolioTicketCount").value || "8");
+    const minGames = parseInt(document.getElementById("portfolioMinGames").value || "20");
+    const maxExposurePct = parseInt(document.getElementById("portfolioMaxExposure").value || "75");
+    const bankroll = parseFloat(document.getElementById("portfolioBankroll").value || "1000");
+    const riskPct = parseFloat(document.getElementById("portfolioRiskPct").value || "10");
+
+    const rows = Array.from(document.querySelectorAll("#comboResultsBody tr"));
+
+    let combos = [];
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+        if (cells.length < 6) return;
+
+        const combo = cells[0].innerText.trim();
+        const legs = parseInt(cells[1].innerText.trim());
+        const games = parseInt(cells[2].innerText.trim());
+        const wins = parseInt(cells[3].innerText.trim());
+        const losses = parseInt(cells[4].innerText.trim());
+        const winPct = parseFloat(cells[5].innerText.replace("%", "").trim());
+
+        if (games < minGames) return;
+
+        combos.push({
+            combo,
+            players: combo.split("+").map(p => p.trim()),
+            legs,
+            games,
+            wins,
+            losses,
+            winPct
+        });
+    });
+
+    combos.sort((a, b) => {
+        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+        return b.games - a.games;
+    });
+
+    const selected = [];
+    const playerCounts = {};
+
+    for (const combo of combos) {
+        let allowed = true;
+
+        for (const player of combo.players) {
+            const currentCount = playerCounts[player] || 0;
+            const nextExposure = ((currentCount + 1) / ticketCount) * 100;
+
+            if (nextExposure > maxExposurePct) {
+                allowed = false;
+                break;
+            }
+        }
+
+        if (!allowed) continue;
+
+        selected.push(combo);
+
+        combo.players.forEach(player => {
+            playerCounts[player] = (playerCounts[player] || 0) + 1;
+        });
+
+        if (selected.length >= ticketCount) break;
+    }
+
+    renderPortfolio(selected, playerCounts, bankroll, riskPct);
+}
+
+function renderPortfolio(tickets, playerCounts, bankroll, riskPct) {
+    const box = document.getElementById("portfolioResults");
+
+    if (!tickets.length) {
+        box.innerHTML = `<div class="combo-message">No portfolio found. Try lowering Min Games or Max Exposure.</div>`;
+        return;
+    }
+
+    const dailyRisk = bankroll * (riskPct / 100);
+    const betSize = dailyRisk / tickets.length;
+
+    const totalWins = tickets.reduce((sum, t) => sum + t.wins, 0);
+    const totalGames = tickets.reduce((sum, t) => sum + t.games, 0);
+    const totalLosses = totalGames - totalWins;
+    const winPct = totalGames ? ((totalWins / totalGames) * 100).toFixed(1) : "0.0";
+
+    let html = `
+        <div class="portfolio-summary-box">
+            <h3>Portfolio Summary</h3>
+            <p><strong>Daily Risk:</strong> $${dailyRisk.toFixed(2)}</p>
+            <p><strong>Bet Size Per Ticket:</strong> $${betSize.toFixed(2)}</p>
+            <p><strong>Tickets:</strong> ${tickets.length}</p>
+            <p><strong>Historical Record:</strong> ${totalWins}-${totalLosses}</p>
+            <p><strong>Historical Win %:</strong> ${winPct}%</p>
+        </div>
+
+        <h3 style="margin-top:16px;">Generated Tickets</h3>
+    `;
+
+    tickets.forEach((ticket, index) => {
+        html += `
+            <div class="portfolio-ticket-card">
+                <h4>Ticket ${index + 1}</h4>
+                <p><strong>${ticket.combo}</strong></p>
+                <p>Legs: ${ticket.legs}</p>
+                <p>Record: ${ticket.wins}-${ticket.losses}</p>
+                <p>Win %: ${ticket.winPct.toFixed(1)}%</p>
+                <p>Bet Size: $${betSize.toFixed(2)}</p>
+            </div>
+        `;
+    });
+
+    html += `<h3 style="margin-top:16px;">Player Exposure</h3>`;
+
+    Object.entries(playerCounts).forEach(([player, count]) => {
+        const exposure = ((count / tickets.length) * 100).toFixed(0);
+        html += `<p><strong>${player}</strong>: ${exposure}%</p>`;
+    });
+
+    box.innerHTML = html;
 }
     
 document.addEventListener("DOMContentLoaded", function () {
