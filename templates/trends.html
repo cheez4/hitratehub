@@ -15,7 +15,7 @@
     <div style="padding:0 18px 18px;">
         <div style="
             display:grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr 130px;
+            grid-template-columns: repeat(3, 1fr);
             gap:12px;
             align-items:end;
         ">
@@ -89,7 +89,30 @@
     </div>
 </form>
     </div>
+<div class="panel" style="margin-top:16px;">
+    <div class="panel-header">
+        <div>
+            <div class="panel-title">
+                Selected Players <span id="trendSelectedCount">(0 / 10)</span>
+            </div>
+            <div class="small">Select players from the trend tables below.</div>
+        </div>
+    </div>
 
+    <div style="padding:15px;">
+        <div id="trendSelectedPlayers" style="margin-bottom:12px; color:#e8eef8;">
+            No players selected yet.
+        </div>
+
+        <button
+            class="run-btn"
+            type="button"
+            onclick="sendTrendPlayersToCalculator()"
+            style="width:280px;">
+            Send Selected Players to Calculator
+        </button>
+    </div>
+</div>
     <div class="main-grid" style="margin-top:16px;">
         <div class="panel">
             <div class="panel-header">
@@ -153,6 +176,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>✓</th>
                             <th>#</th>
                             <th>Player</th>
                             <th>Team</th>
@@ -165,8 +189,16 @@
                     <tbody>
                         {% for row in cold_trends %}
                         <tr>
-                            <td>{{ loop.index }}</td>
-                            <td>
+    <td>
+        <input
+            type="checkbox"
+            class="trend-player-check"
+            data-player-name="{{ row.player_name }}">
+    </td>
+
+    <td>{{ loop.index }}</td>
+
+    <td>
     {% set lu = lineup_map.get(row.player_name) %}
 
     {% if lu and lu.status == "confirmed" %}
@@ -249,5 +281,99 @@
         </div>
     </div>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getSelectedTrendPlayers() {
+    const names = [];
+
+    document.querySelectorAll(".trend-player-check:checked").forEach(cb => {
+        const name = cb.dataset.playerName;
+
+        if (name && !names.includes(name)) {
+            names.push(name);
+        }
+    });
+
+    return names;
+}
+
+function updateSelectedTrendPlayers() {
+    const selected = getSelectedTrendPlayers();
+    const count = document.getElementById("trendSelectedCount");
+    const box = document.getElementById("trendSelectedPlayers");
+
+    if (count) {
+        count.innerHTML = `(${selected.length} / 10)`;
+    }
+
+    if (!box) return;
+
+    if (!selected.length) {
+        box.innerHTML = "No players selected yet.";
+        return;
+    }
+
+    box.innerHTML = selected.map(name => {
+        return `<span style="
+            display:inline-block;
+            margin:4px;
+            padding:6px 10px;
+            background:#0b2742;
+            border:1px solid #21466d;
+            border-radius:999px;
+            font-weight:800;
+        ">${name}</span>`;
+    }).join("");
+}
+
+document.addEventListener("change", function(e) {
+    if (!e.target.classList.contains("trend-player-check")) return;
+
+    const selected = getSelectedTrendPlayers();
+
+    if (selected.length > 10) {
+        e.target.checked = false;
+        updateSelectedTrendPlayers();
+        alert("Maximum 10 players can be selected.");
+        return;
+    }
+
+    updateSelectedTrendPlayers();
+});
+
+function sendTrendPlayersToCalculator() {
+    const selected = getSelectedTrendPlayers();
+
+    if (!selected.length) {
+        alert("Select at least 1 player.");
+        return;
+    }
+
+    const params = new URLSearchParams();
+
+    params.set("calc_role", "hitter");
+    params.set("calc_mode", "over");
+    params.set("calc_prop", "{{ trend_prop }}");
+    params.set("calc_window", "{{ trend_window }}");
+    params.set("calc_line", "0.5");
+
+    selected.forEach((name, index) => {
+        if (index === 0) {
+            params.set("calc_player", name);
+        } else {
+            params.set(`calc_compare_${index + 1}`, name);
+        }
+    });
+
+    window.location.href = "{{ url_for('index') }}?" + params.toString();
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    updateSelectedTrendPlayers();
+});
+</script>
 
 {% endblock %}

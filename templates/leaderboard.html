@@ -54,6 +54,15 @@
     line-height:1.25;
 }
 
+.leaderboard-selected-box{
+    margin:0 18px 16px;
+    padding:14px;
+    border:1px solid #21466d;
+    border-radius:12px;
+    background:#071b2f;
+}
+
+
     @media (max-width:1100px){
         .leaderboard-compact-filters{
             grid-template-columns:repeat(3, 1fr);
@@ -179,6 +188,18 @@
             <button class="share-btn" type="button" onclick="shareToX()">Share on X</button>
         </div>
 
+<div class="leaderboard-selected-box">
+    <strong>Selected Players</strong>
+    <span id="leaderboardSelectedCount">(0 / 10)</span>
+
+    <div id="leaderboardSelectedPlayers" style="margin-top:10px; color:#e8eef8;">
+        No players selected yet.
+    </div>
+
+    <button class="share-btn" type="button" onclick="sendLeaderboardPlayersToCompare()" style="margin-top:12px;">
+        Compare Selected Players
+    </button>
+</div>
         <div id="share-leaderboard-area" class="share-card-export">
             <div class="export-head">
                 <div>
@@ -201,6 +222,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>✓</th>
                             <th>#</th>
                             <th>Player</th>
                             {% if role == "hitter" %}<th>Team</th>{% endif %}
@@ -215,6 +237,13 @@
                     <tbody>
                         {% for row in leaderboard %}
 <tr>
+    <td>
+        <input
+            type="checkbox"
+            class="leaderboard-player-check"
+            data-player-name="{{ row.player_name }}">
+    </td>
+
     <td>{{ loop.index }}</td>
 
     <td>
@@ -343,5 +372,100 @@
             }
         }, "image/png");
     }
+
+function getSelectedLeaderboardPlayers() {
+    const names = [];
+
+    document.querySelectorAll(".leaderboard-player-check:checked").forEach(cb => {
+        const name = cb.dataset.playerName;
+
+        if (name && !names.includes(name)) {
+            names.push(name);
+        }
+    });
+
+    return names;
+}
+
+function updateSelectedLeaderboardPlayers() {
+    const selected = getSelectedLeaderboardPlayers();
+    const count = document.getElementById("leaderboardSelectedCount");
+    const box = document.getElementById("leaderboardSelectedPlayers");
+
+    if (count) {
+        count.innerHTML = `(${selected.length} / 10)`;
+    }
+
+    if (!box) return;
+
+    if (!selected.length) {
+        box.innerHTML = "No players selected yet.";
+        return;
+    }
+
+    box.innerHTML = selected.map(name => {
+        return `<span style="
+            display:inline-block;
+            margin:4px;
+            padding:6px 10px;
+            background:#0b2742;
+            border:1px solid #21466d;
+            border-radius:999px;
+            font-weight:800;
+        ">${name}</span>`;
+    }).join("");
+}
+
+document.addEventListener("change", function(e) {
+    if (!e.target.classList.contains("leaderboard-player-check")) return;
+
+    const selected = getSelectedLeaderboardPlayers();
+
+    if (selected.length > 10) {
+        e.target.checked = false;
+        updateSelectedLeaderboardPlayers();
+        alert("Maximum 10 players can be selected.");
+        return;
+    }
+
+    updateSelectedLeaderboardPlayers();
+});
+
+function sendLeaderboardPlayersToCompare() {
+    const selected = getSelectedLeaderboardPlayers();
+
+    if (!selected.length) {
+        alert("Select at least 1 player.");
+        return;
+    }
+
+    const params = new URLSearchParams();
+
+    params.set("calc_role", "{{ role }}");
+    params.set("calc_mode", "over");
+
+    {% if role == "hitter" %}
+        params.set("calc_prop", "{{ hitter_prop }}");
+    {% else %}
+        params.set("calc_prop", "{{ pitcher_prop }}");
+    {% endif %}
+
+    params.set("calc_window", "{{ calc_window }}");
+    params.set("calc_line", "{{ sort_line }}");
+
+    selected.forEach((name, index) => {
+        if (index === 0) {
+            params.set("calc_player", name);
+        } else {
+            params.set(`calc_compare_${index + 1}`, name);
+        }
+    });
+
+    window.location.href = "{{ url_for('index') }}?" + params.toString();
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    updateSelectedLeaderboardPlayers();
+});
 </script>
 {% endblock %}
