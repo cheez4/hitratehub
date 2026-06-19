@@ -528,7 +528,17 @@
         <div class="field">
             <label>Tickets</label>
             <input type="number" id="portfolioTicketCount" value="8">
-        </div>
+</div>
+<div class="field">
+    <label>Max Player Exposure %</label>
+    <input
+        type="number"
+        id="portfolioMaxExposure"
+        value="75"
+        min="1"
+        max="100">
+</div>
+        
 
         <div class="field">
             <label>Min Games</label>
@@ -1363,12 +1373,46 @@ function renderPortfolio(tickets, playerCounts, bankroll, riskPct) {
         `;
     });
 
-    html += `<h3 style="margin-top:16px;">Player Exposure</h3>`;
+    html += `<h3 style="margin-top:20px;">Player Exposure</h3>`;
 
-    Object.entries(playerCounts).forEach(([player, count]) => {
-        const exposure = ((count / tickets.length) * 100).toFixed(0);
-        html += `<p><strong>${player}</strong>: ${exposure}%</p>`;
-    });
+Object.entries(playerCounts)
+.sort((a,b)=>b[1]-a[1])
+.forEach(([player,count])=>{
+
+    const exposure=((count/tickets.length)*100).toFixed(0);
+
+    html+=`
+
+<div class="portfolio-ticket-card">
+
+    <strong>${player}</strong>
+
+    <div style="margin-top:4px;">
+        ${exposure}% Exposure
+    </div>
+
+    <div style="
+        margin-top:8px;
+        background:#0b2742;
+        border-radius:999px;
+        overflow:hidden;
+        height:12px;
+    ">
+
+        <div style="
+            width:${exposure}%;
+            height:12px;
+            background:#4ade80;
+        ">
+        </div>
+
+    </div>
+
+</div>
+
+`;
+
+});
 
     box.innerHTML = html;
 }
