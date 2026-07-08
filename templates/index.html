@@ -400,6 +400,50 @@
                         <div class="mini-bar">
                             <span style="width: {{ p.hit_rate }}%;"></span>
                         </div>
+<details class="streak-analytics">
+    <summary>
+        🔥 Streak Analytics
+        <span>{{ p.streak_profile }}</span>
+    </summary>
+
+    <div class="streak-grid">
+        <div>
+            <strong>🔥 {{ p.current_streak_count }}</strong>
+            <small>Current</small>
+        </div>
+
+        <div>
+            <strong>🏆 {{ p.longest_hit_streak }}</strong>
+            <small>Longest</small>
+        </div>
+
+        <div>
+            <strong>📊 {{ p.streaks_4_plus }}</strong>
+            <small>4+ Streaks</small>
+        </div>
+
+        <div>
+            <strong>⭐ {{ p.streak_rating }}</strong>
+            <small>Rating</small>
+        </div>
+    </div>
+
+    <div class="streak-profile">
+        🧠 {{ p.streak_profile }}
+    </div>
+
+    <div class="streak-bars">
+        {% for s in p.streak_distribution %}
+            <div class="streak-bar-row">
+                <span>{{ s.length }} Game</span>
+                <div class="streak-bar">
+                    <i style="width: {{ s.percent }}%;"></i>
+                </div>
+                <b>{{ s.count }}</b>
+            </div>
+        {% endfor %}
+    </div>
+</details>
                     </div>
                     {% endfor %}
                 </div>
@@ -661,6 +705,50 @@
                         <div class="mini-bar">
                             <span style="width: {{ custom_result.hit_rate }}%;"></span>
 </div>
+<details class="streak-analytics">
+    <summary>
+        🔥 Streak Analytics
+        <span>{{ custom_result.streak_profile }}</span>
+    </summary>
+
+    <div class="streak-grid">
+        <div>
+            <strong>🔥 {{ custom_result.current_streak_count }}</strong>
+            <small>Current</small>
+        </div>
+
+        <div>
+            <strong>🏆 {{ custom_result.longest_hit_streak }}</strong>
+            <small>Longest</small>
+        </div>
+
+        <div>
+            <strong>📊 {{ custom_result.streaks_4_plus }}</strong>
+            <small>4+ Streaks</small>
+        </div>
+
+        <div>
+            <strong>⭐ {{ custom_result.streak_rating }}</strong>
+            <small>Rating</small>
+        </div>
+    </div>
+
+    <div class="streak-profile">
+        🧠 {{ custom_result.streak_profile }}
+    </div>
+
+    <div class="streak-bars">
+        {% for s in custom_result.streak_distribution %}
+            <div class="streak-bar-row">
+                <span>{{ s.length }} Game</span>
+                <div class="streak-bar">
+                    <i style="width: {{ s.percent }}%;"></i>
+                </div>
+                <b>{{ s.count }}</b>
+            </div>
+        {% endfor %}
+    </div>
+</details>
 <details class="pa-breakdown">
     <summary>PA Props Breakdown</summary>
 
@@ -1004,6 +1092,90 @@
 
 .odds-input-row input{
     width:100%;
+}
+
+.streak-analytics {
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid #21466d;
+    border-radius: 14px;
+    background: #061526;
+}
+
+.streak-analytics summary {
+    cursor: pointer;
+    font-weight: 900;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.streak-analytics summary span {
+    color: #7dffb3;
+    font-size: 13px;
+}
+
+.streak-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.streak-grid div {
+    background: #071b2f;
+    border: 1px solid #21466d;
+    border-radius: 12px;
+    padding: 10px;
+    text-align: center;
+}
+
+.streak-grid strong {
+    display: block;
+    font-size: 20px;
+    color: #ffffff;
+}
+
+.streak-grid small {
+    color: #95aac6;
+    font-size: 12px;
+}
+
+.streak-profile {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #0b2742;
+    color: #e8eef8;
+    font-weight: 800;
+}
+
+.streak-bars {
+    margin-top: 12px;
+}
+
+.streak-bar-row {
+    display: grid;
+    grid-template-columns: 70px 1fr 35px;
+    gap: 8px;
+    align-items: center;
+    margin-top: 7px;
+    color: #dbeafe;
+    font-size: 13px;
+}
+
+.streak-bar {
+    height: 10px;
+    border-radius: 999px;
+    background: #0b2742;
+    overflow: hidden;
+}
+
+.streak-bar i {
+    display: block;
+    height: 100%;
+    background: #4ade80;
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>

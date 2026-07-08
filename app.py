@@ -88,7 +88,14 @@ def calculate_streaks(results):
             "current_streak_count": 0,
             "best_hit_streak": 0,
             "best_miss_streak": 0,
+            "longest_hit_streak": 0,
+            "streaks_4_plus": 0,
+            "streak_rating": 0,
+            "streak_profile": "No Data",
+            "streak_distribution": [],
         }
+
+    results = [bool(r) for r in results]
 
     first = results[0]
     current_count = 0
@@ -99,27 +106,95 @@ def calculate_streaks(results):
         else:
             break
 
-    best_hit = 0
-    best_miss = 0
+    hit_streaks = []
+    miss_streaks = []
+
     cur_hit = 0
     cur_miss = 0
 
     for r in results:
         if r:
             cur_hit += 1
-            cur_miss = 0
+
+            if cur_miss > 0:
+                miss_streaks.append(cur_miss)
+                cur_miss = 0
         else:
             cur_miss += 1
-            cur_hit = 0
 
-        best_hit = max(best_hit, cur_hit)
-        best_miss = max(best_miss, cur_miss)
+            if cur_hit > 0:
+                hit_streaks.append(cur_hit)
+                cur_hit = 0
+
+    if cur_hit > 0:
+        hit_streaks.append(cur_hit)
+
+    if cur_miss > 0:
+        miss_streaks.append(cur_miss)
+
+    best_hit = max(hit_streaks) if hit_streaks else 0
+    best_miss = max(miss_streaks) if miss_streaks else 0
+
+    streaks_4_plus = sum(1 for s in hit_streaks if s >= 4)
+
+    distribution_counts = {
+        1: sum(1 for s in hit_streaks if s == 1),
+        2: sum(1 for s in hit_streaks if s == 2),
+        3: sum(1 for s in hit_streaks if s == 3),
+        4: sum(1 for s in hit_streaks if s == 4),
+        5: sum(1 for s in hit_streaks if s == 5),
+        6: sum(1 for s in hit_streaks if s >= 6),
+    }
+
+    max_count = max(distribution_counts.values()) if distribution_counts else 0
+
+    streak_distribution = []
+
+    for length, count in distribution_counts.items():
+        label = "6+" if length == 6 else str(length)
+
+        streak_distribution.append({
+            "length": label,
+            "count": count,
+            "percent": round((count / max_count) * 100, 1) if max_count else 0
+        })
+
+    games = len(results)
+    hit_rate = sum(results) / games if games else 0
+    avg_hit_streak = sum(hit_streaks) / len(hit_streaks) if hit_streaks else 0
+
+    rating = 0
+    rating += hit_rate * 40
+    rating += min(best_hit / 10, 1) * 25
+    rating += min(avg_hit_streak / 4, 1) * 20
+    rating += min(streaks_4_plus / 5, 1) * 15
+
+    streak_rating = round(rating)
+
+    if streak_rating >= 85 and streaks_4_plus >= 3:
+        streak_profile = "Proven Sustainer"
+    elif current_count >= 4 and streaks_4_plus <= 1:
+        streak_profile = "Hot Right Now"
+    elif avg_hit_streak <= 1.7 and best_hit <= 4:
+        streak_profile = "Flash Hitter"
+    elif best_hit >= 7 and avg_hit_streak >= 2.5:
+        streak_profile = "Momentum Builder"
+    elif hit_rate <= 0.35:
+        streak_profile = "Streak Breaker"
+    else:
+        streak_profile = "Average Trend"
 
     return {
         "current_streak_type": "hit" if first else "miss",
         "current_streak_count": current_count,
         "best_hit_streak": best_hit,
         "best_miss_streak": best_miss,
+
+        "longest_hit_streak": best_hit,
+        "streaks_4_plus": streaks_4_plus,
+        "streak_rating": streak_rating,
+        "streak_profile": streak_profile,
+        "streak_distribution": streak_distribution,
     }
 
 @cache.cached(timeout=300, key_prefix="pa_data")
@@ -446,6 +521,11 @@ def summarize_player(player_name, rows, prop, window, mode, line, min_value, max
         "current_streak_count": streaks["current_streak_count"],
         "best_hit_streak": streaks["best_hit_streak"],
         "best_miss_streak": streaks["best_miss_streak"],
+        "longest_hit_streak": streaks["longest_hit_streak"],
+        "streaks_4_plus": streaks["streaks_4_plus"],
+        "streak_rating": streaks["streak_rating"],
+        "streak_profile": streaks["streak_profile"],
+        "streak_distribution": streaks["streak_distribution"],
 
         "current_odds": None,
         "implied_prob": None,
