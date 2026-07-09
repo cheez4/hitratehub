@@ -48,12 +48,15 @@
                             <div class="field">
                                 <label>Window</label>
                                 <select name="calc_window">
-                                    <option value="5" {% if calc_window == 5 %}selected{% endif %}>Last 5</option>
-                                    <option value="10" {% if calc_window == 10 %}selected{% endif %}>Last 10</option>
-                                    <option value="20" {% if calc_window == 20 %}selected{% endif %}>Last 20</option>
-                                    <option value="30" {% if calc_window == 30 %}selected{% endif %}>Last 30</option>
-                                    <option value="45" {% if calc_window == 45 %}selected{% endif %}>Last 45</option>
-                                    <option value="60" {% if calc_window == 60 %}selected{% endif %}>Last 60</option>
+                                    <option value="10" {% if calc_window==10 %}selected{% endif %}>Last 10 Games</option>
+<option value="20" {% if calc_window==20 %}selected{% endif %}>Last 20 Games</option>
+<option value="30" {% if calc_window==30 %}selected{% endif %}>Last 30 Games</option>
+<option value="45" {% if calc_window==45 %}selected{% endif %}>Last 45 Games</option>
+<option value="60" {% if calc_window==60 %}selected{% endif %}>Last 60 Games</option>
+<option value="90" {% if calc_window==90 %}selected{% endif %}>Last 90 Games</option>
+<option value="120" {% if calc_window==120 %}selected{% endif %}>Last 120 Games</option>
+<option value="162" {% if calc_window==162 %}selected{% endif %}>Last 162 Games</option>
+<option value="500" {% if calc_window==500 %}selected{% endif %}>All Available</option>
                                 </select>
                             </div>
                         </div>
@@ -776,8 +779,8 @@
 
                 <div class="section-title">Recent Games</div>
 
-                <div class="table-wrap">
-                    <table>
+                <div class="table-wrap gamelog-scroll">
+    <table>
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -1177,6 +1180,13 @@
     height: 100%;
     background: #4ade80;
 }
+
+.gamelog-scroll{
+    max-height:550px;
+    overflow-y:auto;
+    overflow-x:hidden;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
