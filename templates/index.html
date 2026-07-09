@@ -481,24 +481,41 @@
                                     <td>
                                         {% if pdata.played %}
 
-    <div>{{ pdata.stat_value }}</div>
 
+
+    <div class="game-line">
+
+    <span class="stat">{{ pdata.stat_value }}</span>
 
     {% if pdata.odds %}
-        <div style="font-size:12px; color:#8ecbff; margin-top:4px;">
-            {{ pdata.odds }}
-        </div>
+        <span class="divider">•</span>
 
-        <div style="font-size:11px; color:#7dffb3;">
+        <span class="odds">
+            {{ pdata.odds }}
+        </span>
+
+        <span class="divider">|</span>
+
+        <span class="prob
+        {% if pdata.implied_prob >= 50 %}
+            prob-good
+        {% else %}
+            prob-bad
+        {% endif %}
+        ">
             {{ pdata.implied_prob }}%
-        </div>
+        </span>
+
+        <span class="divider">|</span>
     {% endif %}
 
     {% if pdata.hit %}
-        <div class="small"><span class="match-pill hit-pill">Match</span></div>
+        <span class="hit-dot">🟢</span>
     {% else %}
-        <div class="small"><span class="match-pill miss-pill">Miss</span></div>
+       <span class="miss-dot">🔴</span>
     {% endif %}
+
+</div>
 
 {% else %}
                                             <span class="no-game">—</span>
@@ -1224,6 +1241,64 @@
     overflow-x:auto !important;
     border:1px solid #21466d;
     border-radius:12px;
+}
+
+.game-line{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+
+    white-space:nowrap;
+
+    font-size:12px;
+    font-weight:700;
+    line-height:1;
+
+    padding:2px 0;
+}
+
+.stat{
+    min-width:28px;
+    text-align:center;
+    color:#ffffff;
+    font-size:15px;
+    font-weight:800;
+}
+
+.odds{
+    min-width:46px;
+    text-align:center;
+    color:#58b8ff;
+    font-weight:800;
+}
+
+.prob-good{
+    min-width:46px;
+    text-align:center;
+    color:#66ff88;
+    font-weight:800;
+}
+
+.prob-bad{
+    min-width:46px;
+    text-align:center;
+    color:#ff6767;
+    font-weight:800;
+}
+
+.divider{
+    color:#35536f;
+    font-size:10px;
+}
+
+.hit-dot,
+.miss-dot{
+
+    font-size:15px;
+
+    line-height:1;
+
 }
 
 </style>
