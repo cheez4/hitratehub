@@ -779,8 +779,9 @@
 
                 <div class="section-title">Recent Games</div>
 
-                <div class="table-wrap gamelog-scroll">
-    <table>
+                <div class="table-wrap">
+    <div class="gamelog-scroll">
+        <table>
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -805,6 +806,7 @@
                         </tbody>
                     </table>
                 </div>
+             </div>
 
                 <div class="export-footer">
                     Generated from Hit Rate Hub • Share your findings and tag us if you want
@@ -1182,12 +1184,13 @@
 }
 
 .gamelog-scroll{
-    height:320px;
-    max-height:320px;
-    overflow-y:scroll;
-    overflow-x:hidden;
+    height:180px !important;
+    max-height:180px !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
     border:1px solid #21466d;
     border-radius:12px;
+    display:block;
 }
 
 .gamelog-scroll table{
