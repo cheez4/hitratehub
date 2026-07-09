@@ -1194,7 +1194,28 @@
 }
 
 .gamelog-scroll table{
-    margin-bottom:0;
+    width:100%;
+    border-collapse:collapse;
+}
+
+.gamelog-scroll thead,
+.gamelog-scroll tbody tr{
+    display:table;
+    width:100%;
+    table-layout:fixed;
+}
+
+.gamelog-scroll tbody{
+    display:block;
+    height:260px;
+    overflow-y:auto;
+    overflow-x:hidden;
+}
+
+.gamelog-scroll thead{
+    position:sticky;
+    top:0;
+    z-index:2;
 }
 
 </style>
