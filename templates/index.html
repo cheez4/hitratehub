@@ -453,7 +453,7 @@
 
                 <div class="section-title">Date-Matched Comparison</div>
 
-                <div class="table-wrap">
+                <div class="table-wrap compare-scroll">
                      <table id="compareTable">
                         <thead>
                             <tr>
@@ -1216,6 +1216,14 @@
     position:sticky;
     top:0;
     z-index:2;
+}
+
+.compare-scroll{
+    max-height:420px !important;
+    overflow-y:auto !important;
+    overflow-x:auto !important;
+    border:1px solid #21466d;
+    border-radius:12px;
 }
 
 </style>
