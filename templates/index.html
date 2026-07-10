@@ -550,15 +550,19 @@
     <div class="table-wrap" id="comboResultsWrap" style="display:none;">
         <table>
             <thead>
-                <tr>
-                    <th>Combo</th>
-                    <th>Legs</th>
-                    <th>Games</th>
-                    <th>Wins</th>
-                    <th>Losses</th>
-                    <th>Win %</th>
-                </tr>
-            </thead>
+<tr>
+    <th>#</th>
+    <th>Combo</th>
+    <th>Legs</th>
+    <th>Games</th>
+    <th>Wins</th>
+    <th>Losses</th>
+    <th>Win %</th>
+    <th>Avg Odds</th>
+    <th>Units</th>
+    <th>ROI</th>
+</tr>
+</thead>
             <tbody id="comboResultsBody"></tbody>
         </table>
     </div>
@@ -1301,6 +1305,143 @@
 
 }
 
+.combo-best-card.elite{
+    background:linear-gradient(135deg,#0d2744,#12365f);
+    border:1px solid #2c8cff;
+    box-shadow:0 0 18px rgba(44,140,255,.18);
+}
+
+.combo-best-card .record{
+    font-size:22px;
+    font-weight:800;
+    color:#ffffff;
+    margin-top:8px;
+}
+
+.combo-best-card .games{
+    font-size:13px;
+    color:#9cb6d5;
+    margin-top:6px;
+}
+
+.combo-best-card .rate{
+    font-size:46px;
+    font-weight:900;
+}
+
+.combo-best-card.elite{
+    position:relative;
+    overflow:hidden;
+    min-height:230px;
+    padding:18px;
+    border-radius:16px;
+    background:linear-gradient(145deg,#0b2138,#071827);
+    transition:transform .18s ease, box-shadow .18s ease;
+}
+
+.combo-best-card.elite:hover{
+    transform:translateY(-2px);
+}
+
+.combo-best-card.elite .label{
+    font-size:13px;
+    font-weight:900;
+    letter-spacing:.5px;
+}
+
+.combo-best-card.elite .name{
+    margin-top:12px;
+    min-height:48px;
+    font-size:17px;
+    line-height:1.35;
+}
+
+.combo-best-card.elite .rate{
+    margin-top:14px;
+    font-size:40px;
+    line-height:1;
+    font-weight:900;
+}
+
+.combo-card-details{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-top:16px;
+    padding-top:14px;
+    border-top:1px solid rgba(255,255,255,.10);
+}
+
+.combo-card-details div{
+    text-align:left;
+}
+
+.combo-card-details strong{
+    display:block;
+    color:#ffffff;
+    font-size:16px;
+}
+
+.combo-card-details span{
+    display:block;
+    margin-top:3px;
+    color:#95aac6;
+    font-size:11px;
+}
+
+.combo-best-card .record{
+    display:inline-block;
+    margin-top:14px;
+    padding:5px 10px;
+    border:1px solid currentColor;
+    border-radius:9px;
+    color:#dcecff;
+    font-size:14px;
+    font-weight:800;
+}
+
+.roi-bright-green{
+    border:1px solid #39ff78 !important;
+    box-shadow:
+        0 0 24px rgba(57,255,120,.25),
+        inset 0 0 30px rgba(57,255,120,.05);
+}
+
+.roi-bright-green .label,
+.roi-bright-green .rate{
+    color:#39ff78 !important;
+}
+
+.roi-green{
+    border:1px solid #22c55e !important;
+    box-shadow:0 0 18px rgba(34,197,94,.16);
+}
+
+.roi-green .label,
+.roi-green .rate{
+    color:#65e88a !important;
+}
+
+.roi-orange{
+    border:1px solid #f59e0b !important;
+    box-shadow:0 0 18px rgba(245,158,11,.13);
+}
+
+.roi-orange .label,
+.roi-orange .rate{
+    color:#f6ad27 !important;
+}
+
+.roi-red{
+    border:1px solid #ef4444 !important;
+    box-shadow:0 0 18px rgba(239,68,68,.13);
+}
+
+.roi-red .label,
+.roi-red .rate{
+    color:#ff6464 !important;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1423,6 +1564,25 @@ function getCombinations(arr, size) {
     return results;
 }
 
+function americanToDecimal(odds) {
+    odds = parseFloat(odds);
+    if (isNaN(odds)) return null;
+    return odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
+}
+
+function decimalToAmerican(decimal) {
+    if (!decimal || decimal <= 1) return null;
+    if (decimal >= 2) return Math.round((decimal - 1) * 100);
+    return Math.round(-100 / (decimal - 1));
+}
+
+function roiClass(units) {
+    if (units >= 5) return "roi-bright-green";
+    if (units > 0) return "roi-green";
+    if (units >= -3) return "roi-orange";
+    return "roi-red";
+}
+
 function analyzeCombos() {
     const message = document.getElementById("comboMessage");
     const bestBox = document.getElementById("comboBest");
@@ -1446,18 +1606,13 @@ function analyzeCombos() {
     }
 
     if (selectedPlayers.length > 5) {
-        message.innerHTML = "Maximum 5 players can be analyzed at once.";
+        message.innerHTML = "Maximum 5 players.";
         return;
     }
 
     const selectedSizes = Array.from(document.querySelectorAll(".combo-size-check:checked"))
         .map(cb => parseInt(cb.value))
         .filter(size => size <= selectedPlayers.length);
-
-    if (!selectedSizes.length) {
-        message.innerHTML = "Select at least one combo size.";
-        return;
-    }
 
     const rows = Array.from(document.querySelectorAll("#compareTable tbody tr"));
     const results = [];
@@ -1468,11 +1623,15 @@ function analyzeCombos() {
         combos.forEach(combo => {
             let games = 0;
             let wins = 0;
+            let units = 0;
+            let avgDecimalTotal = 0;
+            let oddsSamples = 0;
 
             rows.forEach(row => {
                 const cells = Array.from(row.querySelectorAll("td"));
                 let allPlayed = true;
                 let allHit = true;
+                let comboDecimal = 1;
 
                 combo.forEach(player => {
                     const cell = cells[player.index + 1];
@@ -1485,16 +1644,37 @@ function analyzeCombos() {
                     if (!cell.querySelector(".hit-pill")) {
                         allHit = false;
                     }
+
+                    const oddsEl = cell.querySelector(".odds");
+                    const dec = oddsEl ? americanToDecimal(oddsEl.innerText.trim()) : null;
+
+                    if (dec) {
+                        comboDecimal *= dec;
+                    }
                 });
 
                 if (allPlayed) {
                     games++;
-                    if (allHit) wins++;
+
+                    if (comboDecimal > 1) {
+                        avgDecimalTotal += comboDecimal;
+                        oddsSamples++;
+                    }
+
+                    if (allHit) {
+                        wins++;
+                        units += comboDecimal - 1;
+                    } else {
+                        units -= 1;
+                    }
                 }
             });
 
             const losses = games - wins;
-            const winPct = games ? ((wins / games) * 100) : 0;
+            const winPct = games ? (wins / games) * 100 : 0;
+            const avgDecimal = oddsSamples ? avgDecimalTotal / oddsSamples : null;
+            const avgOdds = avgDecimal ? decimalToAmerican(avgDecimal) : null;
+            const roi = games ? (units / games) * 100 : 0;
 
             results.push({
                 combo: combo.map(p => p.name).join(" + "),
@@ -1502,58 +1682,61 @@ function analyzeCombos() {
                 games,
                 wins,
                 losses,
-                winPct
+                winPct,
+                avgOdds,
+                units,
+                roi
             });
         });
     });
 
     results.sort((a, b) => {
-        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
-        if (b.games !== a.games) return b.games - a.games;
-        return b.wins - a.wins;
-    });
-
-    results.forEach(r => {
-        const tr = document.createElement("tr");
-
-        tr.innerHTML = `
-            <td><strong>${r.combo}</strong></td>
-            <td>${r.legs}</td>
-            <td>${r.games}</td>
-            <td>${r.wins}</td>
-            <td>${r.losses}</td>
-            <td><strong>${r.winPct.toFixed(1)}%</strong></td>
-        `;
-
-        body.appendChild(tr);
+        if (b.units !== a.units) return b.units - a.units;
+        return b.roi - a.roi;
     });
 
     const bestByLeg = {};
 
     results.forEach(r => {
-        if (!bestByLeg[r.legs]) {
-            bestByLeg[r.legs] = r;
-        }
+        if (!bestByLeg[r.legs]) bestByLeg[r.legs] = r;
     });
 
     Object.keys(bestByLeg).sort().forEach(legs => {
         const r = bestByLeg[legs];
+        const cls = roiClass(r.units);
 
-        const card = document.createElement("div");
-        card.className = "combo-best-card";
-        card.innerHTML = `
-            <div class="label">Best ${legs}-Leg</div>
-            <div class="name">${r.combo}</div>
-            <div class="rate">${r.winPct.toFixed(1)}%</div>
-            <div style="color:#95aac6; font-size:13px;">${r.wins}-${r.losses} over ${r.games} games</div>
+        bestBox.innerHTML += `
+            <div class="combo-best-card ${cls}">
+                <div class="label">BEST ${legs}-LEG</div>
+                <div class="name">${r.combo}</div>
+                <div class="rate">${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u</div>
+                <div class="record">${r.wins}-${r.losses}</div>
+                <div class="games">${r.winPct.toFixed(1)}% • ${r.avgOdds ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds) : "—"} avg odds</div>
+            </div>
         `;
+    });
 
-        bestBox.appendChild(card);
+    results.forEach((r, i) => {
+        const cls = roiClass(r.units);
+
+        body.innerHTML += `
+            <tr>
+                <td><strong>${i + 1}</strong></td>
+                <td><strong>${r.combo}</strong></td>
+                <td>${r.legs}</td>
+                <td>${r.games}</td>
+                <td class="win-cell">${r.wins}</td>
+                <td class="loss-cell">${r.losses}</td>
+                <td>${r.winPct.toFixed(1)}%</td>
+                <td class="odds-cell">${r.avgOdds ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds) : "—"}</td>
+                <td class="${cls}">${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u</td>
+                <td class="${cls}">${r.roi.toFixed(1)}%</td>
+            </tr>
+        `;
     });
 
     wrap.style.display = "block";
-
- buildPortfolioOddsInputs();
+    buildPortfolioOddsInputs();
 }
 
 document.addEventListener("change", function(e) {
