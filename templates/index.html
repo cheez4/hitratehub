@@ -346,9 +346,7 @@
     <div class="lab">Implied</div>
 </div>
 
-<div class="summary-stat">
-
-    {% set edgeClass = "" %}
+{% set edgeClass = "" %}
 {% if p.edge_diff is not none and p.edge_diff >= 10 %}
     {% set edgeClass = "edge-heavy-positive" %}
 {% elif p.edge_diff is not none and p.edge_diff >= 5 %}
@@ -420,12 +418,15 @@
     </div>
 
     <div class="player-badge">
-        {{ p.implied_prob if p.implied_prob is not none else "—" }}%
+        {% if p.implied_prob is not none %}
+            {{ p.implied_prob }}%
+        {% else %}
+            —
+        {% endif %}
         <span>Implied</span>
     </div>
 
 </div>
-
                         <div class="mini-bar">
                             <span style="width: {{ p.hit_rate }}%;"></span>
                         </div>
