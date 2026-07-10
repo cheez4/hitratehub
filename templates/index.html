@@ -346,87 +346,60 @@
     <div class="lab">Implied</div>
 </div>
 
-{% set edgeClass = "" %}
-{% if p.edge_diff is not none and p.edge_diff >= 10 %}
-    {% set edgeClass = "edge-heavy-positive" %}
-{% elif p.edge_diff is not none and p.edge_diff >= 5 %}
-    {% set edgeClass = "edge-positive" %}
-{% elif p.edge_diff is not none and p.edge_diff <= -10 %}
-    {% set edgeClass = "edge-heavy-negative" %}
-{% elif p.edge_diff is not none and p.edge_diff <= -5 %}
-    {% set edgeClass = "edge-negative" %}
-{% endif %}
+<div class="summary-stat">
 
-<div class="summary-stats compact-summary-stats">
+    {% set edgeClass = "" %}
+    {% if p.edge_diff is not none and p.edge_diff >= 10 %}
+        {% set edgeClass = "edge-heavy-positive" %}
+    {% elif p.edge_diff is not none and p.edge_diff >= 5 %}
+        {% set edgeClass = "edge-positive" %}
+    {% elif p.edge_diff is not none and p.edge_diff <= -10 %}
+        {% set edgeClass = "edge-heavy-negative" %}
+    {% elif p.edge_diff is not none and p.edge_diff <= -5 %}
+        {% set edgeClass = "edge-negative" %}
+    {% endif %}
 
-    <div class="summary-stat">
-        <div class="big">{{ p.hit_rate }}%</div>
-        <div class="lab">Match Rate</div>
+    <div class="big {{ edgeClass }}">
+        {{ p.edge_label }}
     </div>
 
-    <div class="summary-stat">
-        <div class="big">
-            {% if p.current_odds %}
-                {{ p.current_odds }}
-            {% else %}
-                —
-            {% endif %}
-        </div>
-        <div class="lab">Current Odds</div>
-    </div>
+    <div class="lab">Edge</div>
 
-    <div class="summary-stat">
-        <div class="big {{ edgeClass }}">
-            {{ p.edge_label }}
-        </div>
-        <div class="lab">Edge</div>
-    </div>
-
+</div>
     <div class="summary-stat">
         <div class="big">{{ p.hits }}/{{ p.games }}</div>
         <div class="lab">Record</div>
     </div>
 
-</div>
-
-<div class="player-badges">
-
-    <div class="player-badge">
+    <div class="summary-stat">
         {% if p.current_streak_type == "hit" %}
-            🔥 {{ p.current_streak_count }}
+            <div class="big">🔥 {{ p.current_streak_count }}</div>
+            <div class="lab">Hit Streak</div>
         {% elif p.current_streak_type == "miss" %}
-            ❄️ {{ p.current_streak_count }}
+            <div class="big">❄️ {{ p.current_streak_count }}</div>
+            <div class="lab">Miss Streak</div>
         {% else %}
-            —
+            <div class="big">—</div>
+            <div class="lab">Streak</div>
         {% endif %}
-        <span>Current</span>
     </div>
 
-    <div class="player-badge">
-        🏆 {{ p.best_hit_streak }}
-        <span>Best</span>
+    <div class="summary-stat">
+        <div class="big">{{ p.best_hit_streak }}</div>
+        <div class="lab">Best Hit</div>
     </div>
 
-    <div class="player-badge">
-        ❄️ {{ p.best_miss_streak }}
-        <span>Worst Miss</span>
+    <div class="summary-stat">
+        <div class="big">{{ p.best_miss_streak }}</div>
+        <div class="lab">Worst Miss</div>
     </div>
 
-    <div class="player-badge">
-        📊 {{ p.average }}
-        <span>Average</span>
+    <div class="summary-stat">
+        <div class="big">{{ p.average }}</div>
+        <div class="lab">Average</div>
     </div>
-
-    <div class="player-badge">
-        {% if p.implied_prob is not none %}
-            {{ p.implied_prob }}%
-        {% else %}
-            —
-        {% endif %}
-        <span>Implied</span>
-    </div>
-
 </div>
+
                         <div class="mini-bar">
                             <span style="width: {{ p.hit_rate }}%;"></span>
                         </div>
@@ -1478,39 +1451,6 @@ color:#63ff8f;
     color:#ff6464 !important;
 }
 
-.compact-summary-stats{
-    grid-template-columns:repeat(4,1fr);
-    gap:8px;
-}
-
-.player-badges{
-    display:grid;
-    grid-template-columns:repeat(5,1fr);
-    gap:8px;
-    margin-top:10px;
-}
-
-.player-badge{
-    background:#071b2f;
-    border:1px solid #21466d;
-    border-radius:10px;
-    padding:7px 6px;
-    text-align:center;
-    color:#ffffff;
-    font-size:15px;
-    font-weight:800;
-}
-
-.player-badge span{
-    display:block;
-    margin-top:3px;
-    color:#8fa9c7;
-    font-size:9px;
-    font-weight:700;
-    text-transform:uppercase;
-}
-
-
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1799,52 +1739,15 @@ function analyzeCombos() {
         const r = bestByLeg[legs];
         const cls = roiClass(r.units);
 
-       bestBox.innerHTML += `
-<div class="combo-best-card elite ${cls}">
-
-    <div class="label">
-        🏆 BEST ${legs}-LEG
-    </div>
-
-    <div class="name">
-        ${r.combo}
-    </div>
-
-    <div class="rate">
-        ${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u
-    </div>
-
-    <div class="combo-card-details">
-
-        <div>
-            <strong>${r.winPct.toFixed(1)}%</strong>
-            <span>Win %</span>
-        </div>
-
-        <div>
-            <strong>
-                ${
-                    r.avgOdds
-                    ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds)
-                    : "—"
-                }
-            </strong>
-            <span>Avg Odds</span>
-        </div>
-
-        <div>
-            <strong>${r.games}</strong>
-            <span>Games</span>
-        </div>
-
-    </div>
-
-    <div class="record">
-        ${r.wins}-${r.losses}
-    </div>
-
-</div>
-`;
+        bestBox.innerHTML += `
+            <div class="combo-best-card ${cls}">
+                <div class="label">BEST ${legs}-LEG</div>
+                <div class="name">${r.combo}</div>
+                <div class="rate">${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u</div>
+                <div class="record">${r.wins}-${r.losses}</div>
+                <div class="games">${r.winPct.toFixed(1)}% • ${r.avgOdds ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds) : "—"} avg odds</div>
+            </div>
+        `;
     });
 
     results.forEach((r, i) => {
