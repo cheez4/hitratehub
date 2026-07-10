@@ -349,55 +349,81 @@
 <div class="summary-stat">
 
     {% set edgeClass = "" %}
-    {% if p.edge_diff is not none and p.edge_diff >= 10 %}
-        {% set edgeClass = "edge-heavy-positive" %}
-    {% elif p.edge_diff is not none and p.edge_diff >= 5 %}
-        {% set edgeClass = "edge-positive" %}
-    {% elif p.edge_diff is not none and p.edge_diff <= -10 %}
-        {% set edgeClass = "edge-heavy-negative" %}
-    {% elif p.edge_diff is not none and p.edge_diff <= -5 %}
-        {% set edgeClass = "edge-negative" %}
-    {% endif %}
+{% if p.edge_diff is not none and p.edge_diff >= 10 %}
+    {% set edgeClass = "edge-heavy-positive" %}
+{% elif p.edge_diff is not none and p.edge_diff >= 5 %}
+    {% set edgeClass = "edge-positive" %}
+{% elif p.edge_diff is not none and p.edge_diff <= -10 %}
+    {% set edgeClass = "edge-heavy-negative" %}
+{% elif p.edge_diff is not none and p.edge_diff <= -5 %}
+    {% set edgeClass = "edge-negative" %}
+{% endif %}
 
-    <div class="big {{ edgeClass }}">
-        {{ p.edge_label }}
+<div class="summary-stats compact-summary-stats">
+
+    <div class="summary-stat">
+        <div class="big">{{ p.hit_rate }}%</div>
+        <div class="lab">Match Rate</div>
     </div>
 
-    <div class="lab">Edge</div>
+    <div class="summary-stat">
+        <div class="big">
+            {% if p.current_odds %}
+                {{ p.current_odds }}
+            {% else %}
+                —
+            {% endif %}
+        </div>
+        <div class="lab">Current Odds</div>
+    </div>
 
-</div>
+    <div class="summary-stat">
+        <div class="big {{ edgeClass }}">
+            {{ p.edge_label }}
+        </div>
+        <div class="lab">Edge</div>
+    </div>
+
     <div class="summary-stat">
         <div class="big">{{ p.hits }}/{{ p.games }}</div>
         <div class="lab">Record</div>
     </div>
 
-    <div class="summary-stat">
+</div>
+
+<div class="player-badges">
+
+    <div class="player-badge">
         {% if p.current_streak_type == "hit" %}
-            <div class="big">🔥 {{ p.current_streak_count }}</div>
-            <div class="lab">Hit Streak</div>
+            🔥 {{ p.current_streak_count }}
         {% elif p.current_streak_type == "miss" %}
-            <div class="big">❄️ {{ p.current_streak_count }}</div>
-            <div class="lab">Miss Streak</div>
+            ❄️ {{ p.current_streak_count }}
         {% else %}
-            <div class="big">—</div>
-            <div class="lab">Streak</div>
+            —
         {% endif %}
+        <span>Current</span>
     </div>
 
-    <div class="summary-stat">
-        <div class="big">{{ p.best_hit_streak }}</div>
-        <div class="lab">Best Hit</div>
+    <div class="player-badge">
+        🏆 {{ p.best_hit_streak }}
+        <span>Best</span>
     </div>
 
-    <div class="summary-stat">
-        <div class="big">{{ p.best_miss_streak }}</div>
-        <div class="lab">Worst Miss</div>
+    <div class="player-badge">
+        ❄️ {{ p.best_miss_streak }}
+        <span>Worst Miss</span>
     </div>
 
-    <div class="summary-stat">
-        <div class="big">{{ p.average }}</div>
-        <div class="lab">Average</div>
+    <div class="player-badge">
+        📊 {{ p.average }}
+        <span>Average</span>
     </div>
+
+    <div class="player-badge">
+        {{ p.implied_prob if p.implied_prob is not none else "—" }}%
+        <span>Implied</span>
+    </div>
+
 </div>
 
                         <div class="mini-bar">
@@ -1450,6 +1476,39 @@ color:#63ff8f;
 .roi-red .rate{
     color:#ff6464 !important;
 }
+
+.compact-summary-stats{
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+}
+
+.player-badges{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:8px;
+    margin-top:10px;
+}
+
+.player-badge{
+    background:#071b2f;
+    border:1px solid #21466d;
+    border-radius:10px;
+    padding:7px 6px;
+    text-align:center;
+    color:#ffffff;
+    font-size:15px;
+    font-weight:800;
+}
+
+.player-badge span{
+    display:block;
+    margin-top:3px;
+    color:#8fa9c7;
+    font-size:9px;
+    font-weight:700;
+    text-transform:uppercase;
+}
+
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
