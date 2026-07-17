@@ -21,6 +21,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+@login_manager.user_loader
+def load_user(user_id):
+    return None
+
 cache = Cache(app, config={
     "CACHE_TYPE": "SimpleCache",
     "CACHE_DEFAULT_TIMEOUT": 300
