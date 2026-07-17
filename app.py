@@ -9,10 +9,16 @@ import requests
 import os
 import uuid
 from datetime import date, timedelta
+import secrets
+from urllib.parse import urlencode
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
+DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
+DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET")
+DISCORD_REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI")
 
+DISCORD_API_URL = "https://discord.com/api/v10"
 app = Flask(__name__)
 
 app.secret_key = os.environ.get("SECRET_KEY")
@@ -1416,6 +1422,149 @@ def get_pa_props_breakdown(conn, player_name, prop="HITS", rolling_games=30, sea
         })
 
     return rows
+@app.route("/login")
+def login():
+    if current_user.is_authenticated:
+        return redirect("/")
+
+    state = secrets.token_urlsafe(32)
+    session["discord_oauth_state"] = state
+
+    params = {
+        "client_id": DISCORD_CLIENT_ID,
+        "redirect_uri": DISCORD_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "identify",
+        "state": state
+    }
+
+    discord_authorize_url = (
+        "https://discord.com/oauth2/authorize?"
+        + urlencode(params)
+    )
+
+    return redirect(discord_authorize_url)
+
+
+@app.route("/auth/discord/callback")
+def discord_callback():
+    if request.args.get("error"):
+        return redirect("/")
+
+    returned_state = request.args.get("state")
+    saved_state = session.pop("discord_oauth_state", None)
+
+    if not saved_state or returned_state != saved_state:
+        return "Invalid Discord login state.", 400
+
+    code = request.args.get("code")
+
+    if not code:
+        return "Discord did not return an authorization code.", 400
+
+    try:
+        token_response = requests.post(
+            f"{DISCORD_API_URL}/oauth2/token",
+            data={
+                "client_id": DISCORD_CLIENT_ID,
+                "client_secret": DISCORD_CLIENT_SECRET,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": DISCORD_REDIRECT_URI
+            },
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            timeout=15
+        )
+
+        token_response.raise_for_status()
+        token_data = token_response.json()
+
+        access_token = token_data.get("access_token")
+
+        if not access_token:
+            return "Discord did not return an access token.", 400
+
+        user_response = requests.get(
+            f"{DISCORD_API_URL}/users/@me",
+            headers={
+                "Authorization": f"Bearer {access_token}"
+            },
+            timeout=15
+        )
+
+        user_response.raise_for_status()
+        discord_user = user_response.json()
+
+        discord_id = str(discord_user["id"])
+        username = (
+            discord_user.get("global_name")
+            or discord_user.get("username")
+            or "Discord User"
+        )
+
+        avatar_hash = discord_user.get("avatar")
+
+        if avatar_hash:
+            avatar_url = (
+                f"https://cdn.discordapp.com/avatars/"
+                f"{discord_id}/{avatar_hash}.png?size=128"
+            )
+        else:
+            avatar_url = "https://cdn.discordapp.com/embed/avatars/0.png"
+
+        conn = get_conn()
+
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO users (
+                            discord_id,
+                            username,
+                            avatar,
+                            updated_at
+                        )
+                        VALUES (%s, %s, %s, NOW())
+
+                        ON CONFLICT (discord_id)
+                        DO UPDATE SET
+                            username = EXCLUDED.username,
+                            avatar = EXCLUDED.avatar,
+                            updated_at = NOW()
+
+                        RETURNING id, discord_id, username, avatar
+                    """, (
+                        discord_id,
+                        username,
+                        avatar_url
+                    ))
+
+                    row = cur.fetchone()
+
+        finally:
+            conn.close()
+
+        user = User(*row)
+        login_user(user, remember=True)
+
+        return redirect("/")
+
+    except requests.RequestException as e:
+        print("Discord OAuth request error:", e)
+        return "Discord login failed. Please try again.", 500
+
+    except Exception as e:
+        print("Discord login error:", e)
+        return "Unable to complete Discord login.", 500
+
+
+@app.route("/logout")
+def logout():
+    logout_user()
+    session.clear()
+    return redirect("/")
 
 @app.route("/api/odds/snapshot", methods=["POST"])
 def odds_snapshot():
