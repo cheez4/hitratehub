@@ -21,9 +21,36 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+class User(UserMixin):
+    def __init__(self, id, discord_id, username, avatar):
+        self.id = str(id)
+        self.discord_id = discord_id
+        self.username = username
+        self.avatar = avatar
+
+
 @login_manager.user_loader
 def load_user(user_id):
-    return None
+    conn = get_conn()
+
+    try:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, discord_id, username, avatar
+            FROM users
+            WHERE id = %s
+        """, (user_id,))
+
+        row = cur.fetchone()
+
+        if row:
+            return User(*row)
+
+        return None
+
+    finally:
+        conn.close()
 
 cache = Cache(app, config={
     "CACHE_TYPE": "SimpleCache",
