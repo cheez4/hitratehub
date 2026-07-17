@@ -1,8 +1,11 @@
 from flask import Flask, render_template, request, jsonify
+from flask import session, redirect
 from flask_caching import Cache
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 import unicodedata
 import pandas as pd
 import psycopg2
+import requests
 import os
 import uuid
 from datetime import date, timedelta
@@ -11,6 +14,12 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
 
 app = Flask(__name__)
+
+app.secret_key = os.environ.get("SECRET_KEY")
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
 
 cache = Cache(app, config={
     "CACHE_TYPE": "SimpleCache",
