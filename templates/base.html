@@ -145,6 +145,110 @@
     white-space:nowrap;
 }
 
+.user-menu{
+    position:relative;
+}
+
+.user-profile{
+    cursor:pointer;
+    user-select:none;
+}
+
+.user-profile:hover{
+    border-color:#2f8cff;
+    box-shadow:0 0 14px rgba(47,140,255,.18);
+}
+
+.user-chevron{
+    color:#92a9c7;
+    font-size:11px;
+    margin-left:2px;
+    transition:transform .18s ease;
+}
+
+.user-menu.open .user-chevron{
+    transform:rotate(180deg);
+}
+
+.user-dropdown{
+    position:absolute;
+    top:calc(100% + 10px);
+    right:0;
+    width:230px;
+    display:none;
+    z-index:5000;
+    padding:8px;
+    border:1px solid rgba(110,170,240,.25);
+    border-radius:12px;
+    background:linear-gradient(180deg, #0a223b, #06182a);
+    box-shadow:0 20px 45px rgba(0,0,0,.45);
+}
+
+.user-menu.open .user-dropdown{
+    display:block;
+}
+
+.dropdown-user{
+    padding:10px 11px;
+}
+
+.dropdown-name{
+    color:#eef5ff;
+    font-size:14px;
+    font-weight:900;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.dropdown-status{
+    color:#92a9c7;
+    font-size:12px;
+    margin-top:4px;
+}
+
+.dropdown-divider{
+    height:1px;
+    margin:6px 4px;
+    background:rgba(110,170,240,.18);
+}
+
+.dropdown-link{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    width:100%;
+    min-height:38px;
+    padding:0 10px;
+    border-radius:8px;
+    color:#dceaff;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:700;
+}
+
+.dropdown-link:hover{
+    background:rgba(47,140,255,.14);
+    color:white;
+}
+
+.dropdown-link.disabled{
+    color:#6f849f;
+    cursor:default;
+}
+
+.dropdown-link.disabled:hover{
+    background:transparent;
+}
+
+.dropdown-link.logout-link{
+    color:#ff9a9a;
+}
+
+.dropdown-link.logout-link:hover{
+    background:rgba(239,106,106,.12);
+}
+
 .login-btn,
 .logout-btn{
     display:inline-flex;
@@ -1082,21 +1186,65 @@
 
         {% if current_user.is_authenticated %}
 
-            <div class="user-profile">
-                <img
-                    class="user-avatar"
-                    src="{{ current_user.avatar }}"
-                    alt="{{ current_user.username }} avatar"
-                >
+    <div class="user-menu" id="userMenu">
 
-                <span class="user-name">
+        <div
+            class="user-profile"
+            role="button"
+            tabindex="0"
+            aria-haspopup="true"
+            aria-expanded="false"
+            onclick="toggleUserMenu(event)"
+            onkeydown="handleUserMenuKey(event)"
+        >
+            <img
+                class="user-avatar"
+                src="{{ current_user.avatar }}"
+                alt="{{ current_user.username }} avatar"
+            >
+
+            <span class="user-name">
+                {{ current_user.username }}
+            </span>
+
+            <span class="user-chevron">▼</span>
+        </div>
+
+        <div class="user-dropdown">
+
+            <div class="dropdown-user">
+                <div class="dropdown-name">
                     {{ current_user.username }}
-                </span>
+                </div>
+
+                <div class="dropdown-status">
+                    HitRateHub Member
+                </div>
             </div>
 
-            <a href="{{ url_for('logout') }}" class="logout-btn">
-                Logout
+            <div class="dropdown-divider"></div>
+
+            <a href="#" class="dropdown-link disabled" onclick="return false;">
+                👤 My Profile — Coming Soon
             </a>
+
+            <a href="#" class="dropdown-link disabled" onclick="return false;">
+                📊 My Trackers — Coming Soon
+            </a>
+
+            <a href="#" class="dropdown-link disabled" onclick="return false;">
+                ⭐ Premium Status — Coming Soon
+            </a>
+
+            <div class="dropdown-divider"></div>
+
+            <a href="{{ url_for('logout') }}" class="dropdown-link logout-link">
+                🚪 Logout
+            </a>
+
+        </div>
+
+    </div>
 
         {% else %}
 
@@ -1135,6 +1283,51 @@
                 setTimeout(() => toast.remove(), 220);
             }, 2400);
         }
+
+function toggleUserMenu(event) {
+    event.stopPropagation();
+
+    const menu = document.getElementById("userMenu");
+    if (!menu) return;
+
+    const isOpen = menu.classList.toggle("open");
+    const trigger = menu.querySelector(".user-profile");
+
+    if (trigger) {
+        trigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
+}
+
+function closeUserMenu() {
+    const menu = document.getElementById("userMenu");
+    if (!menu) return;
+
+    menu.classList.remove("open");
+
+    const trigger = menu.querySelector(".user-profile");
+    if (trigger) {
+        trigger.setAttribute("aria-expanded", "false");
+    }
+}
+
+function handleUserMenuKey(event) {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleUserMenu(event);
+    }
+
+    if (event.key === "Escape") {
+        closeUserMenu();
+    }
+}
+
+document.addEventListener("click", function(event) {
+    const menu = document.getElementById("userMenu");
+
+    if (menu && !menu.contains(event.target)) {
+        closeUserMenu();
+    }
+});
 
     </script>
 
