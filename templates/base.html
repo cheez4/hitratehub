@@ -108,6 +108,71 @@
             border-color:#4aa3ff;
         }
 
+.user-nav{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-left:10px;
+    padding-left:12px;
+    border-left:1px solid rgba(110,170,240,.22);
+}
+
+.user-profile{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding:6px 10px 6px 7px;
+    border:1px solid rgba(110,170,240,.25);
+    border-radius:10px;
+    background:linear-gradient(180deg, rgba(10,28,48,.85), rgba(5,18,31,.95));
+}
+
+.user-avatar{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    object-fit:cover;
+    border:1px solid rgba(110,170,240,.45);
+}
+
+.user-name{
+    color:#eef5ff;
+    font-size:13px;
+    font-weight:800;
+    max-width:130px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.login-btn,
+.logout-btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:40px;
+    padding:0 14px;
+    border-radius:10px;
+    text-decoration:none;
+    color:white;
+    font-size:13px;
+    font-weight:800;
+    border:1px solid rgba(110,170,240,.28);
+}
+
+.login-btn{
+    background:linear-gradient(180deg, #5865f2, #404bc4);
+}
+
+.logout-btn{
+    background:linear-gradient(180deg, #183c63, #102a47);
+}
+
+.login-btn:hover,
+.logout-btn:hover{
+    filter:brightness(1.08);
+}
+
         @media (max-width:900px){
             .top-nav-inner{
                 flex-direction:column;
@@ -124,6 +189,17 @@
                 justify-content:center;
                 flex-wrap:wrap;
             }
+.user-nav{
+    margin-left:0;
+    padding-left:0;
+    border-left:none;
+    justify-content:center;
+    flex-wrap:wrap;
+}
+
+.user-name{
+    max-width:100px;
+}
         }
 
         .nav-tab{
@@ -841,11 +917,66 @@
 </div>
 
                 <div class="nav-right">
-                    <button class="league-pill active-league" type="button">MLB</button>
-                    <button class="league-pill" type="button" onclick="showToast('NBA coming soon')">NBA</button>
-                    <button class="league-pill" type="button" onclick="showToast('NHL coming soon')">NHL</button>
-                    <button class="league-pill" type="button" onclick="showToast('NFL coming soon')">NFL</button>
-                </div>
+
+    <button class="league-pill active-league" type="button">
+        MLB
+    </button>
+
+    <button
+        class="league-pill"
+        type="button"
+        onclick="showToast('NBA coming soon')"
+    >
+        NBA
+    </button>
+
+    <button
+        class="league-pill"
+        type="button"
+        onclick="showToast('NHL coming soon')"
+    >
+        NHL
+    </button>
+
+    <button
+        class="league-pill"
+        type="button"
+        onclick="showToast('NFL coming soon')"
+    >
+        NFL
+    </button>
+
+    <div class="user-nav">
+
+        {% if current_user.is_authenticated %}
+
+            <div class="user-profile">
+                <img
+                    class="user-avatar"
+                    src="{{ current_user.avatar }}"
+                    alt="{{ current_user.username }} avatar"
+                >
+
+                <span class="user-name">
+                    {{ current_user.username }}
+                </span>
+            </div>
+
+            <a href="{{ url_for('logout') }}" class="logout-btn">
+                Logout
+            </a>
+
+        {% else %}
+
+            <a href="{{ url_for('login') }}" class="login-btn">
+                Login with Discord
+            </a>
+
+        {% endif %}
+
+    </div>
+
+</div>
 
             </div>
         </div>
