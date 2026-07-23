@@ -1109,7 +1109,174 @@
     background:#1b4d7a;
 }
 
+.account-panel{
+    max-width:1000px;
+    margin:0 auto;
 }
+
+.account-subtitle{
+    margin-top:6px;
+    color:var(--muted);
+    font-size:14px;
+}
+
+.account-profile{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding-bottom:20px;
+    margin-bottom:20px;
+    border-bottom:1px solid rgba(110,170,240,.16);
+}
+
+.account-avatar{
+    width:76px;
+    height:76px;
+    border-radius:50%;
+    object-fit:cover;
+    border:2px solid rgba(47,140,255,.55);
+}
+
+.account-name{
+    color:var(--text);
+    font-size:24px;
+    font-weight:900;
+}
+
+.account-label{
+    color:var(--muted);
+    font-size:13px;
+    margin-top:5px;
+}
+
+.account-grid{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:14px;
+}
+
+.account-card{
+    padding:16px;
+    border:1px solid rgba(73,123,184,.22);
+    border-radius:12px;
+    background:linear-gradient(
+        180deg,
+        rgba(7,25,43,.92),
+        rgba(4,18,31,.98)
+    );
+}
+
+.account-card-label{
+    color:var(--muted);
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+}
+
+.account-card-value{
+    margin-top:8px;
+    color:var(--text);
+    font-size:17px;
+    font-weight:900;
+}
+
+.account-section{
+    margin-top:24px;
+}
+
+.account-section-title{
+    margin-bottom:12px;
+    color:#2f8cff;
+    font-size:14px;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+}
+
+.account-access-list{
+    overflow:hidden;
+    border:1px solid rgba(73,123,184,.22);
+    border-radius:12px;
+}
+
+.access-row{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    padding:14px 16px;
+    border-bottom:1px solid rgba(73,123,184,.16);
+    color:#dceaff;
+}
+
+.access-row:last-child{
+    border-bottom:none;
+}
+
+.access-active{
+    color:var(--green);
+    font-weight:900;
+}
+
+.access-locked{
+    color:var(--muted);
+    font-weight:800;
+}
+
+.coming-soon-grid{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:14px;
+}
+
+.coming-soon-card{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+    padding:16px;
+    border:1px solid rgba(73,123,184,.22);
+    border-radius:12px;
+    background:rgba(7,25,43,.7);
+}
+
+.coming-soon-card strong{
+    color:var(--text);
+    font-size:15px;
+}
+
+.coming-soon-card span{
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.45;
+}
+
+@media (max-width:900px){
+    .account-grid,
+    .coming-soon-grid{
+        grid-template-columns:1fr 1fr;
+    }
+}
+
+@media (max-width:600px){
+    .account-grid,
+    .coming-soon-grid{
+        grid-template-columns:1fr;
+    }
+
+    .account-profile{
+        align-items:flex-start;
+    }
+
+    .account-avatar{
+        width:60px;
+        height:60px;
+    }
+
+    .account-name{
+        font-size:20px;
+    }
+}
+
     </style>
 </head>
 
@@ -1224,9 +1391,9 @@
 
             <div class="dropdown-divider"></div>
 
-            <a href="#" class="dropdown-link disabled" onclick="return false;">
-                👤 My Profile — Coming Soon
-            </a>
+            <a href="{{ url_for('account_page') }}" class="dropdown-link">
+    👤 My Account
+</a>
 
             <a href="#" class="dropdown-link disabled" onclick="return false;">
                 📊 My Trackers — Coming Soon

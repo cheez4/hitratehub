@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from flask import session, redirect, url_for
 from flask_caching import Cache
-from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required 
 import unicodedata
 import pandas as pd
 import psycopg2
@@ -1635,6 +1635,13 @@ def discord_callback():
         print("Discord login error:", e)
         return "Unable to complete Discord login.", 500
 
+@app.route("/account")
+@login_required
+def account_page():
+    return render_template(
+        "account.html",
+        active_page="account"
+    )
 
 @app.route("/logout")
 def logout():
