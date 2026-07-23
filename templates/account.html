@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+
+    <div class="panel account-panel">
+
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">My Account</div>
+                <div class="account-subtitle">
+                    Manage your HitRateHub profile and view your access level.
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-body">
+
+            <div class="account-profile">
+
+                <img
+                    class="account-avatar"
+                    src="{{ current_user.avatar }}"
+                    alt="{{ current_user.username }} avatar"
+                >
+
+                <div>
+                    <div class="account-name">
+                        {{ current_user.username }}
+                    </div>
+
+                    <div class="account-label">
+                        Discord connected
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="account-grid">
+
+                <div class="account-card">
+                    <div class="account-card-label">
+                        Membership
+                    </div>
+
+                    <div class="account-card-value">
+                        {% if current_user.membership_tier == "premium_plus" %}
+                            Premium Plus
+                        {% elif current_user.membership_tier == "premium" %}
+                            Premium
+                        {% else %}
+                            Free
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="account-card">
+                    <div class="account-card-label">
+                        Community Status
+                    </div>
+
+                    <div class="account-card-value">
+                        {{ current_user.community_status
+                            | replace("_", " ")
+                            | title
+                        }}
+                    </div>
+                </div>
+
+                <div class="account-card">
+                    <div class="account-card-label">
+                        Beta Tester
+                    </div>
+
+                    <div class="account-card-value">
+                        {% if current_user.is_beta_tester %}
+                            ✅ Active
+                        {% else %}
+                            Not enrolled
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="account-card">
+                    <div class="account-card-label">
+                        Administrator
+                    </div>
+
+                    <div class="account-card-value">
+                        {% if current_user.is_admin %}
+                            ✅ Admin Access
+                        {% else %}
+                            Standard User
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="account-section">
+
+                <div class="account-section-title">
+                    Feature Access
+                </div>
+
+                <div class="account-access-list">
+
+                    <div class="access-row">
+                        <span>Core HitRateHub Tools</span>
+                        <span class="access-active">Available</span>
+                    </div>
+
+                    <div class="access-row">
+                        <span>Premium Analytics</span>
+
+                        {% if current_user.is_premium %}
+                            <span class="access-active">Available</span>
+                        {% else %}
+                            <span class="access-locked">Locked</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="access-row">
+                        <span>Advanced Tools</span>
+
+                        {% if current_user.has_advanced_access %}
+                            <span class="access-active">Available</span>
+                        {% else %}
+                            <span class="access-locked">Locked</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="access-row">
+                        <span>Capper Features</span>
+
+                        {% if current_user.has_capper_access %}
+                            <span class="access-active">Available</span>
+                        {% else %}
+                            <span class="access-locked">Locked</span>
+                        {% endif %}
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="account-section">
+
+                <div class="account-section-title">
+                    Coming Soon
+                </div>
+
+                <div class="coming-soon-grid">
+
+                    <div class="coming-soon-card">
+                        <strong>Personal Trackers</strong>
+                        <span>Save and monitor systems you discover.</span>
+                    </div>
+
+                    <div class="coming-soon-card">
+                        <strong>Bet History</strong>
+                        <span>Track daily profit, loss, units and ROI.</span>
+                    </div>
+
+                    <div class="coming-soon-card">
+                        <strong>Subscription Management</strong>
+                        <span>View and manage your membership.</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
