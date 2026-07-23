@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from flask import session, redirect
+from flask import session, redirect, url_for
 from flask_caching import Cache
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 import unicodedata
@@ -28,11 +28,53 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 
 class User(UserMixin):
-    def __init__(self, id, discord_id, username, avatar):
-        self.id = str(id)
+    def __init__(
+        self,
+        id,
+        discord_id,
+        username,
+        avatar,
+        membership_tier="free",
+        community_status="member",
+        is_beta_tester=False,
+        is_admin=False
+    ):
+        self.id = id
         self.discord_id = discord_id
         self.username = username
         self.avatar = avatar
+
+        self.membership_tier = membership_tier
+        self.community_status = community_status
+        self.is_beta_tester = bool(is_beta_tester)
+        self.is_admin = bool(is_admin)
+
+    @property
+    def is_premium(self):
+        return self.membership_tier in {
+            "premium",
+            "premium_plus"
+        }
+
+    @property
+    def is_premium_plus(self):
+        return self.membership_tier == "premium_plus"
+
+    @property
+    def has_capper_access(self):
+        return self.community_status in {
+            "capper_plus",
+            "elite_capper"
+        }
+
+    @property
+    def has_advanced_access(self):
+        return (
+            self.is_admin
+            or self.is_beta_tester
+            or self.is_premium_plus
+            or self.has_capper_access
+        )
 
 
 @login_manager.user_loader
@@ -43,17 +85,34 @@ def load_user(user_id):
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT id, discord_id, username, avatar
+            SELECT
+                id,
+                discord_id,
+                username,
+                avatar,
+                membership_tier,
+                community_status,
+                is_beta_tester,
+                is_admin
             FROM users
             WHERE id = %s
         """, (user_id,))
 
         row = cur.fetchone()
 
-        if row:
-            return User(*row)
+        if not row:
+            return None
 
-        return None
+        return User(
+            id=row[0],
+            discord_id=row[1],
+            username=row[2],
+            avatar=row[3],
+            membership_tier=row[4],
+            community_status=row[5],
+            is_beta_tester=row[6],
+            is_admin=row[7]
+        )     
 
     finally:
         conn.close()
@@ -1534,7 +1593,15 @@ def discord_callback():
                             avatar = EXCLUDED.avatar,
                             updated_at = NOW()
 
-                        RETURNING id, discord_id, username, avatar
+                        RETURNING
+                            id,
+                            discord_id,
+                            username,
+                            avatar,
+                            membership_tier,
+                            community_status,
+                            is_beta_tester,
+                            is_admin
                     """, (
                         discord_id,
                         username,
@@ -1546,7 +1613,16 @@ def discord_callback():
         finally:
             conn.close()
 
-        user = User(*row)
+        user = User(
+            id=row[0],
+            discord_id=row[1],
+            username=row[2],
+            avatar=row[3],
+            membership_tier=row[4],
+            community_status=row[5],
+            is_beta_tester=row[6],
+            is_admin=row[7]
+        )
         login_user(user, remember=True)
 
         return redirect("/")
@@ -1564,7 +1640,7 @@ def discord_callback():
 def logout():
     logout_user()
     session.clear()
-    return redirect("/")
+    return redirect(url_for("index"))
 
 @app.route("/api/odds/snapshot", methods=["POST"])
 def odds_snapshot():
