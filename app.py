@@ -1639,7 +1639,7 @@ def discord_callback():
 @app.route("/logout")
 def logout():
     logout_user()
-    session.clear()
+    session.pop("discord_oauth_state", None)
     return redirect(url_for("index"))
 
 @app.route("/api/odds/snapshot", methods=["POST"])
