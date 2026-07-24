@@ -2,9 +2,9 @@ from flask import Flask, render_template, request, jsonify
 from flask import session, redirect, url_for
 from flask_caching import Cache
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required 
+from database import get_conn, read_sql, get_systems
 import unicodedata
 import pandas as pd
-import psycopg2
 import requests
 import os
 import uuid
@@ -13,7 +13,6 @@ import secrets
 from urllib.parse import urlencode
 from functools import wraps
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
 DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET")
@@ -228,20 +227,6 @@ cache = Cache(app, config={
 })
 
 MAX_COMPARE_PLAYERS = 10
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-def get_conn():
-    return psycopg2.connect(DATABASE_URL)
-
-
-def read_sql(query, params=None):
-    conn = get_conn()
-    try:
-        return pd.read_sql(query, conn, params=params)
-    finally:
-        conn.close()
-
 
 def safe_int(value, default=10):
     try:
@@ -1906,7 +1891,7 @@ def odds_snapshot():
                 "seen_run_id": run_id
             })
 
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_conn()
 
         try:
             with conn:
@@ -2090,9 +2075,12 @@ def trends_page():
 @login_required
 def systems_page():
 
+    systems = get_systems()
+
     return render_template(
         "systems.html",
-        active_page="systems"
+        active_page="systems",
+        systems=systems.to_dict("records")
     )
 
 @app.route("/share")
