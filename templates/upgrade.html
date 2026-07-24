@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+
+    <div class="panel account-panel">
+
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">
+                    Upgrade Required
+                </div>
+
+                <div class="account-subtitle">
+                    This feature requires {{ required_name }}.
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-body">
+
+            <div class="upgrade-box">
+
+                <div class="upgrade-icon">🔒</div>
+
+                <h1>
+                    Unlock {{ required_name }}
+                </h1>
+
+                {% if not current_user.is_authenticated %}
+
+                    <p>
+                        Sign in with Discord to access your HitRateHub account
+                        and view available membership options.
+                    </p>
+
+                    <a
+                        href="{{ url_for('login') }}"
+                        class="upgrade-button"
+                    >
+                        Login with Discord
+                    </a>
+
+                {% else %}
+
+                    <p>
+                        Your current membership is
+                        <strong>
+                            {{ current_user.membership_tier
+                                | replace("_", " ")
+                                | title
+                            }}
+                        </strong>.
+                    </p>
+
+                    <p>
+                        Payments and subscription upgrades will be added through
+                        Stripe shortly.
+                    </p>
+
+                    <a
+                        href="{{ url_for('account_page') }}"
+                        class="upgrade-button"
+                    >
+                        View My Account
+                    </a>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

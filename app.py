@@ -11,6 +11,7 @@ import uuid
 from datetime import date, timedelta
 import secrets
 from urllib.parse import urlencode
+from functools import wraps
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -76,6 +77,110 @@ class User(UserMixin):
             or self.has_capper_access
         )
 
+def premium_required(view_function):
+    @wraps(view_function)
+    def wrapped_view(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for(
+                "login",
+                next=request.url
+            ))
+
+        if not current_user.is_premium and not current_user.is_admin:
+            return redirect(url_for(
+                "upgrade_page",
+                required="premium"
+            ))
+
+        return view_function(*args, **kwargs)
+
+    return wrapped_view
+
+
+def premium_plus_required(view_function):
+    @wraps(view_function)
+    def wrapped_view(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for(
+                "login",
+                next=request.url
+            ))
+
+        if not current_user.has_advanced_access:
+            return redirect(url_for(
+                "upgrade_page",
+                required="premium_plus"
+            ))
+
+        return view_function(*args, **kwargs)
+
+    return wrapped_view
+
+
+def capper_required(view_function):
+    @wraps(view_function)
+    def wrapped_view(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for(
+                "login",
+                next=request.url
+            ))
+
+        if not (
+            current_user.has_capper_access
+            or current_user.is_admin
+        ):
+            return redirect(url_for(
+                "upgrade_page",
+                required="capper"
+            ))
+
+        return view_function(*args, **kwargs)
+
+    return wrapped_view
+
+
+def beta_required(view_function):
+    @wraps(view_function)
+    def wrapped_view(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for(
+                "login",
+                next=request.url
+            ))
+
+        if not (
+            current_user.is_beta_tester
+            or current_user.is_admin
+        ):
+            return redirect(url_for(
+                "upgrade_page",
+                required="beta"
+            ))
+
+        return view_function(*args, **kwargs)
+
+    return wrapped_view
+
+
+def admin_required(view_function):
+    @wraps(view_function)
+    def wrapped_view(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for(
+                "login",
+                next=request.url
+            ))
+
+        if not current_user.is_admin:
+            return render_template(
+                "403.html",
+                active_page=""
+            ), 403
+
+        return view_function(*args, **kwargs)
+
+    return wrapped_view
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1987,6 +2092,24 @@ def share_page():
     context = get_common_context(active_page="share")
     return render_template("share.html", **context)
 
+@app.route("/upgrade")
+def upgrade_page():
+    required = request.args.get("required", "premium")
+
+    plan_names = {
+        "premium": "Premium",
+        "premium_plus": "Premium Plus",
+        "capper": "Capper Access",
+        "beta": "Beta Tester Access"
+    }
+
+    return render_template(
+        "upgrade.html",
+        required=required,
+        required_name=plan_names.get(required, "Premium"),
+        active_page=""
+    )
+
 
 @app.route("/clear_cache")
 def clear_cache():
@@ -1994,6 +2117,7 @@ def clear_cache():
     return "Cache cleared"
 
 @app.route("/strategy-finder")
+@premium_required
 def strategy_finder():
     prop = request.args.get("prop", "HR")
     odds_min = request.args.get("odds_min", "")
