@@ -2,77 +2,185 @@
 
 {% block content %}
 
-<div class="shell">
+<div class="shell membership-page">
 
-    <div class="panel account-panel">
+    <section class="membership-hero">
+        <div class="membership-lock">🔒</div>
 
-        <div class="panel-header">
-            <div>
-                <div class="panel-title">
-                    Upgrade Required
-                </div>
-
-                <div class="account-subtitle">
-                    This feature requires {{ required_name }}.
-                </div>
-            </div>
+        <div class="membership-eyebrow">
+            HitRateHub Membership
         </div>
 
-        <div class="panel-body">
+        <h1>
+            Unlock smarter betting tools
+        </h1>
 
-            <div class="upgrade-box">
+        <p>
+            Build better systems, compare historical results, find value,
+            and track your performance with HitRateHub.
+        </p>
 
-                <div class="upgrade-icon">🔒</div>
+        {% if required_name %}
+            <div class="required-access-note">
+                The feature you selected requires
+                <strong>{{ required_name }}</strong>.
+            </div>
+        {% endif %}
+    </section>
 
-                <h1>
-                    Unlock {{ required_name }}
-                </h1>
+    <section class="membership-plans">
 
-                {% if not current_user.is_authenticated %}
+        <article class="membership-card">
+            <div class="membership-card-top">
+                <div class="membership-plan-name">
+                    Free
+                </div>
 
-                    <p>
-                        Sign in with Discord to access your HitRateHub account
-                        and view available membership options.
-                    </p>
+                <div class="membership-price">
+                    $0
+                    <span>/ forever</span>
+                </div>
 
-                    <a
-                        href="{{ url_for('login') }}"
-                        class="upgrade-button"
-                    >
-                        Login with Discord
-                    </a>
-
-                {% else %}
-
-                    <p>
-                        Your current membership is
-                        <strong>
-                            {{ current_user.membership_tier
-                                | replace("_", " ")
-                                | title
-                            }}
-                        </strong>.
-                    </p>
-
-                    <p>
-                        Payments and subscription upgrades will be added through
-                        Stripe shortly.
-                    </p>
-
-                    <a
-                        href="{{ url_for('account_page') }}"
-                        class="upgrade-button"
-                    >
-                        View My Account
-                    </a>
-
-                {% endif %}
-
+                <p class="membership-plan-description">
+                    Explore HitRateHub and access the core tools.
+                </p>
             </div>
 
-        </div>
+            <ul class="membership-features">
+                <li>✓ Discord account login</li>
+                <li>✓ Core player calculator</li>
+                <li>✓ Basic leaderboards</li>
+                <li>✓ Limited trends access</li>
+                <li>✓ Account dashboard</li>
+            </ul>
 
-    </div>
+            {% if not current_user.is_authenticated %}
+                <a href="{{ url_for('login') }}" class="membership-button secondary">
+                    Login with Discord
+                </a>
+            {% else %}
+                <div class="membership-current-button">
+                    {% if current_user.membership_tier == "free" %}
+                        Current Plan
+                    {% else %}
+                        Included
+                    {% endif %}
+                </div>
+            {% endif %}
+        </article>
+
+        <article class="membership-card featured">
+            <div class="membership-popular">
+                Most Popular
+            </div>
+
+            <div class="membership-card-top">
+                <div class="membership-plan-name">
+                    Premium
+                </div>
+
+                <div class="membership-price">
+                    Coming Soon
+                </div>
+
+                <p class="membership-plan-description">
+                    Advanced tools for users who want to uncover stronger betting angles.
+                </p>
+            </div>
+
+            <ul class="membership-features">
+                <li>✓ Everything in Free</li>
+                <li>✓ Strategy Finder</li>
+                <li>✓ Edge Finder</li>
+                <li>✓ Advanced filters</li>
+                <li>✓ Expanded historical windows</li>
+                <li>✓ Personal betting tracker</li>
+            </ul>
+
+            {% if current_user.is_authenticated and current_user.is_premium %}
+                <div class="membership-current-button premium-current">
+                    Your Plan
+                </div>
+            {% else %}
+                <button class="membership-button primary" disabled>
+                    Stripe Coming Soon
+                </button>
+            {% endif %}
+        </article>
+
+        <article class="membership-card">
+            <div class="membership-card-top">
+                <div class="membership-plan-name">
+                    Premium+
+                </div>
+
+                <div class="membership-price">
+                    Coming Soon
+                </div>
+
+                <p class="membership-plan-description">
+                    Full access for serious users, system builders, and advanced cappers.
+                </p>
+            </div>
+
+            <ul class="membership-features">
+                <li>✓ Everything in Premium</li>
+                <li>✓ Portfolio Builder</li>
+                <li>✓ Advanced combo analysis</li>
+                <li>✓ Premium system leaderboards</li>
+                <li>✓ Maximum historical access</li>
+                <li>✓ Early access to new tools</li>
+            </ul>
+
+            {% if current_user.is_authenticated and current_user.is_premium_plus %}
+                <div class="membership-current-button premium-plus-current">
+                    Your Plan
+                </div>
+            {% else %}
+                <button class="membership-button premium-plus" disabled>
+                    Stripe Coming Soon
+                </button>
+            {% endif %}
+        </article>
+
+    </section>
+
+    <section class="membership-bottom">
+
+        {% if not current_user.is_authenticated %}
+            <h2>
+                Start with a free account
+            </h2>
+
+            <p>
+                Login securely with Discord. No password is required.
+            </p>
+
+            <a href="{{ url_for('login') }}" class="membership-button primary large">
+                Continue with Discord
+            </a>
+
+        {% else %}
+            <h2>
+                Signed in as {{ current_user.username }}
+            </h2>
+
+            <p>
+                Your current membership is
+                <strong>
+                    {{ current_user.membership_tier
+                        | replace("_", " ")
+                        | title
+                    }}
+                </strong>.
+            </p>
+
+            <a href="{{ url_for('account_page') }}" class="membership-button secondary large">
+                View My Account
+            </a>
+        {% endif %}
+
+    </section>
 
 </div>
 
