@@ -2086,6 +2086,14 @@ def trends_page():
     context.update(build_trends_context())
     return render_template("trends.html", **context)
 
+@app.route("/systems")
+@login_required
+def systems_page():
+
+    return render_template(
+        "systems.html",
+        active_page="systems"
+    )
 
 @app.route("/share")
 def share_page():
