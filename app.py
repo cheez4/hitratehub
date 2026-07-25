@@ -2083,6 +2083,42 @@ def systems_page():
         systems=systems.to_dict("records")
     )
 
+@app.route("/systems/<system_code>")
+@login_required
+def system_detail_page(system_code):
+
+    system_df = read_sql("""
+        SELECT
+            id,
+            system_code,
+            name,
+            description,
+            creator_id,
+            sport,
+            visibility,
+            status,
+            followers,
+            created_at,
+            updated_at
+        FROM systems
+        WHERE system_code = %s
+        LIMIT 1
+    """, (system_code,))
+
+    if system_df.empty:
+        return render_template(
+            "404.html",
+            active_page="systems"
+        ), 404
+
+    system = system_df.iloc[0].to_dict()
+
+    return render_template(
+        "system_detail.html",
+        active_page="systems",
+        system=system
+    )
+
 @app.route("/share")
 def share_page():
     context = get_common_context(active_page="share")

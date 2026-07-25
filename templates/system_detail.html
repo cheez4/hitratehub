@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+
+    <div class="panel">
+
+        <div class="panel-header">
+            <div>
+                <div class="small">
+                    {{ system.sport }} SYSTEM
+                </div>
+
+                <div class="panel-title">
+                    {{ system.name }}
+                </div>
+            </div>
+
+            <a href="{{ url_for('systems_page') }}" class="system-back-link">
+                ← Back to Systems
+            </a>
+        </div>
+
+        <div class="panel-body">
+
+            <p class="system-detail-description">
+                {{ system.description }}
+            </p>
+
+            <div class="system-detail-grid">
+
+                <div class="system-detail-stat">
+                    <div class="system-detail-value">
+                        {{ system.followers or 0 }}
+                    </div>
+
+                    <div class="system-detail-label">
+                        Followers
+                    </div>
+                </div>
+
+                <div class="system-detail-stat">
+                    <div class="system-detail-value">
+                        {{ system.status|title }}
+                    </div>
+
+                    <div class="system-detail-label">
+                        Status
+                    </div>
+                </div>
+
+                <div class="system-detail-stat">
+                    <div class="system-detail-value">
+                        {{ system.visibility|title }}
+                    </div>
+
+                    <div class="system-detail-label">
+                        Access
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="system-placeholder">
+                <h2>Performance data coming next</h2>
+
+                <p>
+                    This page will show the system rules, historical record,
+                    ROI, units won, recent bets and performance charts.
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<style>
+
+.system-back-link {
+    color: #5daeff;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.system-detail-description {
+    font-size: 18px;
+    line-height: 1.7;
+    color: #c5d4e2;
+}
+
+.system-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    gap: 14px;
+    margin: 25px 0;
+}
+
+.system-detail-stat {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+}
+
+.system-detail-value {
+    font-size: 24px;
+    font-weight: 800;
+}
+
+.system-detail-label {
+    color: #8297aa;
+    font-size: 12px;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+
+.system-placeholder {
+    border: 1px dashed rgba(49, 139, 255, 0.35);
+    background: rgba(49, 139, 255, 0.04);
+    border-radius: 12px;
+    padding: 24px;
+    margin-top: 25px;
+}
+
+@media (max-width: 700px) {
+    .system-detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+</style>
+
+{% endblock %}
