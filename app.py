@@ -2089,19 +2089,32 @@ def system_detail_page(system_code):
 
     system_df = read_sql("""
         SELECT
-            id,
-            system_code,
-            name,
-            description,
-            creator_id,
-            sport,
-            visibility,
-            status,
-            followers,
-            created_at,
-            updated_at
-        FROM systems
-        WHERE system_code = %s
+            s.id,
+            s.system_code,
+            s.name,
+            s.description,
+            s.creator_id,
+            s.sport,
+            s.visibility,
+            s.status,
+            COUNT(sf.id) AS followers,
+            s.created_at,
+            s.updated_at
+        FROM systems s
+        LEFT JOIN system_followers sf
+            ON sf.system_id = s.id
+        WHERE s.system_code = %s
+        GROUP BY
+            s.id,
+            s.system_code,
+            s.name,
+            s.description,
+            s.creator_id,
+            s.sport,
+            s.visibility,
+            s.status,
+            s.created_at,
+            s.updated_at
         LIMIT 1
     """, (system_code,))
 

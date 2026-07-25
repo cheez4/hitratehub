@@ -17,19 +17,32 @@ def read_sql(query, params=None):
 def get_systems():
     return read_sql("""
         SELECT
-            id,
-            system_code,
-            name,
-            description,
-            creator_id,
-            sport,
-            visibility,
-            status,
-            followers,
-            created_at,
-            updated_at
-        FROM systems
-        WHERE visibility = 'public'
-          AND status = 'active'
-        ORDER BY created_at DESC
+            s.id,
+            s.system_code,
+            s.name,
+            s.description,
+            s.creator_id,
+            s.sport,
+            s.visibility,
+            s.status,
+            COUNT(sf.id) AS followers,
+            s.created_at,
+            s.updated_at
+        FROM systems s
+        LEFT JOIN system_followers sf
+            ON sf.system_id = s.id
+        WHERE s.visibility = 'public'
+          AND s.status = 'active'
+        GROUP BY
+            s.id,
+            s.system_code,
+            s.name,
+            s.description,
+            s.creator_id,
+            s.sport,
+            s.visibility,
+            s.status,
+            s.created_at,
+            s.updated_at
+        ORDER BY s.created_at DESC
     """)
