@@ -91,3 +91,66 @@ def unwatch_system(user_id, system_id):
                 """, (user_id, system_id))
     finally:
         conn.close()
+
+def create_system_record(
+    system_code,
+    name,
+    description,
+    creator_id,
+    sport,
+    visibility
+):
+    conn = get_conn()
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO systems (
+                        system_code,
+                        name,
+                        description,
+                        creator_id,
+                        sport,
+                        visibility,
+                        status,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        'active',
+                        NOW(),
+                        NOW()
+                    )
+                    RETURNING system_code
+                """, (
+                    system_code,
+                    name,
+                    description,
+                    creator_id,
+                    sport,
+                    visibility
+                ))
+
+                row = cur.fetchone()
+
+                return row[0]
+
+    finally:
+        conn.close()
+
+def system_code_exists(system_code):
+    df = read_sql("""
+        SELECT 1
+        FROM systems
+        WHERE system_code = %s
+        LIMIT 1
+    """, (system_code,))
+
+    return not df.empty

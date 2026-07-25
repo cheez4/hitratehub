@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify
 from flask import session, redirect, url_for
 from flask_caching import Cache
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required 
-from database import get_conn, read_sql, get_systems, is_watching_system, watch_system, unwatch_system
+from database import get_conn, read_sql, get_systems, is_watching_system, watch_system, unwatch_system, create_system_record, system_code_exists
 import unicodedata
 import pandas as pd
 import requests
@@ -2163,6 +2163,94 @@ def toggle_system_watch(system_code):
         "system_detail_page",
         system_code=system_code
     ))
+
+@app.route("/systems/create", methods=["GET", "POST"])
+@login_required
+def create_system_page():
+
+    if request.method == "POST":
+
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip()
+        sport = request.form.get("sport", "").strip().upper()
+        visibility = request.form.get("visibility", "private").strip().lower()
+
+        errors = []
+
+        if len(name) < 3:
+            errors.append("System name must be at least 3 characters.")
+
+        if len(name) > 100:
+            errors.append("System name cannot be longer than 100 characters.")
+
+        if len(description) > 1000:
+            errors.append("Description cannot be longer than 1,000 characters.")
+
+        allowed_sports = {
+            "MLB",
+            "NBA",
+            "NFL",
+            "NHL"
+        }
+
+        if sport not in allowed_sports:
+            errors.append("Please select a valid sport.")
+
+        if visibility not in {"public", "private"}:
+            errors.append("Please select a valid visibility option.")
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+
+            return render_template(
+                "create_system.html",
+                active_page="systems",
+                form_data={
+                    "name": name,
+                    "description": description,
+                    "sport": sport,
+                    "visibility": visibility
+                }
+            )
+
+        base_code = re.sub(
+            r"[^a-z0-9]+",
+            "_",
+            name.lower()
+        ).strip("_")
+
+        if not base_code:
+            base_code = "system"
+
+        system_code = base_code
+        number = 2
+
+        while system_code_exists(system_code):
+            system_code = f"{base_code}_{number}"
+            number += 1
+
+        created_system_code = create_system_record(
+            system_code=system_code,
+            name=name,
+            description=description,
+            creator_id=current_user.id,
+            sport=sport,
+            visibility=visibility
+        )
+
+        flash("Your system was created successfully.", "success")
+
+        return redirect(url_for(
+            "system_detail_page",
+            system_code=created_system_code
+        ))
+
+    return render_template(
+        "create_system.html",
+        active_page="systems",
+        form_data={}
+    )
 
 @app.route("/share")
 def share_page():

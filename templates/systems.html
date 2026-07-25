@@ -16,6 +16,12 @@
                     Discover, follow and track betting systems.
                 </div>
             </div>
+<a
+    href="{{ url_for('create_system_page') }}"
+    class="create-system-link"
+>
+    + Create System
+</a>
         </div>
 
         <div class="panel-body">
@@ -171,6 +177,21 @@
     margin: 0;
     font-size: 21px;
     line-height: 1.25;
+}
+
+.create-system-link {
+    background: #118cff;
+    border: 1px solid #118cff;
+    color: white;
+    border-radius: 9px;
+    padding: 10px 16px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.create-system-link:hover {
+    background: #0079e8;
 }
 
 .system-status {

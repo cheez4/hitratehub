@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+
+    <div class="panel">
+
+        <div class="panel-header">
+
+            <div>
+                <div class="small">
+                    SYSTEM BUILDER
+                </div>
+
+                <div class="panel-title">
+                    Create a System
+                </div>
+            </div>
+
+            <a
+                href="{{ url_for('systems_page') }}"
+                class="create-system-back"
+            >
+                ← Back to Systems
+            </a>
+
+        </div>
+
+        <div class="panel-body">
+
+            <p class="create-system-intro">
+                Create the basic profile for your betting system.
+                We will add the actual system rules and performance tracking next.
+            </p>
+
+            <form
+                method="POST"
+                action="{{ url_for('create_system_page') }}"
+                class="create-system-form"
+            >
+
+                <div class="form-group">
+
+                    <label for="name">
+                        System Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        maxlength="100"
+                        required
+                        placeholder="Example: Last 20 Hits System"
+                        value="{{ form_data.get('name', '') }}"
+                    >
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="sport">
+                        Sport
+                    </label>
+
+                    <select
+                        id="sport"
+                        name="sport"
+                        required
+                    >
+                        <option value="">
+                            Select a sport
+                        </option>
+
+                        <option
+                            value="MLB"
+                            {% if form_data.get('sport') == 'MLB' %}selected{% endif %}
+                        >
+                            MLB
+                        </option>
+
+                        <option
+                            value="NBA"
+                            {% if form_data.get('sport') == 'NBA' %}selected{% endif %}
+                        >
+                            NBA
+                        </option>
+
+                        <option
+                            value="NFL"
+                            {% if form_data.get('sport') == 'NFL' %}selected{% endif %}
+                        >
+                            NFL
+                        </option>
+
+                        <option
+                            value="NHL"
+                            {% if form_data.get('sport') == 'NHL' %}selected{% endif %}
+                        >
+                            NHL
+                        </option>
+                    </select>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="visibility">
+                        Visibility
+                    </label>
+
+                    <select
+                        id="visibility"
+                        name="visibility"
+                        required
+                    >
+                        <option
+                            value="private"
+                            {% if form_data.get('visibility', 'private') == 'private' %}selected{% endif %}
+                        >
+                            Private — only you can view it
+                        </option>
+
+                        <option
+                            value="public"
+                            {% if form_data.get('visibility') == 'public' %}selected{% endif %}
+                        >
+                            Public — visible in the System Library
+                        </option>
+                    </select>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="description">
+                        Description
+                    </label>
+
+                    <textarea
+                        id="description"
+                        name="description"
+                        maxlength="1000"
+                        rows="6"
+                        placeholder="Explain what this system is designed to find..."
+                    >{{ form_data.get('description', '') }}</textarea>
+
+                </div>
+
+                <div class="create-system-actions">
+
+                    <a
+                        href="{{ url_for('systems_page') }}"
+                        class="create-system-button create-system-cancel"
+                    >
+                        Cancel
+                    </a>
+
+                    <button
+                        type="submit"
+                        class="create-system-button create-system-submit"
+                    >
+                        Create System
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+<style>
+
+.create-system-back {
+    color: #5daeff;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.create-system-intro {
+    color: #b8c9d8;
+    line-height: 1.7;
+    margin-top: 0;
+    margin-bottom: 24px;
+}
+
+.create-system-form {
+    max-width: 760px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    color: #dce9f5;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(4, 18, 31, 0.9);
+    border: 1px solid rgba(96, 159, 219, 0.3);
+    border-radius: 10px;
+    color: white;
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 15px;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 130px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #118cff;
+    box-shadow: 0 0 0 3px rgba(17, 140, 255, 0.12);
+}
+
+.create-system-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 28px;
+}
+
+.create-system-button {
+    border-radius: 9px;
+    padding: 11px 18px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.create-system-cancel {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: white;
+}
+
+.create-system-submit {
+    background: #118cff;
+    border: 1px solid #118cff;
+    color: white;
+}
+
+.create-system-submit:hover {
+    background: #0079e8;
+}
+
+@media (max-width: 600px) {
+
+    .create-system-actions {
+        flex-direction: column-reverse;
+    }
+
+    .create-system-button {
+        width: 100%;
+        box-sizing: border-box;
+        text-align: center;
+    }
+}
+
+</style>
+
+{% endblock %}
