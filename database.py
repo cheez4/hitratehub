@@ -154,3 +154,120 @@ def system_code_exists(system_code):
     """, (system_code,))
 
     return not df.empty
+
+def create_combo_system(
+    system_code,
+    name,
+    description,
+    creator_id,
+    sport,
+    visibility,
+    combo_name,
+    minimum_combined_odds,
+    require_all_active,
+    require_exact_lines,
+    legs
+):
+    conn = get_conn()
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+
+                cur.execute("""
+                    INSERT INTO systems (
+                        system_code,
+                        name,
+                        description,
+                        creator_id,
+                        sport,
+                        visibility,
+                        status,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        'active',
+                        NOW(),
+                        NOW()
+                    )
+                    RETURNING id, system_code
+                """, (
+                    system_code,
+                    name,
+                    description,
+                    creator_id,
+                    sport,
+                    visibility
+                ))
+
+                system_id, created_system_code = cur.fetchone()
+
+                cur.execute("""
+                    INSERT INTO system_combos (
+                        system_id,
+                        combo_name,
+                        leg_count,
+                        minimum_combined_odds,
+                        require_all_active,
+                        require_exact_lines,
+                        created_at
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        NOW()
+                    )
+                    RETURNING id
+                """, (
+                    system_id,
+                    combo_name,
+                    len(legs),
+                    minimum_combined_odds,
+                    require_all_active,
+                    require_exact_lines
+                ))
+
+                combo_id = cur.fetchone()[0]
+
+                for sort_order, leg in enumerate(legs, start=1):
+                    cur.execute("""
+                        INSERT INTO system_combo_legs (
+                            combo_id,
+                            player_name,
+                            prop,
+                            ou,
+                            line,
+                            sort_order
+                        )
+                        VALUES (
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s
+                        )
+                    """, (
+                        combo_id,
+                        leg["player_name"],
+                        leg["prop"],
+                        leg.get("ou", "over"),
+                        leg["line"],
+                        sort_order
+                    ))
+
+                return created_system_code
+
+    finally:
+        conn.close()

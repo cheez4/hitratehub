@@ -17,7 +17,8 @@ from database import (
     watch_system,
     unwatch_system,
     create_system_record,
-    system_code_exists
+    system_code_exists,
+    create_combo_system
 )
 
 import unicodedata
@@ -2270,6 +2271,65 @@ def create_system_page():
         active_page="systems",
         form_data={}
     )
+
+@app.route("/systems/test-combo-save")
+@login_required
+def test_combo_save():
+
+    name = "Test 3-Leg Combo"
+
+    base_code = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        name.lower()
+    ).strip("_")
+
+    system_code = base_code
+    number = 2
+
+    while system_code_exists(system_code):
+        system_code = f"{base_code}_{number}"
+        number += 1
+
+    legs = [
+        {
+            "player_name": "Vladimir Guerrero Jr.",
+            "prop": "HITS",
+            "ou": "over",
+            "line": 0.5
+        },
+        {
+            "player_name": "George Springer",
+            "prop": "HITS",
+            "ou": "over",
+            "line": 0.5
+        },
+        {
+            "player_name": "Ernie Clement",
+            "prop": "HITS",
+            "ou": "over",
+            "line": 0.5
+        }
+    ]
+
+    created_system_code = create_combo_system(
+        system_code=system_code,
+        name=name,
+        description="Temporary test combo system.",
+        creator_id=current_user.id,
+        sport="MLB",
+        visibility="private",
+        combo_name="Blue Jays Test 3-Leg",
+        minimum_combined_odds=350,
+        require_all_active=True,
+        require_exact_lines=True,
+        legs=legs
+    )
+
+    return redirect(url_for(
+        "system_detail_page",
+        system_code=created_system_code
+    ))
 
 @app.route("/share")
 def share_page():
