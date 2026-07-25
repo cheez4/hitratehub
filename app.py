@@ -2134,7 +2134,7 @@ def system_detail_page(system_code):
     return render_template(
         "system_detail.html",
         active_page="systems",
-        system=system
+        system=system,
         is_watching=is_watching
     )
 
