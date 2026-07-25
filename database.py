@@ -16,7 +16,18 @@ def read_sql(query, params=None):
 
 def get_systems():
     return read_sql("""
-        SELECT *
+        SELECT
+            id,
+            system_code,
+            name,
+            description,
+            creator_id,
+            sport,
+            visibility,
+            status,
+            followers,
+            created_at,
+            updated_at
         FROM systems
         WHERE visibility = 'public'
           AND status = 'active'

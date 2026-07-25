@@ -20,12 +20,25 @@
 
         <div class="panel-body">
 
-            <h2>🚧 Systems Page Coming Soon</h2>
+            {% if systems %}
 
-            <p>
-                This page will display all public betting systems that users can
-                watch, follow and add to their dashboard.
-            </p>
+                {% for system in systems %}
+                    <div class="system-card">
+                        <h3>{{ system.name }}</h3>
+                        <p>{{ system.description }}</p>
+                    </div>
+                {% endfor %}
+
+            {% else %}
+
+                <h2>🚧 Systems Coming Soon</h2>
+
+                <p>
+                    Public betting systems will appear here as they are published.
+                    Soon you'll be able to browse, follow, and track systems directly from your dashboard.
+                </p>
+
+            {% endif %}
 
         </div>
 
