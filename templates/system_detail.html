@@ -28,6 +28,21 @@
                 {{ system.description }}
             </p>
 
+            <form
+                method="POST"
+                action="{{ url_for('toggle_system_watch', system_code=system.system_code) }}"
+            >
+                <button type="submit" class="system-watch-button">
+
+                    {% if is_watching %}
+                        ★ Watching
+                    {% else %}
+                        ☆ Watch System
+                    {% endif %}
+
+                </button>
+            </form>
+
             <div class="system-detail-grid">
 
                 <div class="system-detail-stat">
@@ -89,6 +104,27 @@
     font-size: 18px;
     line-height: 1.7;
     color: #c5d4e2;
+}
+
+.system-watch-button {
+    background: #118cff;
+    border: 1px solid #118cff;
+    color: white;
+    border-radius: 9px;
+    padding: 11px 18px;
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.system-watch-button:hover {
+    background: #0079e8;
+}
+
+.system-watch-button:active {
+    transform: translateY(1px);
 }
 
 .system-detail-grid {

@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify
 from flask import session, redirect, url_for
 from flask_caching import Cache
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required 
-from database import get_conn, read_sql, get_systems
+from database import get_conn, read_sql, get_systems, is_watching_system, watch_system, unwatch_system
 import unicodedata
 import pandas as pd
 import requests
@@ -2125,12 +2125,44 @@ def system_detail_page(system_code):
         ), 404
 
     system = system_df.iloc[0].to_dict()
+   
+    is_watching = is_watching_system(
+    current_user.id,
+    system["id"]
+)
 
     return render_template(
         "system_detail.html",
         active_page="systems",
         system=system
+        is_watching=is_watching
     )
+
+@app.route("/systems/<system_code>/watch", methods=["POST"])
+@login_required
+def toggle_system_watch(system_code):
+
+    system_df = read_sql("""
+        SELECT id
+        FROM systems
+        WHERE system_code = %s
+        LIMIT 1
+    """, (system_code,))
+
+    if system_df.empty:
+        return redirect(url_for("systems_page"))
+
+    system_id = int(system_df.iloc[0]["id"])
+
+    if is_watching_system(current_user.id, system_id):
+        unwatch_system(current_user.id, system_id)
+    else:
+        watch_system(current_user.id, system_id)
+
+    return redirect(url_for(
+        "system_detail_page",
+        system_code=system_code
+    ))
 
 @app.route("/share")
 def share_page():

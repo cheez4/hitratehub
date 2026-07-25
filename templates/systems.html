@@ -93,12 +93,12 @@
                                     View System
                                 </a>
 
-                                <button
-                                    type="button"
-                                    class="system-button system-button-secondary"
-                                >
-                                    ⭐ Watch
-                                </button>
+                                <a
+    href="{{ url_for('system_detail_page', system_code=system.system_code) }}"
+    class="system-button system-button-secondary"
+>
+    ⭐ Watch
+</a>
 
                             </div>
 
