@@ -9,11 +9,11 @@
         <div class="panel-header">
             <div>
                 <div class="panel-title">
-                    ⭐ Browse Systems
+                    ⭐ System Library
                 </div>
 
                 <div class="small">
-                    Build, discover and follow profitable betting systems.
+                    Discover, follow and track betting systems.
                 </div>
             </div>
         </div>
@@ -22,21 +22,101 @@
 
             {% if systems %}
 
-                {% for system in systems %}
-                    <div class="system-card">
-                        <h3>{{ system.name }}</h3>
-                        <p>{{ system.description }}</p>
-                    </div>
-                {% endfor %}
+                <div class="systems-grid">
+
+                    {% for system in systems %}
+
+                        <div class="system-card">
+
+                            <div class="system-card-top">
+
+                                <div>
+                                    <div class="system-sport">
+                                        {{ system.sport }}
+                                    </div>
+
+                                    <h2 class="system-name">
+                                        {{ system.name }}
+                                    </h2>
+                                </div>
+
+                                <div class="system-status">
+                                    {{ system.status|title }}
+                                </div>
+
+                            </div>
+
+                            <p class="system-description">
+                                {{ system.description }}
+                            </p>
+
+                            <div class="system-meta">
+
+                                <div class="system-stat">
+                                    <div class="system-stat-value">
+                                        {{ system.followers or 0 }}
+                                    </div>
+
+                                    <div class="system-stat-label">
+                                        Followers
+                                    </div>
+                                </div>
+
+                                <div class="system-stat">
+                                    <div class="system-stat-value">
+                                        {{ system.visibility|title }}
+                                    </div>
+
+                                    <div class="system-stat-label">
+                                        Access
+                                    </div>
+                                </div>
+
+                                <div class="system-stat">
+                                    <div class="system-stat-value">
+                                        {{ system.sport }}
+                                    </div>
+
+                                    <div class="system-stat-label">
+                                        Sport
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="system-actions">
+
+                                <a
+                                    href="{{ url_for('system_detail_page', system_code=system.system_code) }}"
+                                    class="system-button system-button-primary"
+                                >
+                                    View System
+                                </a>
+
+                                <button
+                                    type="button"
+                                    class="system-button system-button-secondary"
+                                >
+                                    ⭐ Watch
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    {% endfor %}
+
+                </div>
 
             {% else %}
 
-                <h2>🚧 Systems Coming Soon</h2>
+                <div class="systems-empty">
+                    <h2>No public systems yet</h2>
 
-                <p>
-                    Public betting systems will appear here as they are published.
-                    Soon you'll be able to browse, follow, and track systems directly from your dashboard.
-                </p>
+                    <p>
+                        Public betting systems will appear here once they are published.
+                    </p>
+                </div>
 
             {% endif %}
 
@@ -45,5 +125,158 @@
     </div>
 
 </div>
+
+<style>
+
+.systems-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+}
+
+.system-card {
+    background: rgba(7, 25, 43, 0.85);
+    border: 1px solid rgba(49, 139, 255, 0.3);
+    border-radius: 14px;
+    padding: 22px;
+    transition:
+        transform 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.system-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(49, 139, 255, 0.7);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.system-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.system-sport {
+    color: #2f9cff;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+}
+
+.system-name {
+    margin: 0;
+    font-size: 21px;
+    line-height: 1.25;
+}
+
+.system-status {
+    background: rgba(30, 190, 110, 0.15);
+    border: 1px solid rgba(30, 190, 110, 0.4);
+    color: #5ee69b;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.system-description {
+    color: #c4d3e2;
+    line-height: 1.6;
+    margin: 18px 0;
+}
+
+.system-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.system-stat {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+}
+
+.system-stat-value {
+    font-size: 17px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.system-stat-label {
+    color: #8297aa;
+    font-size: 11px;
+    margin-top: 4px;
+    text-transform: uppercase;
+}
+
+.system-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.system-button {
+    flex: 1;
+    border-radius: 9px;
+    padding: 11px 14px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.system-button-primary {
+    background: #118cff;
+    border: 1px solid #118cff;
+    color: white;
+}
+
+.system-button-primary:hover {
+    background: #0079e8;
+}
+
+.system-button-secondary {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: white;
+}
+
+.system-button-secondary:hover {
+    border-color: #118cff;
+    color: #56adff;
+}
+
+.systems-empty {
+    text-align: center;
+    padding: 45px 20px;
+    color: #9eb0c1;
+}
+
+@media (max-width: 600px) {
+    .systems-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .system-meta {
+        grid-template-columns: 1fr;
+    }
+
+    .system-actions {
+        flex-direction: column;
+    }
+}
+
+</style>
 
 {% endblock %}
