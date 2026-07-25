@@ -1,14 +1,32 @@
-from flask import Flask, render_template, request, jsonify
-from flask import session, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_caching import Cache
-from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required 
-from database import get_conn, read_sql, get_systems, is_watching_system, watch_system, unwatch_system, create_system_record, system_code_exists
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    logout_user,
+    current_user,
+    login_required
+)
+
+from database import (
+    get_conn,
+    read_sql,
+    get_systems,
+    is_watching_system,
+    watch_system,
+    unwatch_system,
+    create_system_record,
+    system_code_exists
+)
+
 import unicodedata
 import pandas as pd
 import requests
 import re
 import os
 import uuid
+
 from datetime import date, timedelta
 import secrets
 from urllib.parse import urlencode
