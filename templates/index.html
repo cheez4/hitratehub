@@ -1715,9 +1715,12 @@ function analyzeCombos() {
             const roi = games ? (units / games) * 100 : 0;
 
             results.push({
-                combo: combo.map(p => p.name).join(" + "),
-                players: combo,
-                legs: size,
+    combo: combo.map(p => p.name).join(" + "),
+    players: combo.map(p => ({
+        index: p.index,
+        name: p.name
+    })),
+    legs: size,
                 games,
                 wins,
                 losses,
@@ -1748,22 +1751,32 @@ const cls = roiClass(r.units);
 const resultIndex = results.indexOf(r);
 
         bestBox.innerHTML += `
-            <div class="combo-best-card ${cls}">
-                <div class="label">BEST ${legs}-LEG</div>
-                <div class="name">${r.combo}</div>
-                <div class="rate">${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u</div>
-                <div class="record">${r.wins}-${r.losses}</div>
-                <div class="games">${r.winPct.toFixed(1)}% • ${r.avgOdds ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds) : "—"} avg odds</div>
-            </div>
+    <div class="combo-best-card ${cls}">
+        <div class="label">BEST ${legs}-LEG</div>
+        <div class="name">${r.combo}</div>
+        <div class="rate">
+            ${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u
+        </div>
 
-<button
-    type="button"
-    class="share-btn"
-    style="margin-top:12px;"
-    onclick="openSaveComboModal(${resultIndex})"
->
-    ⭐ Save to Systems
-</button>
+        <div class="record">${r.wins}-${r.losses}</div>
+
+        <div class="games">
+            ${r.winPct.toFixed(1)}% •
+            ${r.avgOdds
+                ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds)
+                : "—"} avg odds
+        </div>
+
+        <button
+            type="button"
+            class="share-btn"
+            style="width:100%; margin-top:16px;"
+            onclick="openSaveComboModal(${resultIndex})"
+        >
+            ⭐ Save to Systems
+        </button>
+    </div>
+`;
 
         `;
     });
