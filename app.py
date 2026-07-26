@@ -2272,17 +2272,102 @@ def create_system_page():
         form_data={}
     )
 
-@app.route("/systems/test-combo-save")
+@app.route("/systems/save-combo", methods=["POST"])
 @login_required
-def test_combo_save():
+def save_combo_system():
 
-    name = "Test 3-Leg Combo"
+    data = request.get_json(silent=True)
+
+    if not data:
+        return {
+            "success": False,
+            "message": "No combo data was received."
+        }, 400
+
+    name = str(data.get("name", "")).strip()
+    description = str(data.get("description", "")).strip()
+    sport = str(data.get("sport", "MLB")).strip()
+    visibility = str(data.get("visibility", "private")).strip().lower()
+    combo_name = str(data.get("combo_name", name)).strip()
+
+    minimum_combined_odds = data.get("minimum_combined_odds")
+    require_all_active = bool(data.get("require_all_active", True))
+    require_exact_lines = bool(data.get("require_exact_lines", True))
+    legs = data.get("legs", [])
+
+    if not name:
+        return {
+            "success": False,
+            "message": "System name is required."
+        }, 400
+
+    if visibility not in ("public", "private"):
+        visibility = "private"
+
+    if not isinstance(legs, list) or len(legs) < 2:
+        return {
+            "success": False,
+            "message": "A combo system must contain at least two legs."
+        }, 400
+
+    cleaned_legs = []
+
+    for index, leg in enumerate(legs, start=1):
+
+        if not isinstance(leg, dict):
+            return {
+                "success": False,
+                "message": f"Leg {index} is invalid."
+            }, 400
+
+        player_name = str(leg.get("player_name", "")).strip()
+        prop = str(leg.get("prop", "")).strip().upper()
+        ou = str(leg.get("ou", "over")).strip().lower()
+        line = leg.get("line")
+
+        if not player_name or not prop or line is None:
+            return {
+                "success": False,
+                "message": f"Leg {index} is missing required information."
+            }, 400
+
+        try:
+            line = float(line)
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "message": f"Leg {index} has an invalid line."
+            }, 400
+
+        if ou not in ("over", "under"):
+            ou = "over"
+
+        cleaned_legs.append({
+            "player_name": player_name,
+            "prop": prop,
+            "ou": ou,
+            "line": line
+        })
+
+    if minimum_combined_odds in ("", None):
+        minimum_combined_odds = None
+    else:
+        try:
+            minimum_combined_odds = int(minimum_combined_odds)
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "message": "Minimum combined odds must be a whole number."
+            }, 400
 
     base_code = re.sub(
         r"[^a-z0-9]+",
         "_",
         name.lower()
     ).strip("_")
+
+    if not base_code:
+        base_code = "combo_system"
 
     system_code = base_code
     number = 2
@@ -2291,45 +2376,38 @@ def test_combo_save():
         system_code = f"{base_code}_{number}"
         number += 1
 
-    legs = [
-        {
-            "player_name": "Vladimir Guerrero Jr.",
-            "prop": "HITS",
-            "ou": "over",
-            "line": 0.5
-        },
-        {
-            "player_name": "George Springer",
-            "prop": "HITS",
-            "ou": "over",
-            "line": 0.5
-        },
-        {
-            "player_name": "Ernie Clement",
-            "prop": "HITS",
-            "ou": "over",
-            "line": 0.5
+    try:
+        created_system_code = create_combo_system(
+            system_code=system_code,
+            name=name,
+            description=description,
+            creator_id=current_user.id,
+            sport=sport,
+            visibility=visibility,
+            combo_name=combo_name or name,
+            minimum_combined_odds=minimum_combined_odds,
+            require_all_active=require_all_active,
+            require_exact_lines=require_exact_lines,
+            legs=cleaned_legs
+        )
+
+        return {
+            "success": True,
+            "message": "Combo system saved.",
+            "system_code": created_system_code,
+            "redirect_url": url_for(
+                "system_detail_page",
+                system_code=created_system_code
+            )
         }
-    ]
 
-    created_system_code = create_combo_system(
-        system_code=system_code,
-        name=name,
-        description="Temporary test combo system.",
-        creator_id=current_user.id,
-        sport="MLB",
-        visibility="private",
-        combo_name="Blue Jays Test 3-Leg",
-        minimum_combined_odds=350,
-        require_all_active=True,
-        require_exact_lines=True,
-        legs=legs
-    )
+    except Exception as exc:
+        app.logger.exception("Failed to save combo system")
 
-    return redirect(url_for(
-        "system_detail_page",
-        system_code=created_system_code
-    ))
+        return {
+            "success": False,
+            "message": "The combo could not be saved."
+        }, 500
 
 @app.route("/share")
 def share_page():
