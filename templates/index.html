@@ -556,6 +556,7 @@
     <th>Avg Odds</th>
     <th>Units</th>
     <th>ROI</th>
+          <th>Save</th>
 </tr>
 </thead>
             <tbody id="comboResultsBody"></tbody>
@@ -1617,6 +1618,9 @@ function valueBadge(units){
 
 }
 
+let analyzedComboResults = [];
+let comboToSave = null;
+
 function analyzeCombos() {
     const message = document.getElementById("comboMessage");
     const bestBox = document.getElementById("comboBest");
@@ -1712,6 +1716,7 @@ function analyzeCombos() {
 
             results.push({
                 combo: combo.map(p => p.name).join(" + "),
+                players: combo,
                 legs: size,
                 games,
                 wins,
@@ -1729,6 +1734,8 @@ function analyzeCombos() {
         return b.roi - a.roi;
     });
 
+analyzedComboResults = results;
+
     const bestByLeg = {};
 
     results.forEach(r => {
@@ -1737,7 +1744,8 @@ function analyzeCombos() {
 
     Object.keys(bestByLeg).sort().forEach(legs => {
         const r = bestByLeg[legs];
-        const cls = roiClass(r.units);
+const cls = roiClass(r.units);
+const resultIndex = results.indexOf(r);
 
         bestBox.innerHTML += `
             <div class="combo-best-card ${cls}">
@@ -1747,6 +1755,16 @@ function analyzeCombos() {
                 <div class="record">${r.wins}-${r.losses}</div>
                 <div class="games">${r.winPct.toFixed(1)}% • ${r.avgOdds ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds) : "—"} avg odds</div>
             </div>
+
+<button
+    type="button"
+    class="share-btn"
+    style="margin-top:12px;"
+    onclick="openSaveComboModal(${resultIndex})"
+>
+    ⭐ Save to Systems
+</button>
+
         `;
     });
 
@@ -1769,7 +1787,17 @@ function analyzeCombos() {
                 <td class="odds-cell">${r.avgOdds ? (r.avgOdds > 0 ? "+" + r.avgOdds : r.avgOdds) : "—"}</td>
                 <td class="${cls}">${r.units >= 0 ? "+" : ""}${r.units.toFixed(1)}u</td>
                 <td class="${cls}">${r.roi.toFixed(1)}%</td>
-            </tr>
+
+<td>
+    <button
+        type="button"
+        class="share-btn"
+        onclick="openSaveComboModal(${i})"
+    >
+        ⭐ Save
+    </button>
+</td>
+</tr>
         `;
     });
 
