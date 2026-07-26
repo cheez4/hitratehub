@@ -2284,13 +2284,22 @@ def create_system_page():
         if not base_code:
             base_code = "system"
 
+        # systems.system_code is VARCHAR(20)
+        MAX_SYSTEM_CODE_LENGTH = 20
+
+        base_code = base_code[:MAX_SYSTEM_CODE_LENGTH].rstrip("_")
         system_code = base_code
         number = 2
 
         while system_code_exists(system_code):
-            system_code = f"{base_code}_{number}"
-            number += 1
+            suffix = f"_{number}"
 
+            system_code = (
+                base_code[:MAX_SYSTEM_CODE_LENGTH - len(suffix)].rstrip("_")
+                + suffix
+    )
+            number += 1        
+    
         created_system_code = create_system_record(
             system_code=system_code,
             name=name,
@@ -2410,11 +2419,25 @@ def save_combo_system():
     if not base_code:
         base_code = "combo_system"
 
+    # systems.system_code is VARCHAR(20)
+    MAX_SYSTEM_CODE_LENGTH = 20
+
+    base_code = base_code[:MAX_SYSTEM_CODE_LENGTH].rstrip("_")
+    
+    if not base_code:
+        base_code = "combo_system"
+
     system_code = base_code
     number = 2
 
     while system_code_exists(system_code):
-        system_code = f"{base_code}_{number}"
+        suffix = f"_{number}"
+
+        system_code = (
+            base_code[:MAX_SYSTEM_CODE_LENGTH - len(suffix)].rstrip("_")
+            + suffix
+    )
+
         number += 1
 
     try:
