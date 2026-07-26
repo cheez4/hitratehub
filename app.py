@@ -2145,19 +2145,60 @@ def system_detail_page(system_code):
         ), 404
 
     system = system_df.iloc[0].to_dict()
-   
+
     is_watching = is_watching_system(
-    current_user.id,
-    system["id"]
-)
+        current_user.id,
+        system["id"]
+    )
+
+    # Load the saved combo connected to this system.
+    combo_df = read_sql("""
+        SELECT
+            id,
+            system_id,
+            combo_name,
+            leg_count,
+            minimum_combined_odds,
+            require_all_active,
+            require_exact_lines,
+            created_at
+        FROM system_combos
+        WHERE system_id = %s
+        ORDER BY id ASC
+        LIMIT 1
+    """, (system["id"],))
+
+    combo = None
+    combo_legs = []
+
+    if not combo_df.empty:
+        combo = combo_df.iloc[0].to_dict()
+
+        legs_df = read_sql("""
+            SELECT
+                id,
+                combo_id,
+                player_name,
+                prop,
+                ou,
+                line,
+                sort_order
+            FROM system_combo_legs
+            WHERE combo_id = %s
+            ORDER BY sort_order ASC, id ASC
+        """, (combo["id"],))
+
+        if not legs_df.empty:
+            combo_legs = legs_df.to_dict("records")
 
     return render_template(
         "system_detail.html",
         active_page="systems",
         system=system,
-        is_watching=is_watching
+        is_watching=is_watching,
+        combo=combo,
+        combo_legs=combo_legs
     )
-
 @app.route("/systems/<system_code>/watch", methods=["POST"])
 @login_required
 def toggle_system_watch(system_code):

@@ -4,16 +4,23 @@
 
 <div class="shell">
 
-    <div class="panel">
+    <div class="panel system-hero-panel">
 
-        <div class="panel-header">
+        <div class="panel-header system-detail-header">
             <div>
-                <div class="small">
+                <div class="system-kicker">
                     {{ system.sport }} SYSTEM
+                    {% if combo %}
+                        <span>• {{ combo.leg_count }}-LEG COMBO</span>
+                    {% endif %}
                 </div>
 
-                <div class="panel-title">
+                <div class="panel-title system-detail-title">
                     {{ system.name }}
+                </div>
+
+                <div class="system-code">
+                    System Code: {{ system.system_code }}
                 </div>
             </div>
 
@@ -24,67 +31,264 @@
 
         <div class="panel-body">
 
-            <p class="system-detail-description">
-                {{ system.description }}
-            </p>
+            <div class="system-top-grid">
 
-            <form
-                method="POST"
-                action="{{ url_for('toggle_system_watch', system_code=system.system_code) }}"
-            >
-                <button type="submit" class="system-watch-button">
+                <div class="system-main-column">
 
-                    {% if is_watching %}
-                        ★ Watching
+                    {% if system.description %}
+                        <p class="system-detail-description">
+                            {{ system.description }}
+                        </p>
                     {% else %}
-                        ☆ Watch System
+                        <p class="system-detail-description system-muted">
+                            No description has been added to this system yet.
+                        </p>
                     {% endif %}
 
-                </button>
-            </form>
+                    <div class="system-actions-row">
+                        <form
+                            method="POST"
+                            action="{{ url_for('toggle_system_watch', system_code=system.system_code) }}"
+                        >
+                            <button
+                                type="submit"
+                                class="system-watch-button {% if is_watching %}watching{% endif %}"
+                            >
+                                {% if is_watching %}
+                                    ★ Watching
+                                {% else %}
+                                    ☆ Watch System
+                                {% endif %}
+                            </button>
+                        </form>
 
-            <div class="system-detail-grid">
-
-                <div class="system-detail-stat">
-                    <div class="system-detail-value">
-                        {{ system.followers or 0 }}
+                        {% if combo %}
+                            <span class="system-type-badge">
+                                Saved Combo System
+                            </span>
+                        {% else %}
+                            <span class="system-type-badge muted">
+                                Custom System
+                            </span>
+                        {% endif %}
                     </div>
 
-                    <div class="system-detail-label">
-                        Followers
-                    </div>
                 </div>
 
-                <div class="system-detail-stat">
-                    <div class="system-detail-value">
-                        {{ system.status|title }}
-                    </div>
+                <div class="system-overview-card">
+                    <div class="system-overview-title">System Overview</div>
 
-                    <div class="system-detail-label">
-                        Status
-                    </div>
-                </div>
+                    <div class="system-overview-grid">
+                        <div>
+                            <strong>{{ system.followers or 0 }}</strong>
+                            <span>Followers</span>
+                        </div>
 
-                <div class="system-detail-stat">
-                    <div class="system-detail-value">
-                        {{ system.visibility|title }}
-                    </div>
+                        <div>
+                            <strong>{{ system.status|title }}</strong>
+                            <span>Status</span>
+                        </div>
 
-                    <div class="system-detail-label">
-                        Access
+                        <div>
+                            <strong>{{ system.visibility|title }}</strong>
+                            <span>Access</span>
+                        </div>
+
+                        <div>
+                            <strong>
+                                {% if system.created_at %}
+                                    {{ system.created_at.strftime("%b %d, %Y") if system.created_at.strftime is defined else system.created_at }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+                            <span>Created</span>
+                        </div>
                     </div>
                 </div>
 
             </div>
 
-            <div class="system-placeholder">
-                <h2>Performance data coming next</h2>
+            {% if combo %}
 
-                <p>
-                    This page will show the system rules, historical record,
-                    ROI, units won, recent bets and performance charts.
-                </p>
-            </div>
+                <section class="system-section">
+
+                    <div class="system-section-heading">
+                        <div>
+                            <div class="system-section-kicker">SAVED COMBINATION</div>
+                            <h2>{{ combo.combo_name or system.name }}</h2>
+                        </div>
+
+                        <div class="combo-leg-badge">
+                            {{ combo.leg_count }} Legs
+                        </div>
+                    </div>
+
+                    {% if combo_legs %}
+
+                        <div class="saved-leg-grid">
+
+                            {% for leg in combo_legs %}
+                                <div class="saved-leg-card">
+
+                                    <div class="saved-leg-number">
+                                        {{ loop.index }}
+                                    </div>
+
+                                    <div class="saved-leg-content">
+                                        <div class="saved-leg-player">
+                                            {{ leg.player_name }}
+                                        </div>
+
+                                        <div class="saved-leg-market">
+                                            {{ leg.prop|replace("_", " ")|title }}
+                                            <span>•</span>
+                                            {{ leg.ou|title }}
+                                            {{ leg.line }}
+                                        </div>
+                                    </div>
+
+                                    <div class="saved-leg-status">
+                                        Exact Leg
+                                    </div>
+
+                                </div>
+                            {% endfor %}
+
+                        </div>
+
+                    {% else %}
+
+                        <div class="system-empty-block">
+                            No legs were found for this saved combo.
+                        </div>
+
+                    {% endif %}
+
+                </section>
+
+                <section class="system-section">
+
+                    <div class="system-section-heading">
+                        <div>
+                            <div class="system-section-kicker">QUALIFYING RULES</div>
+                            <h2>System Requirements</h2>
+                        </div>
+                    </div>
+
+                    <div class="system-rules-grid">
+
+                        <div class="system-rule-card">
+                            <div class="system-rule-icon">
+                                {% if combo.require_all_active %}✓{% else %}—{% endif %}
+                            </div>
+
+                            <div>
+                                <strong>Require All Players Active</strong>
+                                <span>
+                                    {% if combo.require_all_active %}
+                                        Every player must be active before the system qualifies.
+                                    {% else %}
+                                        The system may qualify even if a player is inactive.
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="system-rule-card">
+                            <div class="system-rule-icon">
+                                {% if combo.require_exact_lines %}✓{% else %}—{% endif %}
+                            </div>
+
+                            <div>
+                                <strong>Require Exact Prop Lines</strong>
+                                <span>
+                                    {% if combo.require_exact_lines %}
+                                        Each saved player must match the exact prop line shown above.
+                                    {% else %}
+                                        Alternate lines may be allowed.
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="system-rule-card">
+                            <div class="system-rule-icon">+</div>
+
+                            <div>
+                                <strong>Minimum Combined Odds</strong>
+                                <span>
+                                    {% if combo.minimum_combined_odds is not none %}
+                                        The ticket must be at least
+                                        {% if combo.minimum_combined_odds > 0 %}+{% endif %}{{ combo.minimum_combined_odds }}.
+                                    {% else %}
+                                        No minimum combined odds are required.
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="system-rule-card">
+                            <div class="system-rule-icon">{{ combo.leg_count }}</div>
+
+                            <div>
+                                <strong>Required Leg Count</strong>
+                                <span>
+                                    This system requires all {{ combo.leg_count }} saved legs.
+                                </span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </section>
+
+            {% else %}
+
+                <div class="system-empty-block">
+                    This system does not have a saved combo attached to it yet.
+                </div>
+
+            {% endif %}
+
+            <section class="system-section system-performance-section">
+
+                <div class="system-section-heading">
+                    <div>
+                        <div class="system-section-kicker">COMING NEXT</div>
+                        <h2>Live System Performance</h2>
+                    </div>
+                </div>
+
+                <div class="performance-preview-grid">
+
+                    <div class="performance-preview-card">
+                        <strong>—</strong>
+                        <span>Historical Record</span>
+                    </div>
+
+                    <div class="performance-preview-card">
+                        <strong>—</strong>
+                        <span>Win Rate</span>
+                    </div>
+
+                    <div class="performance-preview-card">
+                        <strong>—</strong>
+                        <span>Units Won</span>
+                    </div>
+
+                    <div class="performance-preview-card">
+                        <strong>—</strong>
+                        <span>ROI</span>
+                    </div>
+
+                </div>
+
+                <div class="performance-note">
+                    Today's qualifying status, historical results, units, ROI and recent activity will appear here once the tracking engine is connected.
+                </div>
+
+            </section>
 
         </div>
 
@@ -94,77 +298,369 @@
 
 <style>
 
+.system-hero-panel {
+    overflow: hidden;
+}
+
+.system-detail-header {
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.system-kicker,
+.system-section-kicker {
+    color: #2f9cff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.system-kicker span {
+    color: #7dffb3;
+}
+
+.system-detail-title {
+    margin-top: 6px;
+    font-size: 30px;
+    line-height: 1.15;
+}
+
+.system-code {
+    margin-top: 8px;
+    color: #8297aa;
+    font-size: 12px;
+}
+
 .system-back-link {
     color: #5daeff;
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.system-back-link:hover {
+    color: #8ecbff;
+}
+
+.system-top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(300px, .75fr);
+    gap: 18px;
+    align-items: stretch;
+}
+
+.system-main-column,
+.system-overview-card {
+    border: 1px solid rgba(49, 139, 255, .22);
+    border-radius: 14px;
+    background: rgba(7, 25, 43, .72);
+    padding: 20px;
 }
 
 .system-detail-description {
-    font-size: 18px;
-    line-height: 1.7;
+    margin: 0;
     color: #c5d4e2;
+    font-size: 17px;
+    line-height: 1.7;
+}
+
+.system-muted {
+    color: #8297aa;
+}
+
+.system-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-top: 20px;
 }
 
 .system-watch-button {
     background: #118cff;
     border: 1px solid #118cff;
-    color: white;
+    color: #ffffff;
     border-radius: 9px;
     padding: 11px 18px;
-    font-weight: 700;
     font-family: inherit;
     font-size: 14px;
+    font-weight: 800;
     cursor: pointer;
-    margin-top: 8px;
 }
 
 .system-watch-button:hover {
     background: #0079e8;
 }
 
-.system-watch-button:active {
-    transform: translateY(1px);
+.system-watch-button.watching {
+    background: rgba(30, 190, 110, .16);
+    border-color: rgba(30, 190, 110, .55);
+    color: #6af2a9;
 }
 
-.system-detail-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(150px, 1fr));
-    gap: 14px;
-    margin: 25px 0;
-}
-
-.system-detail-stat {
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 18px;
-    text-align: center;
-}
-
-.system-detail-value {
-    font-size: 24px;
+.system-type-badge,
+.combo-leg-badge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(49, 139, 255, .40);
+    border-radius: 999px;
+    background: rgba(49, 139, 255, .10);
+    color: #8ecbff;
+    padding: 8px 12px;
+    font-size: 12px;
     font-weight: 800;
 }
 
-.system-detail-label {
+.system-type-badge.muted {
+    color: #9eb0c1;
+    border-color: rgba(255, 255, 255, .12);
+    background: rgba(255, 255, 255, .04);
+}
+
+.system-overview-title {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 900;
+}
+
+.system-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.system-overview-grid > div {
+    padding: 13px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .035);
+    text-align: center;
+}
+
+.system-overview-grid strong {
+    display: block;
+    color: #ffffff;
+    font-size: 17px;
+}
+
+.system-overview-grid span {
+    display: block;
+    margin-top: 4px;
     color: #8297aa;
-    font-size: 12px;
+    font-size: 10px;
     text-transform: uppercase;
-    margin-top: 6px;
 }
 
-.system-placeholder {
-    border: 1px dashed rgba(49, 139, 255, 0.35);
-    background: rgba(49, 139, 255, 0.04);
+.system-section {
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px solid rgba(49, 139, 255, .22);
+    border-radius: 14px;
+    background: rgba(7, 25, 43, .72);
+}
+
+.system-section-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.system-section-heading h2 {
+    margin: 5px 0 0;
+    color: #ffffff;
+    font-size: 21px;
+}
+
+.saved-leg-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.saved-leg-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid rgba(49, 139, 255, .24);
     border-radius: 12px;
-    padding: 24px;
-    margin-top: 25px;
+    background: #071b2f;
 }
 
-@media (max-width: 700px) {
-    .system-detail-grid {
+.saved-leg-number {
+    display: flex;
+    width: 38px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(17, 140, 255, .15);
+    color: #8ecbff;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.saved-leg-player {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 900;
+}
+
+.saved-leg-market {
+    margin-top: 4px;
+    color: #9eb0c1;
+    font-size: 13px;
+}
+
+.saved-leg-market span {
+    margin: 0 4px;
+    color: #35536f;
+}
+
+.saved-leg-status {
+    color: #6af2a9;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.system-rules-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.system-rule-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    background: #071b2f;
+}
+
+.system-rule-icon {
+    display: flex;
+    width: 38px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(30, 190, 110, .14);
+    color: #6af2a9;
+    font-size: 17px;
+    font-weight: 900;
+}
+
+.system-rule-card strong {
+    display: block;
+    color: #ffffff;
+    font-size: 14px;
+}
+
+.system-rule-card span {
+    display: block;
+    margin-top: 5px;
+    color: #9eb0c1;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.system-empty-block {
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px dashed rgba(49, 139, 255, .35);
+    border-radius: 12px;
+    background: rgba(49, 139, 255, .04);
+    color: #9eb0c1;
+    text-align: center;
+}
+
+.system-performance-section {
+    background: linear-gradient(145deg, rgba(7, 25, 43, .86), rgba(4, 18, 32, .90));
+}
+
+.performance-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.performance-preview-card {
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .035);
+    text-align: center;
+}
+
+.performance-preview-card strong {
+    display: block;
+    color: #ffffff;
+    font-size: 24px;
+}
+
+.performance-preview-card span {
+    display: block;
+    margin-top: 5px;
+    color: #8297aa;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.performance-note {
+    margin-top: 14px;
+    color: #95aac6;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+    .system-top-grid {
         grid-template-columns: 1fr;
+    }
+
+    .saved-leg-grid,
+    .system-rules-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .performance-preview-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .system-detail-header {
+        flex-direction: column;
+    }
+
+    .system-detail-title {
+        font-size: 25px;
+    }
+
+    .system-overview-grid,
+    .performance-preview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .saved-leg-card {
+        grid-template-columns: 38px minmax(0, 1fr);
+    }
+
+    .saved-leg-status {
+        grid-column: 2;
+    }
+
+    .system-section-heading {
+        align-items: flex-start;
     }
 }
 
