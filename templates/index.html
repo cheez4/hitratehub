@@ -837,6 +837,100 @@
     </div>
 </div>
 
+
+<div id="saveComboModal" class="modal-backdrop">
+    <div class="modal combo-save-modal">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title">⭐ Save Combo to Systems</div>
+                <div class="combo-save-subtitle">Save this exact player combination and track it over time.</div>
+            </div>
+            <button class="modal-close" type="button" onclick="closeSaveComboModal()">×</button>
+        </div>
+
+        <div class="modal-body">
+            <div id="saveComboPreview" class="combo-save-preview"></div>
+
+            <div class="combo-save-form-grid">
+                <div class="field combo-save-full">
+                    <label for="saveSystemName">System Name</label>
+                    <input
+                        id="saveSystemName"
+                        type="text"
+                        maxlength="150"
+                        placeholder="Example: Blue Jays Core 3-Leg">
+                </div>
+
+                <div class="field">
+                    <label for="saveSystemVisibility">Visibility</label>
+                    <select id="saveSystemVisibility">
+                        <option value="private" selected>Private</option>
+                        <option value="public">Public</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="saveMinimumOdds">Minimum Combined Odds</label>
+                    <input
+                        id="saveMinimumOdds"
+                        type="number"
+                        step="1"
+                        placeholder="Example: 350">
+                    <small>Enter 350 for +350. Leave blank for no minimum.</small>
+                </div>
+
+                <div class="field combo-save-full">
+                    <label for="saveSystemDescription">Description</label>
+                    <textarea
+                        id="saveSystemDescription"
+                        rows="3"
+                        maxlength="1000"
+                        placeholder="Optional notes about why you saved this combo..."></textarea>
+                </div>
+            </div>
+
+            <div class="combo-save-options">
+                <label>
+                    <input id="saveRequireActive" type="checkbox" checked>
+                    Require every player to be active
+                </label>
+
+                <label>
+                    <input id="saveRequireExactLines" type="checkbox" checked>
+                    Require the exact prop line
+                </label>
+            </div>
+
+            <div id="saveComboMessage" class="combo-save-message" style="display:none;"></div>
+
+            <div class="combo-save-actions">
+                <button
+                    id="saveComboSubmitButton"
+                    class="run-btn"
+                    type="button"
+                    onclick="submitComboSystem()">
+                    Save System
+                </button>
+
+                <button
+                    class="share-btn"
+                    type="button"
+                    onclick="closeSaveComboModal()">
+                    Continue Browsing
+                </button>
+
+                <a
+                    id="viewSavedSystemButton"
+                    class="share-btn combo-view-system"
+                    href="#"
+                    style="display:none;">
+                    View System
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="shareModal" class="modal-backdrop">
     <div class="modal">
         <div class="modal-head">
@@ -1328,7 +1422,6 @@
 .combo-best-card.elite{
     position:relative;
     overflow:hidden;
-    min-height:230px;
     padding:18px;
     border-radius:16px;
     background:linear-gradient(145deg,#0b2138,#071827);
@@ -1450,6 +1543,332 @@ color:#63ff8f;
 .roi-red .label,
 .roi-red .rate{
     color:#ff6464 !important;
+}
+
+.combo-best {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.combo-best-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 350px;
+    height: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.combo-best-card .label {
+    flex: 0 0 auto;
+}
+
+.combo-best-card .name {
+    min-height: 72px;
+    margin-top: 12px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.combo-best-card .rate {
+    margin-top: 14px;
+}
+
+.combo-best-card .record {
+    margin-top: 18px;
+    align-self: flex-start;
+}
+
+.combo-best-card .games {
+    min-height: 20px;
+    margin-top: 8px;
+}
+
+.combo-best-card .save-system-btn {
+    width: 100%;
+    margin-top: auto;
+}
+
+@media (max-width: 1100px) {
+    .combo-best {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 650px) {
+    .combo-best {
+        grid-template-columns: 1fr;
+    }
+
+    .combo-best-card {
+        min-height: 0;
+    }
+}
+
+
+/* =========================================================
+   POLISHED COMBO INTELLIGENCE + SAVE SYSTEM UI
+   These final rules intentionally override older combo styles.
+   ========================================================= */
+
+.combo-best {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    align-items: stretch;
+}
+
+.combo-best-card,
+.combo-best-card.elite {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 360px;
+    height: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: linear-gradient(145deg, #0b2138, #071827);
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.combo-best-card:hover,
+.combo-best-card.elite:hover {
+    transform: translateY(-2px);
+}
+
+.combo-best-card .label,
+.combo-best-card.elite .label {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .55px;
+    text-transform: uppercase;
+}
+
+.combo-best-card .name,
+.combo-best-card.elite .name {
+    min-height: 92px;
+    margin-top: 12px;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.combo-best-card .rate,
+.combo-best-card.elite .rate {
+    margin-top: 12px;
+    color: #7dffb3;
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.combo-best-card .record {
+    align-self: flex-start;
+    margin-top: 18px;
+    padding: 5px 10px;
+    border: 1px solid currentColor;
+    border-radius: 9px;
+    color: #dcecff;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.combo-best-card .games {
+    min-height: 22px;
+    margin-top: 9px;
+    color: #9cb6d5;
+    font-size: 13px;
+}
+
+.combo-best-card .save-system-btn {
+    width: 100%;
+    min-height: 42px;
+    margin-top: auto;
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.combo-results-save-btn {
+    width: auto !important;
+    min-width: 82px;
+    padding: 7px 10px !important;
+    border-radius: 9px;
+    font-size: 12px !important;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+#comboResultsWrap table {
+    min-width: 1120px;
+}
+
+#comboResultsWrap th:last-child,
+#comboResultsWrap td:last-child {
+    width: 98px;
+    text-align: center;
+}
+
+.combo-save-modal {
+    width: min(680px, calc(100vw - 28px));
+}
+
+.combo-save-subtitle {
+    margin-top: 4px;
+    color: #92a9c7;
+    font-size: 13px;
+}
+
+.combo-save-preview {
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid #21466d;
+    border-radius: 12px;
+    background: #071b2f;
+}
+
+.combo-save-preview-title {
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.35;
+}
+
+.combo-save-preview-stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.combo-save-preview-stat {
+    padding: 9px;
+    border: 1px solid #173b5d;
+    border-radius: 10px;
+    background: #0b2742;
+    text-align: center;
+}
+
+.combo-save-preview-stat strong {
+    display: block;
+    color: #ffffff;
+    font-size: 14px;
+}
+
+.combo-save-preview-stat span {
+    display: block;
+    margin-top: 3px;
+    color: #95aac6;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.combo-save-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.combo-save-full {
+    grid-column: 1 / -1;
+}
+
+.combo-save-form-grid input,
+.combo-save-form-grid select,
+.combo-save-form-grid textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.combo-save-form-grid small {
+    display: block;
+    margin-top: 5px;
+    color: #95aac6;
+    font-size: 11px;
+}
+
+.combo-save-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.combo-save-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #21466d;
+    border-radius: 10px;
+    background: #071b2f;
+    color: #e8eef8;
+    font-weight: 700;
+}
+
+.combo-save-message {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-weight: 800;
+}
+
+.combo-save-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.combo-view-system {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+@media (max-width: 1180px) {
+    .combo-best {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .combo-best {
+        grid-template-columns: 1fr;
+    }
+
+    .combo-best-card,
+    .combo-best-card.elite {
+        min-height: 0;
+    }
+
+    .combo-best-card .name,
+    .combo-best-card.elite .name {
+        min-height: 0;
+    }
+
+    .combo-save-form-grid,
+    .combo-save-options {
+        grid-template-columns: 1fr;
+    }
+
+    .combo-save-full {
+        grid-column: auto;
+    }
+
+    .combo-save-preview-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 </style>
@@ -1775,13 +2194,12 @@ Object.keys(bestByLeg).sort().forEach(legs => {
             </div>
 
             <button
-                type="button"
-                class="share-btn"
-                style="width:100%; margin-top:16px;"
-                onclick="openSaveComboModal(${resultIndex})"
-            >
-                ⭐ Save to Systems
-            </button>
+    type="button"
+    class="share-btn save-system-btn"
+    onclick="openSaveComboModal(${resultIndex})"
+>
+    ⭐ Save to Systems
+</button>
         </div>
     `;
 });
@@ -1809,7 +2227,7 @@ Object.keys(bestByLeg).sort().forEach(legs => {
 <td>
     <button
         type="button"
-        class="share-btn"
+        class="share-btn combo-results-save-btn"
         onclick="openSaveComboModal(${i})"
     >
         ⭐ Save
@@ -1828,6 +2246,20 @@ document.addEventListener("change", function(e) {
     if (!e.target.classList.contains("combo-player-check")) return;
 
     updateComboCount();
+
+
+    document.getElementById("saveComboModal")?.addEventListener("click", function (event) {
+        if (event.target === this) {
+            closeSaveComboModal();
+        }
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+            closeSaveComboModal();
+        }
+    });
+
 
     const checked = document.querySelectorAll(".combo-player-check:checked");
 
@@ -1893,50 +2325,37 @@ function buildPortfolioOddsInputs() {
 }
 
 function generatePortfolio() {
-    const ticketCount = parseInt(document.getElementById("portfolioTicketCount").value || "8");
-    const minGames = parseInt(document.getElementById("portfolioMinGames").value || "20");
-    const maxExposurePct = parseInt(document.getElementById("portfolioMaxExposure").value || "75");
+    const ticketCount = parseInt(document.getElementById("portfolioTicketCount").value || "8", 10);
+    const minGames = parseInt(document.getElementById("portfolioMinGames").value || "20", 10);
+    const maxExposurePct = parseInt(document.getElementById("portfolioMaxExposure").value || "75", 10);
     const bankroll = parseFloat(document.getElementById("portfolioBankroll").value || "1000");
     const riskPct = parseFloat(document.getElementById("portfolioRiskPct").value || "10");
-const playerOdds = {};
 
-document.querySelectorAll(".portfolio-player-odds").forEach(input => {
+    const playerOdds = {};
 
-    const player = input.dataset.playerName;
-    const odds = parseFloat(input.value);
+    document.querySelectorAll(".portfolio-player-odds").forEach(input => {
+        const player = input.dataset.playerName;
+        const odds = parseFloat(input.value);
 
-    if (!isNaN(odds)) {
-        playerOdds[player] = odds;
-    }
-
-});
-    const rows = Array.from(document.querySelectorAll("#comboResultsBody tr"));
-
-    let combos = [];
-
-    rows.forEach(row => {
-        const cells = row.querySelectorAll("td");
-        if (cells.length < 6) return;
-
-        const combo = cells[0].innerText.trim();
-        const legs = parseInt(cells[1].innerText.trim());
-        const games = parseInt(cells[2].innerText.trim());
-        const wins = parseInt(cells[3].innerText.trim());
-        const losses = parseInt(cells[4].innerText.trim());
-        const winPct = parseFloat(cells[5].innerText.replace("%", "").trim());
-
-        if (games < minGames) return;
-
-        combos.push({
-            combo,
-            players: combo.split("+").map(p => p.trim()),
-            legs,
-            games,
-            wins,
-            losses,
-            winPct
-        });
+        if (!isNaN(odds)) {
+            playerOdds[player] = odds;
+        }
     });
+
+    let combos = analyzedComboResults
+        .filter(result => result.games >= minGames)
+        .map(result => ({
+            combo: result.combo,
+            players: result.players.map(player => player.name),
+            legs: result.legs,
+            games: result.games,
+            wins: result.wins,
+            losses: result.losses,
+            winPct: result.winPct,
+            avgOdds: result.avgOdds,
+            units: result.units,
+            roi: result.roi
+        }));
 
     combos.sort((a, b) => {
         if (b.winPct !== a.winPct) return b.winPct - a.winPct;
@@ -1971,12 +2390,12 @@ document.querySelectorAll(".portfolio-player-odds").forEach(input => {
     }
 
     renderPortfolio(
-    selected,
-    playerCounts,
-    bankroll,
-    riskPct,
-    playerOdds
-);
+        selected,
+        playerCounts,
+        bankroll,
+        riskPct,
+        playerOdds
+    );
 }
 
 function renderPortfolio(
@@ -2071,6 +2490,210 @@ Object.entries(playerCounts)
     box.innerHTML = html;
 }
     
+
+function escapeComboHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.innerHTML;
+}
+
+function formatAmericanOdds(value) {
+    if (value === null || value === undefined || value === "") return "—";
+
+    const numeric = Number(value);
+
+    if (Number.isNaN(numeric)) return "—";
+    return numeric > 0 ? `+${numeric}` : String(numeric);
+}
+
+function openSaveComboModal(resultIndex) {
+    const selected = analyzedComboResults[resultIndex];
+
+    if (!selected) {
+        showToast("Run Combo Analysis again and select a valid combo.");
+        return;
+    }
+
+    comboToSave = selected;
+
+    const preview = document.getElementById("saveComboPreview");
+    const suggestedName = `${selected.players.map(player => player.name).join(" + ")} ${selected.legs}-Leg`;
+
+    preview.innerHTML = `
+        <div class="combo-save-preview-title">
+            ${escapeComboHtml(selected.combo)}
+        </div>
+
+        <div class="combo-save-preview-stats">
+            <div class="combo-save-preview-stat">
+                <strong>${selected.legs}</strong>
+                <span>Legs</span>
+            </div>
+
+            <div class="combo-save-preview-stat">
+                <strong>${selected.wins}-${selected.losses}</strong>
+                <span>Record</span>
+            </div>
+
+            <div class="combo-save-preview-stat">
+                <strong>${selected.winPct.toFixed(1)}%</strong>
+                <span>Win Rate</span>
+            </div>
+
+            <div class="combo-save-preview-stat">
+                <strong>${formatAmericanOdds(selected.avgOdds)}</strong>
+                <span>Avg Odds</span>
+            </div>
+
+            <div class="combo-save-preview-stat">
+                <strong>${selected.units >= 0 ? "+" : ""}${selected.units.toFixed(1)}u</strong>
+                <span>Units</span>
+            </div>
+        </div>
+    `;
+
+    document.getElementById("saveSystemName").value = suggestedName.slice(0, 150);
+    document.getElementById("saveSystemVisibility").value = "private";
+    document.getElementById("saveMinimumOdds").value = "";
+    document.getElementById("saveSystemDescription").value =
+        `Saved from Combo Intelligence. Historical record: ${selected.wins}-${selected.losses}, ` +
+        `${selected.winPct.toFixed(1)}% win rate, ${formatAmericanOdds(selected.avgOdds)} average odds, ` +
+        `${selected.units >= 0 ? "+" : ""}${selected.units.toFixed(1)} units, ${selected.roi.toFixed(1)}% ROI.`;
+
+    document.getElementById("saveRequireActive").checked = true;
+    document.getElementById("saveRequireExactLines").checked = true;
+
+    const message = document.getElementById("saveComboMessage");
+    message.style.display = "none";
+    message.textContent = "";
+    message.className = "combo-save-message";
+
+    const saveButton = document.getElementById("saveComboSubmitButton");
+    saveButton.disabled = false;
+    saveButton.textContent = "Save System";
+
+    const viewButton = document.getElementById("viewSavedSystemButton");
+    viewButton.style.display = "none";
+    viewButton.href = "#";
+
+    document.getElementById("saveComboModal").classList.add("show");
+}
+
+function closeSaveComboModal() {
+    document.getElementById("saveComboModal").classList.remove("show");
+}
+
+function showSaveComboMessage(message, success) {
+    const element = document.getElementById("saveComboMessage");
+
+    element.textContent = message;
+    element.style.display = "block";
+    element.style.color = success ? "#7dffb3" : "#ff8080";
+    element.style.background = success
+        ? "rgba(34, 197, 94, .10)"
+        : "rgba(239, 68, 68, .10)";
+    element.style.border = success
+        ? "1px solid rgba(34, 197, 94, .35)"
+        : "1px solid rgba(239, 68, 68, .35)";
+}
+
+async function submitComboSystem() {
+    if (!comboToSave) {
+        showSaveComboMessage("No combo is selected.", false);
+        return;
+    }
+
+    const name = document.getElementById("saveSystemName").value.trim();
+
+    if (!name) {
+        showSaveComboMessage("Enter a name for this system.", false);
+        return;
+    }
+
+    const lineInput = document.querySelector('input[name="calc_line"]');
+    const lineValue = lineInput ? parseFloat(lineInput.value) : NaN;
+
+    if (Number.isNaN(lineValue)) {
+        showSaveComboMessage("The report line is missing or invalid.", false);
+        return;
+    }
+
+    const propMap = {
+        hits: "HITS",
+        total_bases: "TB",
+        home_runs: "HR",
+        runs: "RUNS",
+        rbi: "RBI",
+        strikeouts: "STRIKEOUTS"
+    };
+
+    const currentProp = "{{ calc_prop }}";
+    const currentMode = "{{ calc_mode }}";
+    const savedProp = propMap[currentProp] || currentProp.toUpperCase();
+    const savedOu = currentMode === "under" ? "under" : "over";
+
+    const minimumOddsRaw = document.getElementById("saveMinimumOdds").value.trim();
+    const minimumOdds = minimumOddsRaw === "" ? null : parseInt(minimumOddsRaw, 10);
+
+    if (minimumOddsRaw !== "" && Number.isNaN(minimumOdds)) {
+        showSaveComboMessage("Minimum combined odds must be a whole number.", false);
+        return;
+    }
+
+    const payload = {
+        name: name,
+        combo_name: name,
+        description: document.getElementById("saveSystemDescription").value.trim(),
+        sport: "MLB",
+        visibility: document.getElementById("saveSystemVisibility").value,
+        minimum_combined_odds: minimumOdds,
+        require_all_active: document.getElementById("saveRequireActive").checked,
+        require_exact_lines: document.getElementById("saveRequireExactLines").checked,
+        legs: comboToSave.players.map(player => ({
+            player_name: player.name,
+            prop: savedProp,
+            ou: savedOu,
+            line: lineValue
+        }))
+    };
+
+    const saveButton = document.getElementById("saveComboSubmitButton");
+    saveButton.disabled = true;
+    saveButton.textContent = "Saving...";
+
+    showSaveComboMessage("Saving combo system...", true);
+
+    try {
+        const response = await fetch("{{ url_for('save_combo_system') }}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "The combo could not be saved.");
+        }
+
+        showSaveComboMessage("✅ Combo system saved successfully.", true);
+        saveButton.textContent = "Saved";
+
+        const viewButton = document.getElementById("viewSavedSystemButton");
+        viewButton.href = data.redirect_url;
+        viewButton.style.display = "inline-flex";
+
+    } catch (error) {
+        console.error(error);
+        showSaveComboMessage(error.message || "The combo could not be saved.", false);
+        saveButton.disabled = false;
+        saveButton.textContent = "Try Again";
+    }
+}
+
+
 document.addEventListener("DOMContentLoaded", function () {
 
     updateComboCount();
