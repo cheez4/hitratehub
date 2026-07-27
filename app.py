@@ -759,6 +759,578 @@ def prop_to_odds_prop(prop):
     }
     return mapping.get(prop, prop.upper())
 
+def get_live_system_legs(combo_legs):
+    """
+    Load today's available odds for every player in a saved combo.
+
+    Returns a pandas DataFrame containing all available lines so the
+    qualifier engine can later choose the correct prop, O/U and line.
+    """
+
+    if not combo_legs:
+        return pd.DataFrame()
+
+    players = []
+
+    for leg in combo_legs:
+        player_name = clean_text(leg.get("player_name"))
+
+        if player_name and player_name not in players:
+            players.append(player_name)
+
+    if not players:
+        return pd.DataFrame()
+
+    placeholders = ",".join(["%s"] * len(players))
+
+    sql = f"""
+        SELECT
+            player,
+            sportsbook,
+            prop,
+            ou,
+            line,
+            odds,
+            ismain,
+            islive,
+            starttime,
+            gameid,
+            home,
+            away,
+            lastupdate
+        FROM odds_last_seen
+        WHERE player IN ({placeholders})
+          AND odds IS NOT NULL
+          AND line IS NOT NULL
+          AND COALESCE(islive, FALSE) = FALSE
+          AND DATE(starttime) = CURRENT_DATE
+        ORDER BY
+            player,
+            prop,
+            ou,
+            sportsbook,
+            lastupdate DESC
+    """
+
+    try:
+        return read_sql(sql, players)
+
+    except Exception as e:
+        print("Live system odds error:", e)
+        return pd.DataFrame()
+
+def american_to_decimal(odds):
+    """
+    Convert American odds into decimal odds.
+
+    Examples:
+        -200 -> 1.50
+        +150 -> 2.50
+    """
+    try:
+        odds = int(odds)
+    except (TypeError, ValueError):
+        return None
+
+    if odds == 0:
+        return None
+
+    if odds > 0:
+        return 1 + (odds / 100)
+
+    return 1 + (100 / abs(odds))
+
+
+def decimal_to_american(decimal_odds):
+    """
+    Convert decimal odds back into American odds.
+    """
+    try:
+        decimal_odds = float(decimal_odds)
+    except (TypeError, ValueError):
+        return None
+
+    if decimal_odds <= 1:
+        return None
+
+    if decimal_odds >= 2:
+        return round((decimal_odds - 1) * 100)
+
+    return round(-100 / (decimal_odds - 1))
+
+
+def normalize_system_prop(prop):
+    """
+    Make saved prop names and live odds prop names match.
+    """
+    value = clean_text(prop).upper().replace(" ", "_")
+
+    aliases = {
+        "HIT": "HITS",
+        "HITS": "HITS",
+
+        "TOTAL_BASE": "TB",
+        "TOTAL_BASES": "TB",
+        "TOTALBASES": "TB",
+        "TB": "TB",
+
+        "HOME_RUN": "HR",
+        "HOME_RUNS": "HR",
+        "HOMERUNS": "HR",
+        "HR": "HR",
+
+        "RUN": "RUNS",
+        "RUNS": "RUNS",
+
+        "RBI": "RBI",
+        "RBIS": "RBI",
+
+        "STRIKEOUT": "SO",
+        "STRIKEOUTS": "SO",
+        "PITCHER_STRIKEOUTS": "SO",
+        "SO": "SO",
+    }
+
+    return aliases.get(value, value)
+
+
+def check_saved_system(
+    combo,
+    combo_legs,
+    preferred_sportsbook="fanduel"
+):
+    """
+    Check a saved combo against today's current odds.
+
+    Returns:
+        qualified
+        failed
+        waiting
+    """
+
+    result = {
+        "status": "waiting",
+        "qualified": False,
+        "message": "Waiting for today's markets.",
+        "sportsbook": preferred_sportsbook,
+        "combined_odds": None,
+        "minimum_required": None,
+        "odds_passed": None,
+        "all_legs_passed": False,
+        "legs": []
+    }
+
+    if not combo:
+        result["status"] = "failed"
+        result["message"] = "No saved combo is attached to this system."
+        return result
+
+    if not combo_legs:
+        result["status"] = "failed"
+        result["message"] = "This combo does not contain any saved legs."
+        return result
+
+    minimum_required = combo.get("minimum_combined_odds")
+    require_exact_lines = bool(combo.get("require_exact_lines"))
+    require_all_active = bool(combo.get("require_all_active"))
+
+    result["minimum_required"] = minimum_required
+
+    live_df = get_live_system_legs(combo_legs)
+    lineup_map = get_today_lineups()
+
+    if live_df.empty:
+        for leg in combo_legs:
+            result["legs"].append({
+                "player_name": leg.get("player_name"),
+                "prop": normalize_system_prop(leg.get("prop")),
+                "ou": clean_text(leg.get("ou")).lower(),
+                "saved_line": leg.get("line"),
+                "current_line": None,
+                "current_odds": None,
+                "sportsbook": preferred_sportsbook,
+                "active_status": "waiting",
+                "market_status": "waiting",
+                "status": "waiting",
+                "passed": False,
+                "reason": "No current odds are available."
+            })
+
+        return result
+
+    live_df = live_df.copy()
+
+    live_df["_player_key"] = (
+        live_df["player"]
+        .fillna("")
+        .astype(str)
+        .apply(normalize_name)
+    )
+
+    live_df["_prop_key"] = (
+        live_df["prop"]
+        .fillna("")
+        .astype(str)
+        .apply(normalize_system_prop)
+    )
+
+    live_df["_ou_key"] = (
+        live_df["ou"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    live_df["_sportsbook_key"] = (
+        live_df["sportsbook"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    live_df["line"] = pd.to_numeric(
+        live_df["line"],
+        errors="coerce"
+    )
+
+    live_df["odds"] = pd.to_numeric(
+        live_df["odds"],
+        errors="coerce"
+    )
+
+    selected_decimal_odds = []
+    has_failed_leg = False
+    has_waiting_leg = False
+
+    active_values = {
+        "confirmed",
+        "probable",
+        "active",
+        "starting"
+    }
+
+    inactive_values = {
+        "inactive",
+        "out",
+        "not_starting",
+        "not starting",
+        "scratched"
+    }
+
+    for saved_leg in combo_legs:
+        player_name = clean_text(saved_leg.get("player_name"))
+        saved_prop = normalize_system_prop(saved_leg.get("prop"))
+        saved_ou = clean_text(saved_leg.get("ou")).lower()
+
+        try:
+            saved_line = float(saved_leg.get("line"))
+        except (TypeError, ValueError):
+            saved_line = None
+
+        leg_result = {
+            "player_name": player_name,
+            "prop": saved_prop,
+            "ou": saved_ou,
+            "saved_line": saved_line,
+            "current_line": None,
+            "current_odds": None,
+            "sportsbook": preferred_sportsbook,
+            "active_status": "waiting",
+            "market_status": "waiting",
+            "status": "waiting",
+            "passed": False,
+            "reason": ""
+        }
+
+        # ---------------------------------------------------------
+        # Check today's lineup status
+        # ---------------------------------------------------------
+        lineup_info = (
+            lineup_map.get(player_name)
+            or lineup_map.get(player_name.lower())
+            or lineup_map.get(normalize_name(player_name))
+        )
+
+        if lineup_info:
+            lineup_status = clean_text(
+                lineup_info.get("status")
+            ).lower()
+
+            if lineup_status in active_values:
+                leg_result["active_status"] = "passed"
+
+            elif lineup_status in inactive_values:
+                leg_result["active_status"] = "failed"
+
+            else:
+                leg_result["active_status"] = "waiting"
+        else:
+            leg_result["active_status"] = "waiting"
+
+        # ---------------------------------------------------------
+        # Locate matching market
+        # ---------------------------------------------------------
+        matches = live_df[
+            (live_df["_player_key"] == normalize_name(player_name))
+            & (live_df["_prop_key"] == saved_prop)
+            & (live_df["_ou_key"] == saved_ou)
+            & (
+                live_df["_sportsbook_key"]
+                == preferred_sportsbook.lower()
+            )
+        ].copy()
+
+        if matches.empty:
+            leg_result["market_status"] = "waiting"
+            leg_result["status"] = "waiting"
+            leg_result["reason"] = (
+                f"No {preferred_sportsbook.title()} "
+                f"{saved_prop} {saved_ou.title()} market is posted."
+            )
+
+            has_waiting_leg = True
+            result["legs"].append(leg_result)
+            continue
+
+        # ---------------------------------------------------------
+        # Match the saved line
+        # ---------------------------------------------------------
+        if saved_line is not None:
+            exact_matches = matches[
+                (matches["line"] - saved_line).abs() < 0.001
+            ].copy()
+        else:
+            exact_matches = pd.DataFrame()
+
+        if require_exact_lines:
+            if exact_matches.empty:
+                available_lines = sorted(
+                    matches["line"]
+                    .dropna()
+                    .astype(float)
+                    .unique()
+                    .tolist()
+                )
+
+                leg_result["current_line"] = (
+                    available_lines[0]
+                    if available_lines
+                    else None
+                )
+
+                leg_result["market_status"] = "failed"
+                leg_result["status"] = "failed"
+                leg_result["reason"] = (
+                    f"Exact line {saved_line:g} is unavailable."
+                    if saved_line is not None
+                    else "The saved line is invalid."
+                )
+
+                if available_lines:
+                    leg_result["reason"] += (
+                        " Available line"
+                        + ("s are " if len(available_lines) > 1 else " is ")
+                        + ", ".join(
+                            f"{line:g}"
+                            for line in available_lines
+                        )
+                        + "."
+                    )
+
+                has_failed_leg = True
+                result["legs"].append(leg_result)
+                continue
+
+            candidate_rows = exact_matches
+
+        else:
+            if not exact_matches.empty:
+                candidate_rows = exact_matches
+
+            elif saved_line is not None:
+                matches["_line_distance"] = (
+                    matches["line"] - saved_line
+                ).abs()
+
+                closest_distance = matches["_line_distance"].min()
+
+                candidate_rows = matches[
+                    matches["_line_distance"] == closest_distance
+                ]
+
+            else:
+                candidate_rows = matches
+
+        # Use the latest available row for the selected market.
+        if "lastupdate" in candidate_rows.columns:
+            candidate_rows = candidate_rows.sort_values(
+                "lastupdate",
+                ascending=False,
+                na_position="last"
+            )
+
+        selected_row = candidate_rows.iloc[0]
+
+        current_line = selected_row.get("line")
+        current_odds = selected_row.get("odds")
+
+        if pd.isna(current_line):
+            current_line = None
+        else:
+            current_line = float(current_line)
+
+        if pd.isna(current_odds):
+            current_odds = None
+        else:
+            current_odds = int(current_odds)
+
+        leg_result["current_line"] = current_line
+        leg_result["current_odds"] = current_odds
+        leg_result["sportsbook"] = selected_row.get(
+            "sportsbook",
+            preferred_sportsbook
+        )
+
+        if current_odds is None:
+            leg_result["market_status"] = "waiting"
+            leg_result["status"] = "waiting"
+            leg_result["reason"] = "The line exists, but odds are unavailable."
+
+            has_waiting_leg = True
+            result["legs"].append(leg_result)
+            continue
+
+        leg_result["market_status"] = "passed"
+
+        # ---------------------------------------------------------
+        # Decide whether the complete leg passes
+        # ---------------------------------------------------------
+        if (
+            require_all_active
+            and leg_result["active_status"] == "failed"
+        ):
+            leg_result["status"] = "failed"
+            leg_result["reason"] = (
+                "Player is not active in today's lineup."
+            )
+
+            has_failed_leg = True
+
+        elif (
+            require_all_active
+            and leg_result["active_status"] == "waiting"
+        ):
+            leg_result["status"] = "waiting"
+            leg_result["reason"] = (
+                "Waiting for lineup confirmation."
+            )
+
+            has_waiting_leg = True
+
+        else:
+            leg_result["status"] = "passed"
+            leg_result["passed"] = True
+
+            if (
+                not require_exact_lines
+                and saved_line is not None
+                and current_line is not None
+                and abs(current_line - saved_line) >= 0.001
+            ):
+                leg_result["reason"] = (
+                    f"Alternate line {current_line:g} matched."
+                )
+            else:
+                leg_result["reason"] = "Exact market matched."
+
+            decimal_odds = american_to_decimal(current_odds)
+
+            if decimal_odds is not None:
+                selected_decimal_odds.append(decimal_odds)
+
+        result["legs"].append(leg_result)
+
+    # -------------------------------------------------------------
+    # Calculate combined parlay odds
+    # -------------------------------------------------------------
+    if (
+        selected_decimal_odds
+        and len(selected_decimal_odds) == len(combo_legs)
+    ):
+        combined_decimal = 1.0
+
+        for decimal_odds in selected_decimal_odds:
+            combined_decimal *= decimal_odds
+
+        result["combined_odds"] = decimal_to_american(
+            combined_decimal
+        )
+
+    # -------------------------------------------------------------
+    # Check minimum combined odds
+    # -------------------------------------------------------------
+    if minimum_required is None:
+        result["odds_passed"] = True
+
+    elif result["combined_odds"] is None:
+        result["odds_passed"] = None
+        has_waiting_leg = True
+
+    else:
+        result["odds_passed"] = (
+            int(result["combined_odds"])
+            >= int(minimum_required)
+        )
+
+        if not result["odds_passed"]:
+            has_failed_leg = True
+
+    result["all_legs_passed"] = all(
+        leg["status"] == "passed"
+        for leg in result["legs"]
+    )
+
+    # -------------------------------------------------------------
+    # Final system status
+    # -------------------------------------------------------------
+    if has_failed_leg:
+        result["status"] = "failed"
+        result["qualified"] = False
+
+        if result["odds_passed"] is False:
+            result["message"] = (
+                "The current combined odds do not meet "
+                "the system minimum."
+            )
+        else:
+            result["message"] = (
+                "One or more saved legs did not qualify."
+            )
+
+    elif has_waiting_leg:
+        result["status"] = "waiting"
+        result["qualified"] = False
+        result["message"] = (
+            "Waiting for odds or lineup confirmation."
+        )
+
+    elif (
+        result["all_legs_passed"]
+        and result["odds_passed"] is True
+    ):
+        result["status"] = "qualified"
+        result["qualified"] = True
+        result["message"] = "This system qualifies today."
+
+    else:
+        result["status"] = "waiting"
+        result["qualified"] = False
+        result["message"] = "The system check is incomplete."
+
+    return result
+
 def american_to_implied_prob(odds):
     try:
         odds = int(odds)
@@ -2190,6 +2762,36 @@ def system_detail_page(system_code):
 
         if not legs_df.empty:
             combo_legs = legs_df.to_dict("records")
+    qualifier_result = None
+
+    if combo and combo_legs:
+        try:
+            qualifier_result = check_saved_system(
+                combo,
+                combo_legs,
+                preferred_sportsbook="fanduel"
+            )
+
+        except Exception as e:
+            app.logger.exception(
+                "Today's system qualifier failed for %s",
+                system_code
+            )
+
+            qualifier_result = {
+                "status": "error",
+                "qualified": False,
+                "message": "Today's check could not be completed.",
+                "combined_odds": None,
+                "minimum_required": (
+                    combo.get("minimum_combined_odds")
+                    if combo
+                    else None
+                ),
+                "odds_passed": None,
+                "all_legs_passed": False,
+                "legs": []
+            }
 
     return render_template(
         "system_detail.html",

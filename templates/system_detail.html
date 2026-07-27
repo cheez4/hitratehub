@@ -251,44 +251,108 @@
 
             {% endif %}
 
-            <section class="system-section system-performance-section">
+            <section class="system-section">
 
-                <div class="system-section-heading">
-                    <div>
-                        <div class="system-section-kicker">COMING NEXT</div>
-                        <h2>Live System Performance</h2>
-                    </div>
-                </div>
+    <div class="system-section-heading">
+        <div>
+            <div class="system-section-kicker">
+                TODAY'S QUALIFIER
+            </div>
 
-                <div class="performance-preview-grid">
+            <h2>Today's System Check</h2>
+        </div>
+    </div>
 
-                    <div class="performance-preview-card">
-                        <strong>—</strong>
-                        <span>Historical Record</span>
-                    </div>
+    {% if qualifier_result %}
 
-                    <div class="performance-preview-card">
-                        <strong>—</strong>
-                        <span>Win Rate</span>
-                    </div>
+        <div class="qualifier-summary {{ qualifier_result.status }}">
 
-                    <div class="performance-preview-card">
-                        <strong>—</strong>
-                        <span>Units Won</span>
-                    </div>
+            {% if qualifier_result.status == "qualified" %}
+                <h2>✅ QUALIFIED TODAY</h2>
 
-                    <div class="performance-preview-card">
-                        <strong>—</strong>
-                        <span>ROI</span>
-                    </div>
+            {% elif qualifier_result.status == "failed" %}
+                <h2>❌ NOT QUALIFIED</h2>
 
-                </div>
+            {% elif qualifier_result.status == "waiting" %}
+                <h2>⏳ WAITING</h2>
 
-                <div class="performance-note">
-                    Today's qualifying status, historical results, units, ROI and recent activity will appear here once the tracking engine is connected.
-                </div>
+            {% else %}
+                <h2>⚠ ERROR</h2>
 
-            </section>
+            {% endif %}
+
+            <p>{{ qualifier_result.message }}</p>
+
+        </div>
+
+        <div class="performance-preview-grid">
+
+            <div class="performance-preview-card">
+                <strong>
+                    {% if qualifier_result.combined_odds %}
+                        {% if qualifier_result.combined_odds > 0 %}+{% endif %}
+                        {{ qualifier_result.combined_odds }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </strong>
+
+                <span>Current Odds</span>
+            </div>
+
+            <div class="performance-preview-card">
+                <strong>
+                    {% if qualifier_result.minimum_required %}
+                        {% if qualifier_result.minimum_required > 0 %}+{% endif %}
+                        {{ qualifier_result.minimum_required }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </strong>
+
+                <span>Minimum Odds</span>
+            </div>
+
+            <div class="performance-preview-card">
+                <strong>
+
+                    {% if qualifier_result.odds_passed == True %}
+                        ✅
+
+                    {% elif qualifier_result.odds_passed == False %}
+                        ❌
+
+                    {% else %}
+                        ⏳
+
+                    {% endif %}
+
+                </strong>
+
+                <span>Odds Check</span>
+            </div>
+
+            <div class="performance-preview-card">
+                <strong>
+
+                    {% if qualifier_result.all_legs_passed %}
+                        ✅
+
+                    {% else %}
+                        ❌
+
+                    {% endif %}
+
+                </strong>
+
+                <span>Leg Check</span>
+            </div>
+
+        </div>
+
+    {% endif %}
+
+</section>
 
         </div>
 
@@ -622,6 +686,39 @@
     line-height: 1.6;
 }
 
+.qualifier-summary{
+    padding:20px;
+    border-radius:12px;
+    margin-bottom:20px;
+}
+
+.qualifier-summary h2{
+    margin:0 0 10px;
+}
+
+.qualifier-summary p{
+    margin:0;
+}
+
+.qualifier-summary.qualified{
+    background:#12361f;
+    border:1px solid #34d17b;
+}
+
+.qualifier-summary.failed{
+    background:#3b1717;
+    border:1px solid #ff6666;
+}
+
+.qualifier-summary.waiting{
+    background:#473b13;
+    border:1px solid #ffc857;
+}
+
+.qualifier-summary.error{
+    background:#2f2f2f;
+    border:1px solid #888;
+}
 @media (max-width: 900px) {
     .system-top-grid {
         grid-template-columns: 1fr;
@@ -662,6 +759,9 @@
     .system-section-heading {
         align-items: flex-start;
     }
+
+
+
 }
 
 </style>
