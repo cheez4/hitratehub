@@ -2799,7 +2799,7 @@ def system_detail_page(system_code):
         system=system,
         is_watching=is_watching,
         combo=combo,
-        combo_legs=combo_legs
+        combo_legs=combo_legs,
         qualifier_result=qualifier_result
     )
 
