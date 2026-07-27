@@ -2800,7 +2800,9 @@ def system_detail_page(system_code):
         is_watching=is_watching,
         combo=combo,
         combo_legs=combo_legs
+        qualifier_result=qualifier_result
     )
+
 @app.route("/systems/<system_code>/watch", methods=["POST"])
 @login_required
 def toggle_system_watch(system_code):
