@@ -39,13 +39,11 @@
                 <span>Combined Odds</span>
 
                 <strong>
-
                     {% if ticket.combined_odds > 0 %}
                         +{{ ticket.combined_odds }}
                     {% else %}
                         {{ ticket.combined_odds }}
                     {% endif %}
-
                 </strong>
 
             </div>
@@ -55,8 +53,7 @@
                 <span>Minimum Required</span>
 
                 <strong>
-
-                    {% if combo.minimum_combined_odds %}
+                    {% if combo.minimum_combined_odds is not none %}
 
                         {% if combo.minimum_combined_odds > 0 %}
                             +{{ combo.minimum_combined_odds }}
@@ -67,11 +64,17 @@
                     {% else %}
                         —
                     {% endif %}
-
                 </strong>
 
             </div>
 
+        </div>
+
+        <div class="ticket-section-heading">
+            <div>
+                <span>QUALIFIED LEGS</span>
+                <h2>{{ ticket.legs|length }}-Leg Ticket</h2>
+            </div>
         </div>
 
         <div class="ticket-legs">
@@ -80,27 +83,56 @@
 
                 <div class="ticket-leg">
 
-                    <div class="ticket-leg-player">
-                        {{ leg.player_name }}
+                    <div class="ticket-leg-top">
+
+                        <div>
+                            <div class="ticket-leg-player">
+                                {{ leg.player_name }}
+                            </div>
+
+                            <div class="ticket-leg-market">
+                                {{ leg.ou|title }}
+                                {{ leg.current_line }}
+                                {{ leg.prop|replace("_", " ")|title }}
+                            </div>
+                        </div>
+
+                        <div class="ticket-leg-odds">
+                            {% if leg.current_odds > 0 %}
+                                +{{ leg.current_odds }}
+                            {% else %}
+                                {{ leg.current_odds }}
+                            {% endif %}
+                        </div>
+
                     </div>
 
-                    <div class="ticket-leg-market">
+                    <div class="ticket-leg-details">
 
-                        {{ leg.ou|title }}
+                        <div class="ticket-leg-detail">
+                            <span>Sportsbook</span>
+                            <strong>
+                                {{ leg.sportsbook|title if leg.sportsbook else "—" }}
+                            </strong>
+                        </div>
 
-                        {{ leg.current_line }}
+                        <div class="ticket-leg-detail">
+                            <span>Matchup</span>
+                            <strong>
+                                {% if leg.away_team and leg.home_team %}
+                                    {{ leg.away_team }} @ {{ leg.home_team }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+                        </div>
 
-                        {{ leg.prop|replace("_"," ")|title }}
-
-                    </div>
-
-                    <div class="ticket-leg-odds">
-
-                        {% if leg.current_odds > 0 %}
-                            +{{ leg.current_odds }}
-                        {% else %}
-                            {{ leg.current_odds }}
-                        {% endif %}
+                        <div class="ticket-leg-detail">
+                            <span>Status</span>
+                            <strong class="ticket-confirmed">
+                                ✓ Confirmed
+                            </strong>
+                        </div>
 
                     </div>
 
@@ -110,86 +142,451 @@
 
         </div>
 
+        <form
+            method="POST"
+            action="{{ url_for(
+                'system_ticket_page',
+                system_code=system.system_code
+            ) }}"
+            class="tracker-form"
+            id="trackerForm"
+        >
+
+            <input
+                type="hidden"
+                name="combined_odds"
+                value="{{ ticket.combined_odds }}"
+            >
+
+            <div class="ticket-section-heading tracker-heading">
+                <div>
+                    <span>BET DETAILS</span>
+                    <h2>Add Ticket to Tracker</h2>
+                </div>
+            </div>
+
+            <div class="tracker-input-grid">
+
+                <label class="tracker-field">
+
+                    <span>Stake</span>
+
+                    <div class="tracker-input-wrap">
+                        <span class="tracker-prefix">$</span>
+
+                        <input
+                            type="number"
+                            id="stakeInput"
+                            name="stake"
+                            value="10.00"
+                            min="0.01"
+                            step="0.01"
+                            inputmode="decimal"
+                            required
+                        >
+                    </div>
+
+                </label>
+
+                <label class="tracker-field">
+
+                    <span>Units</span>
+
+                    <div class="tracker-input-wrap">
+
+                        <input
+                            type="number"
+                            id="unitsInput"
+                            name="units"
+                            value="1.00"
+                            min="0.01"
+                            step="0.01"
+                            inputmode="decimal"
+                            required
+                        >
+
+                        <span class="tracker-suffix">u</span>
+
+                    </div>
+
+                </label>
+
+            </div>
+
+            <div class="tracker-payout-grid">
+
+                <div class="tracker-payout-card">
+
+                    <span>Potential Profit</span>
+
+                    <strong id="potentialProfit">
+                        $0.00
+                    </strong>
+
+                </div>
+
+                <div class="tracker-payout-card">
+
+                    <span>Total Return</span>
+
+                    <strong id="potentialReturn">
+                        $0.00
+                    </strong>
+
+                </div>
+
+            </div>
+
+            <div class="tracker-notice">
+                Adding this ticket records it in HitRateHub. It does not place
+                a bet with the sportsbook.
+            </div>
+
+            <button
+                type="submit"
+                class="tracker-submit-button"
+                id="trackerSubmitButton"
+            >
+                <span>＋</span>
+
+                <div>
+                    <strong>Add to Bet Tracker</strong>
+                    <small>Save this qualified ticket as pending</small>
+                </div>
+
+                <span class="tracker-submit-arrow">→</span>
+            </button>
+
+        </form>
+
     </div>
 
 </div>
+
 <style>
-.ticket-panel{
-    max-width:850px;
-    margin:auto;
+
+.ticket-panel {
+    max-width: 850px;
+    margin: auto;
 }
 
-.ticket-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-bottom:25px;
+.ticket-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 25px;
 }
 
-.ticket-kicker{
-    color:#38bdf8;
-    font-size:12px;
-    font-weight:900;
-    letter-spacing:.08em;
+.ticket-kicker,
+.ticket-section-heading span {
+    color: #38bdf8;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .08em;
 }
 
-.ticket-status{
-    color:#4ade80;
-    margin-top:8px;
+.ticket-header h1 {
+    margin-top: 6px;
 }
 
-.ticket-summary{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:15px;
-    margin-bottom:25px;
+.ticket-status {
+    color: #4ade80;
+    margin-top: 8px;
+    font-weight: 800;
 }
 
-.ticket-summary-card{
-    padding:18px;
-    border-radius:12px;
-    background:#071b2f;
-    border:1px solid rgba(255,255,255,.08);
+.ticket-back {
+    color: #5daeff;
+    text-decoration: none;
+    font-weight: 800;
+    white-space: nowrap;
 }
 
-.ticket-summary-card span{
-    display:block;
-    color:#8da5bc;
-    font-size:12px;
+.ticket-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
 }
 
-.ticket-summary-card strong{
-    display:block;
-    margin-top:6px;
-    font-size:28px;
-    color:white;
+.ticket-summary-card,
+.tracker-payout-card {
+    padding: 18px;
+    border-radius: 12px;
+    background: #071b2f;
+    border: 1px solid rgba(255, 255, 255, .08);
 }
 
-.ticket-leg{
-    padding:18px;
-    border-radius:12px;
-    background:#071b2f;
-    margin-bottom:12px;
-    border-left:4px solid #34d17b;
+.ticket-summary-card span,
+.tracker-payout-card span {
+    display: block;
+    color: #8da5bc;
+    font-size: 12px;
 }
 
-.ticket-leg-player{
-    font-size:18px;
-    font-weight:900;
-    color:white;
+.ticket-summary-card strong,
+.tracker-payout-card strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 28px;
+    color: white;
 }
 
-.ticket-leg-market{
-    color:#9eb0c1;
-    margin-top:6px;
+.ticket-section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 14px;
 }
 
-.ticket-leg-odds{
-    margin-top:10px;
-    font-size:22px;
-    font-weight:900;
-    color:#6af2a9;
+.ticket-section-heading h2 {
+    margin-top: 4px;
+    font-size: 21px;
 }
+
+.ticket-leg {
+    padding: 18px;
+    border-radius: 12px;
+    background: #071b2f;
+    margin-bottom: 12px;
+    border-left: 4px solid #34d17b;
+}
+
+.ticket-leg-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.ticket-leg-player {
+    font-size: 18px;
+    font-weight: 900;
+    color: white;
+}
+
+.ticket-leg-market {
+    color: #9eb0c1;
+    margin-top: 6px;
+}
+
+.ticket-leg-odds {
+    font-size: 22px;
+    font-weight: 900;
+    color: #6af2a9;
+    white-space: nowrap;
+}
+
+.ticket-leg-details {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, .07);
+}
+
+.ticket-leg-detail span {
+    display: block;
+    color: #71879a;
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.ticket-leg-detail strong {
+    color: #d8e6f2;
+    font-size: 13px;
+}
+
+.ticket-leg-detail .ticket-confirmed {
+    color: #4ade80;
+}
+
+.tracker-form {
+    margin-top: 30px;
+    padding-top: 26px;
+    border-top: 1px solid rgba(255, 255, 255, .09);
+}
+
+.tracker-heading {
+    margin-bottom: 16px;
+}
+
+.tracker-input-grid,
+.tracker-payout-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+}
+
+.tracker-field > span {
+    display: block;
+    margin-bottom: 7px;
+    color: #9db0c1;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.tracker-input-wrap {
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 15px;
+    border-radius: 12px;
+    background: #071b2f;
+    border: 1px solid rgba(255, 255, 255, .1);
+}
+
+.tracker-input-wrap:focus-within {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, .12);
+}
+
+.tracker-input-wrap input {
+    width: 100%;
+    padding: 14px 8px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: white;
+    font-size: 18px;
+    font-weight: 900;
+}
+
+.tracker-prefix,
+.tracker-suffix {
+    color: #6af2a9;
+    font-weight: 900;
+}
+
+.tracker-payout-grid {
+    margin-top: 15px;
+}
+
+.tracker-payout-card strong {
+    color: #6af2a9;
+}
+
+.tracker-notice {
+    margin-top: 15px;
+    padding: 13px 15px;
+    border-radius: 10px;
+    background: rgba(56, 189, 248, .07);
+    border: 1px solid rgba(56, 189, 248, .14);
+    color: #93a9bc;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.tracker-submit-button {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    margin-top: 18px;
+    padding: 17px 19px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(
+        135deg,
+        #1dbf73,
+        #38d98b
+    );
+    color: #04130c;
+    cursor: pointer;
+    text-align: left;
+}
+
+.tracker-submit-button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+.tracker-submit-button strong,
+.tracker-submit-button small {
+    display: block;
+}
+
+.tracker-submit-button strong {
+    font-size: 16px;
+    font-weight: 950;
+}
+
+.tracker-submit-button small {
+    margin-top: 2px;
+    opacity: .75;
+    font-weight: 700;
+}
+
+.tracker-submit-arrow {
+    font-size: 22px;
+    font-weight: 900;
+}
+
+@media (max-width: 650px) {
+
+    .ticket-header {
+        flex-direction: column;
+    }
+
+    .ticket-summary,
+    .tracker-input-grid,
+    .tracker-payout-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ticket-leg-details {
+        grid-template-columns: 1fr;
+    }
+
+}
+
 </style>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const stakeInput = document.getElementById("stakeInput");
+    const profitOutput = document.getElementById("potentialProfit");
+    const returnOutput = document.getElementById("potentialReturn");
+
+    const combinedOdds = Number(
+        {{ ticket.combined_odds|tojson }}
+    );
+
+    function calculateTicketPayout() {
+
+        const stake = Number(stakeInput.value) || 0;
+
+        let profit = 0;
+
+        if (combinedOdds > 0) {
+            profit = stake * (combinedOdds / 100);
+        } else if (combinedOdds < 0) {
+            profit = stake * (100 / Math.abs(combinedOdds));
+        }
+
+        const totalReturn = stake + profit;
+
+        profitOutput.textContent =
+            "$" + profit.toFixed(2);
+
+        returnOutput.textContent =
+            "$" + totalReturn.toFixed(2);
+    }
+
+    stakeInput.addEventListener(
+        "input",
+        calculateTicketPayout
+    );
+
+    calculateTicketPayout();
+
+});
+
+</script>
 
 {% endblock %}
