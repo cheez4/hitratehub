@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+
+    <div class="panel ticket-panel">
+
+        <div class="ticket-header">
+
+            <div>
+                <div class="ticket-kicker">
+                    🎟 TODAY'S TICKET
+                </div>
+
+                <h1>{{ system.name }}</h1>
+
+                <div class="ticket-status">
+                    ✅ Qualified Today
+                </div>
+            </div>
+
+            <a
+                href="{{ url_for(
+                    'system_detail_page',
+                    system_code=system.system_code
+                ) }}"
+                class="ticket-back"
+            >
+                ← Back
+            </a>
+
+        </div>
+
+        <div class="ticket-summary">
+
+            <div class="ticket-summary-card">
+
+                <span>Combined Odds</span>
+
+                <strong>
+
+                    {% if ticket.combined_odds > 0 %}
+                        +{{ ticket.combined_odds }}
+                    {% else %}
+                        {{ ticket.combined_odds }}
+                    {% endif %}
+
+                </strong>
+
+            </div>
+
+            <div class="ticket-summary-card">
+
+                <span>Minimum Required</span>
+
+                <strong>
+
+                    {% if combo.minimum_combined_odds %}
+
+                        {% if combo.minimum_combined_odds > 0 %}
+                            +{{ combo.minimum_combined_odds }}
+                        {% else %}
+                            {{ combo.minimum_combined_odds }}
+                        {% endif %}
+
+                    {% else %}
+                        —
+                    {% endif %}
+
+                </strong>
+
+            </div>
+
+        </div>
+
+        <div class="ticket-legs">
+
+            {% for leg in ticket.legs %}
+
+                <div class="ticket-leg">
+
+                    <div class="ticket-leg-player">
+                        {{ leg.player_name }}
+                    </div>
+
+                    <div class="ticket-leg-market">
+
+                        {{ leg.ou|title }}
+
+                        {{ leg.current_line }}
+
+                        {{ leg.prop|replace("_"," ")|title }}
+
+                    </div>
+
+                    <div class="ticket-leg-odds">
+
+                        {% if leg.current_odds > 0 %}
+                            +{{ leg.current_odds }}
+                        {% else %}
+                            {{ leg.current_odds }}
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</div>
+<style>
+.ticket-panel{
+    max-width:850px;
+    margin:auto;
+}
+
+.ticket-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:25px;
+}
+
+.ticket-kicker{
+    color:#38bdf8;
+    font-size:12px;
+    font-weight:900;
+    letter-spacing:.08em;
+}
+
+.ticket-status{
+    color:#4ade80;
+    margin-top:8px;
+}
+
+.ticket-summary{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:15px;
+    margin-bottom:25px;
+}
+
+.ticket-summary-card{
+    padding:18px;
+    border-radius:12px;
+    background:#071b2f;
+    border:1px solid rgba(255,255,255,.08);
+}
+
+.ticket-summary-card span{
+    display:block;
+    color:#8da5bc;
+    font-size:12px;
+}
+
+.ticket-summary-card strong{
+    display:block;
+    margin-top:6px;
+    font-size:28px;
+    color:white;
+}
+
+.ticket-leg{
+    padding:18px;
+    border-radius:12px;
+    background:#071b2f;
+    margin-bottom:12px;
+    border-left:4px solid #34d17b;
+}
+
+.ticket-leg-player{
+    font-size:18px;
+    font-weight:900;
+    color:white;
+}
+
+.ticket-leg-market{
+    color:#9eb0c1;
+    margin-top:6px;
+}
+
+.ticket-leg-odds{
+    margin-top:10px;
+    font-size:22px;
+    font-weight:900;
+    color:#6af2a9;
+}
+</style>
+
+{% endblock %}

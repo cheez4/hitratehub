@@ -802,7 +802,7 @@ def get_live_system_legs(combo_legs):
         WHERE player IN ({placeholders})
           AND odds IS NOT NULL
           AND line IS NOT NULL
-          AND COALESCE(islive, FALSE) = FALSE
+          AND COALESCE(islive, 0) = 0
           AND DATE(starttime) = CURRENT_DATE
         ORDER BY
             player,
