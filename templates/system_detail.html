@@ -287,6 +287,7 @@
 
         <div class="performance-preview-grid">
 
+
             <div class="performance-preview-card">
                 <strong>
                     {% if qualifier_result.combined_odds %}
@@ -348,7 +349,162 @@
                 <span>Leg Check</span>
             </div>
 
+</div>
+
+<div class="qualifier-legs-section">
+
+    <div class="qualifier-legs-heading">
+        <div>
+            <div class="system-section-kicker">TODAY'S LEGS</div>
+            <h3>Market Qualification Details</h3>
         </div>
+
+        <span class="qualifier-leg-count">
+            {{ qualifier_result.legs|length }} Legs
+        </span>
+    </div>
+
+    <div class="qualifier-leg-card-grid">
+
+        {% for leg in qualifier_result.legs %}
+
+            <div class="qualifier-leg-card {{ leg.status }}">
+
+                <div class="qualifier-leg-card-header">
+
+                    <div>
+                        <div class="qualifier-leg-number">
+                            Leg {{ loop.index }}
+                        </div>
+
+                        <div class="qualifier-leg-player">
+                            {{ leg.player_name }}
+                        </div>
+                    </div>
+
+                    {% if leg.status == "passed" %}
+                        <span class="qualifier-status-pill passed">
+                            ✓ Passed
+                        </span>
+
+                    {% elif leg.status == "failed" %}
+                        <span class="qualifier-status-pill failed">
+                            ✕ Failed
+                        </span>
+
+                    {% else %}
+                        <span class="qualifier-status-pill waiting">
+                            ⏳ Waiting
+                        </span>
+                    {% endif %}
+
+                </div>
+
+                <div class="qualifier-leg-market">
+                    {{ leg.prop|replace("_", " ")|title }}
+                </div>
+
+                <div class="qualifier-leg-details">
+
+                    <div class="qualifier-detail-row">
+                        <span>Saved Market</span>
+
+                        <strong>
+                            {{ leg.ou|title }}
+
+                            {% if leg.saved_line is not none %}
+                                {{ leg.saved_line|round(1) }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+
+                    <div class="qualifier-detail-row">
+                        <span>Today's Market</span>
+
+                        <strong>
+                            {% if leg.current_line is not none %}
+                                {{ leg.ou|title }}
+                                {{ leg.current_line|round(1) }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+
+                    <div class="qualifier-detail-row">
+                        <span>Current Odds</span>
+
+                        <strong>
+                            {% if leg.current_odds is not none %}
+                                {% if leg.current_odds > 0 %}+{% endif %}
+                                {{ leg.current_odds }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+
+                    <div class="qualifier-detail-row">
+                        <span>Sportsbook</span>
+
+                        <strong>
+                            {% if leg.sportsbook %}
+                                {{ leg.sportsbook|title }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+
+                    <div class="qualifier-detail-row">
+                        <span>Lineup</span>
+
+                        <strong>
+                            {% if leg.active_status == "passed" %}
+                                <span class="qualifier-inline-status passed">
+                                    ✓ Active
+                                </span>
+
+                            {% elif leg.active_status == "failed" %}
+                                <span class="qualifier-inline-status failed">
+                                    ✕ Inactive
+                                </span>
+
+                            {% else %}
+                                <span class="qualifier-inline-status waiting">
+                                    ⏳ Waiting
+                                </span>
+                            {% endif %}
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="qualifier-leg-reason {{ leg.status }}">
+
+                    {% if leg.status == "passed" %}
+                        <span>✓</span>
+
+                    {% elif leg.status == "failed" %}
+                        <span>✕</span>
+
+                    {% else %}
+                        <span>⏳</span>
+                    {% endif %}
+
+                    <p>{{ leg.reason }}</p>
+
+                </div>
+
+            </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
 
     {% endif %}
 
@@ -719,6 +875,232 @@
     background:#2f2f2f;
     border:1px solid #888;
 }
+
+.qualifier-legs-section {
+    margin-top: 22px;
+}
+
+.qualifier-legs-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 14px;
+}
+
+.qualifier-legs-heading h3 {
+    margin: 4px 0 0;
+    color: #ffffff;
+    font-size: 18px;
+}
+
+.qualifier-leg-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 11px;
+    border: 1px solid rgba(49, 139, 255, .35);
+    border-radius: 999px;
+    background: rgba(49, 139, 255, .10);
+    color: #8ecbff;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.qualifier-leg-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.qualifier-leg-card {
+    position: relative;
+    min-width: 0;
+    padding: 17px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 14px;
+    background: #071b2f;
+    overflow: hidden;
+}
+
+.qualifier-leg-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: #ffc857;
+}
+
+.qualifier-leg-card.passed {
+    border-color: rgba(30, 190, 110, .27);
+}
+
+.qualifier-leg-card.passed::before {
+    background: #34d17b;
+}
+
+.qualifier-leg-card.failed {
+    border-color: rgba(255, 102, 102, .28);
+}
+
+.qualifier-leg-card.failed::before {
+    background: #ff6666;
+}
+
+.qualifier-leg-card.waiting {
+    border-color: rgba(255, 200, 87, .28);
+}
+
+.qualifier-leg-card.waiting::before {
+    background: #ffc857;
+}
+
+.qualifier-leg-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.qualifier-leg-number {
+    color: #6f8ca7;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.qualifier-leg-player {
+    margin-top: 4px;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.25;
+}
+
+.qualifier-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 76px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.qualifier-status-pill.passed {
+    border: 1px solid rgba(30, 190, 110, .38);
+    background: rgba(30, 190, 110, .14);
+    color: #6af2a9;
+}
+
+.qualifier-status-pill.failed {
+    border: 1px solid rgba(255, 102, 102, .38);
+    background: rgba(255, 102, 102, .12);
+    color: #ff9696;
+}
+
+.qualifier-status-pill.waiting {
+    border: 1px solid rgba(255, 200, 87, .38);
+    background: rgba(255, 200, 87, .12);
+    color: #ffd978;
+}
+
+.qualifier-leg-market {
+    margin-top: 13px;
+    padding: 8px 10px;
+    border: 1px solid rgba(49, 139, 255, .16);
+    border-radius: 8px;
+    background: rgba(49, 139, 255, .06);
+    color: #8ecbff;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.qualifier-leg-details {
+    margin-top: 12px;
+}
+
+.qualifier-detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .055);
+}
+
+.qualifier-detail-row:last-child {
+    border-bottom: 0;
+}
+
+.qualifier-detail-row > span {
+    color: #8297aa;
+    font-size: 12px;
+}
+
+.qualifier-detail-row > strong {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 900;
+    text-align: right;
+}
+
+.qualifier-inline-status {
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.qualifier-inline-status.passed {
+    color: #6af2a9;
+}
+
+.qualifier-inline-status.failed {
+    color: #ff9696;
+}
+
+.qualifier-inline-status.waiting {
+    color: #ffd978;
+}
+
+.qualifier-leg-reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-top: 13px;
+    padding: 11px 12px;
+    border-radius: 9px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.qualifier-leg-reason p {
+    margin: 0;
+}
+
+.qualifier-leg-reason.passed {
+    border: 1px solid rgba(30, 190, 110, .22);
+    background: rgba(30, 190, 110, .08);
+    color: #8fe9b7;
+}
+
+.qualifier-leg-reason.failed {
+    border: 1px solid rgba(255, 102, 102, .22);
+    background: rgba(255, 102, 102, .08);
+    color: #ffabab;
+}
+
+.qualifier-leg-reason.waiting {
+    border: 1px solid rgba(255, 200, 87, .22);
+    background: rgba(255, 200, 87, .08);
+    color: #ffe29a;
+}
 @media (max-width: 900px) {
     .system-top-grid {
         grid-template-columns: 1fr;
@@ -728,6 +1110,10 @@
     .system-rules-grid {
         grid-template-columns: 1fr;
     }
+
+.qualifier-leg-card-grid {
+    grid-template-columns: 1fr;
+}
 
     .performance-preview-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -755,6 +1141,26 @@
     .saved-leg-status {
         grid-column: 2;
     }
+
+.qualifier-legs-heading {
+    align-items: flex-start;
+}
+
+.qualifier-leg-card-header {
+    gap: 8px;
+}
+
+.qualifier-status-pill {
+    min-width: auto;
+}
+
+.qualifier-detail-row {
+    align-items: flex-start;
+}
+
+.qualifier-detail-row > strong {
+    max-width: 60%;
+}
 
     .system-section-heading {
         align-items: flex-start;
