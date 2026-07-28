@@ -943,18 +943,27 @@ def check_saved_system(
         for leg in combo_legs:
             result["legs"].append({
                 "player_name": leg.get("player_name"),
-                "prop": normalize_system_prop(leg.get("prop")),
-                "ou": clean_text(leg.get("ou")).lower(),
-                "saved_line": leg.get("line"),
-                "current_line": None,
-                "current_odds": None,
-                "sportsbook": preferred_sportsbook,
-                "active_status": "waiting",
-                "market_status": "waiting",
-                "status": "waiting",
-                "passed": False,
-                "reason": "No current odds are available."
-            })
+    		"prop": normalize_system_prop(leg.get("prop")),
+    		"ou": clean_text(leg.get("ou")).lower(),
+
+    		"saved_line": leg.get("line"),
+    		"current_line": None,
+    		"current_odds": None,
+
+    		"sportsbook": preferred_sportsbook,
+	
+    		"game_id": None,
+    		"home_team": None,
+    		"away_team": None,
+    		"start_time": None,
+    		"last_update": None,
+
+    		"active_status": "waiting",
+    		"market_status": "waiting",
+    		"status": "waiting",
+    		"passed": False,
+    		"reason": "No current odds are available."
+	})
 
         return result
 
@@ -1033,10 +1042,19 @@ def check_saved_system(
             "player_name": player_name,
             "prop": saved_prop,
             "ou": saved_ou,
+
             "saved_line": saved_line,
             "current_line": None,
             "current_odds": None,
+
             "sportsbook": preferred_sportsbook,
+
+            "game_id": None,
+            "home_team": None,
+            "away_team": None,
+            "start_time": None,
+            "last_update": None,
+
             "active_status": "waiting",
             "market_status": "waiting",
             "status": "waiting",
@@ -1188,10 +1206,17 @@ def check_saved_system(
 
         leg_result["current_line"] = current_line
         leg_result["current_odds"] = current_odds
+
         leg_result["sportsbook"] = selected_row.get(
             "sportsbook",
             preferred_sportsbook
         )
+
+        leg_result["game_id"] = selected_row.get("gameid")
+        leg_result["home_team"] = selected_row.get("home")
+        leg_result["away_team"] = selected_row.get("away")
+        leg_result["start_time"] = selected_row.get("starttime")
+        leg_result["last_update"] = selected_row.get("lastupdate")
 
         if current_odds is None:
             leg_result["market_status"] = "waiting"
@@ -2801,6 +2826,113 @@ def system_detail_page(system_code):
         combo=combo,
         combo_legs=combo_legs,
         qualifier_result=qualifier_result
+    )
+
+@app.route("/systems/<system_code>/ticket")
+@login_required
+def system_ticket_page(system_code):
+
+    system_df = read_sql("""
+        SELECT
+            id,
+            system_code,
+            name,
+            description,
+            sport,
+            visibility,
+            status
+        FROM systems
+        WHERE system_code = %s
+        LIMIT 1
+    """, (system_code,))
+
+    if system_df.empty:
+        return render_template(
+            "404.html",
+            active_page="systems"
+        ), 404
+
+    system = system_df.iloc[0].to_dict()
+
+    combo_df = read_sql("""
+        SELECT
+            id,
+            system_id,
+            combo_name,
+            leg_count,
+            minimum_combined_odds,
+            require_all_active,
+            require_exact_lines,
+            created_at
+        FROM system_combos
+        WHERE system_id = %s
+        ORDER BY id ASC
+        LIMIT 1
+    """, (system["id"],))
+
+    if combo_df.empty:
+        flash(
+            "This system does not have a saved combo.",
+            "error"
+        )
+
+        return redirect(url_for(
+            "system_detail_page",
+            system_code=system_code
+        ))
+
+    combo = combo_df.iloc[0].to_dict()
+
+    legs_df = read_sql("""
+        SELECT
+            id,
+            combo_id,
+            player_name,
+            prop,
+            ou,
+            line,
+            sort_order
+        FROM system_combo_legs
+        WHERE combo_id = %s
+        ORDER BY sort_order ASC, id ASC
+    """, (combo["id"],))
+
+    combo_legs = legs_df.to_dict("records")
+
+    if not combo_legs:
+        flash(
+            "This saved combo does not contain any legs.",
+            "error"
+        )
+
+        return redirect(url_for(
+            "system_detail_page",
+            system_code=system_code
+        ))
+
+    qualifier_result = check_saved_system(
+        combo,
+        combo_legs,
+        preferred_sportsbook="fanduel"
+    )
+
+    if not qualifier_result.get("qualified"):
+        flash(
+            "This system is not currently qualified.",
+            "warning"
+        )
+
+        return redirect(url_for(
+            "system_detail_page",
+            system_code=system_code
+        ))
+
+    return render_template(
+        "system_ticket.html",
+        active_page="systems",
+        system=system,
+        combo=combo,
+        ticket=qualifier_result
     )
 
 @app.route("/systems/<system_code>/watch", methods=["POST"])
