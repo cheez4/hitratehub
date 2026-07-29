@@ -2832,6 +2832,9 @@ def system_detail_page(system_code):
 @login_required
 def system_ticket_page(system_code):
 
+    # Add ?preview=1 to the URL to use fake test odds.
+    preview_mode = request.args.get("preview") == "1"
+
     # =========================================================
     # LOAD SYSTEM
     # =========================================================
@@ -2858,7 +2861,7 @@ def system_ticket_page(system_code):
     system = system_df.iloc[0].to_dict()
 
     # =========================================================
-    # LOAD SAVED COMBO
+    # LOAD COMBO
     # =========================================================
     combo_df = read_sql("""
         SELECT
@@ -2920,7 +2923,7 @@ def system_ticket_page(system_code):
         ))
 
     # =========================================================
-    # CHECK WHETHER SYSTEM QUALIFIES TODAY
+    # CHECK REAL QUALIFICATION
     # =========================================================
     qualifier_result = check_saved_system(
         combo,
@@ -2928,7 +2931,85 @@ def system_ticket_page(system_code):
         preferred_sportsbook="fanduel"
     )
 
-    if not qualifier_result.get("qualified"):
+    # =========================================================
+    # CREATE FAKE TICKET WHEN PREVIEW MODE IS ACTIVE
+    # =========================================================
+    if preview_mode:
+
+        preview_odds = [
+            150,
+            175,
+            200,
+            225,
+            250
+        ]
+
+        preview_legs = []
+
+        for index, saved_leg in enumerate(combo_legs):
+
+            fake_odds = preview_odds[
+                index % len(preview_odds)
+            ]
+
+            preview_legs.append({
+                "player_name": saved_leg["player_name"],
+                "prop": saved_leg["prop"],
+                "ou": saved_leg["ou"],
+                "current_line": saved_leg["line"],
+                "current_odds": fake_odds,
+                "sportsbook": "fanduel",
+                "game_id": f"preview-{index + 1}",
+                "home_team": "TOR",
+                "away_team": "NYY",
+                "start_time": None,
+                "last_update": None
+            })
+
+        # Calculate fake combined American odds.
+        combined_decimal = 1.0
+
+        for leg in preview_legs:
+
+            odds = float(leg["current_odds"])
+
+            if odds > 0:
+                decimal_odds = 1 + (odds / 100)
+            else:
+                decimal_odds = 1 + (
+                    100 / abs(odds)
+                )
+
+            combined_decimal *= decimal_odds
+
+        if combined_decimal >= 2:
+            preview_combined_odds = round(
+                (combined_decimal - 1) * 100
+            )
+        else:
+            preview_combined_odds = round(
+                -100 / (combined_decimal - 1)
+            )
+
+        qualifier_result = {
+            "qualified": True,
+            "status": "preview",
+            "message": "Development preview ticket",
+            "sportsbook": "fanduel",
+            "combined_odds": preview_combined_odds,
+            "minimum_required": combo.get(
+                "minimum_combined_odds"
+            ),
+            "odds_passed": True,
+            "all_legs_passed": True,
+            "legs": preview_legs
+        }
+
+    # =========================================================
+    # BLOCK NORMAL PAGE WHEN SYSTEM IS NOT QUALIFIED
+    # =========================================================
+    elif not qualifier_result.get("qualified"):
+
         flash(
             "This system is not currently qualified.",
             "warning"
@@ -2940,7 +3021,7 @@ def system_ticket_page(system_code):
         ))
 
     # =========================================================
-    # LOAD USER'S DEFAULT BANKROLL
+    # LOAD USER BANKROLL
     # =========================================================
     bankroll_df = read_sql("""
         SELECT
@@ -2961,7 +3042,6 @@ def system_ticket_page(system_code):
 
     if bankroll_df.empty:
 
-        # Temporary fallback until the user creates a bankroll.
         selected_bankroll_id = None
         selected_bankroll_name = "Main Bankroll"
         current_bankroll = 1000.00
@@ -2988,7 +3068,7 @@ def system_ticket_page(system_code):
         )
 
     # =========================================================
-    # DISPLAY TICKET PAGE
+    # DISPLAY PAGE
     # =========================================================
     return render_template(
         "system_ticket.html",
@@ -2996,8 +3076,7 @@ def system_ticket_page(system_code):
         system=system,
         combo=combo,
         ticket=qualifier_result,
-
-        # Bankroll values used by the new ticket page
+        preview_mode=preview_mode,
         selected_bankroll_id=selected_bankroll_id,
         selected_bankroll_name=selected_bankroll_name,
         current_bankroll=current_bankroll,
