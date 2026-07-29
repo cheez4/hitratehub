@@ -2832,6 +2832,9 @@ def system_detail_page(system_code):
 @login_required
 def system_ticket_page(system_code):
 
+    # =========================================================
+    # LOAD SYSTEM
+    # =========================================================
     system_df = read_sql("""
         SELECT
             id,
@@ -2854,6 +2857,9 @@ def system_ticket_page(system_code):
 
     system = system_df.iloc[0].to_dict()
 
+    # =========================================================
+    # LOAD SAVED COMBO
+    # =========================================================
     combo_df = read_sql("""
         SELECT
             id,
@@ -2883,6 +2889,9 @@ def system_ticket_page(system_code):
 
     combo = combo_df.iloc[0].to_dict()
 
+    # =========================================================
+    # LOAD COMBO LEGS
+    # =========================================================
     legs_df = read_sql("""
         SELECT
             id,
@@ -2910,6 +2919,9 @@ def system_ticket_page(system_code):
             system_code=system_code
         ))
 
+    # =========================================================
+    # CHECK WHETHER SYSTEM QUALIFIES TODAY
+    # =========================================================
     qualifier_result = check_saved_system(
         combo,
         combo_legs,
@@ -2927,12 +2939,70 @@ def system_ticket_page(system_code):
             system_code=system_code
         ))
 
+    # =========================================================
+    # LOAD USER'S DEFAULT BANKROLL
+    # =========================================================
+    bankroll_df = read_sql("""
+        SELECT
+            id,
+            name,
+            starting_balance,
+            current_balance,
+            unit_percentage,
+            auto_resize,
+            is_default
+        FROM user_bankrolls
+        WHERE user_id = %s
+        ORDER BY
+            is_default DESC,
+            id ASC
+        LIMIT 1
+    """, (current_user.id,))
+
+    if bankroll_df.empty:
+
+        # Temporary fallback until the user creates a bankroll.
+        selected_bankroll_id = None
+        selected_bankroll_name = "Main Bankroll"
+        current_bankroll = 1000.00
+        unit_percentage = 0.01
+        auto_resize = True
+
+    else:
+
+        bankroll = bankroll_df.iloc[0].to_dict()
+
+        selected_bankroll_id = bankroll["id"]
+        selected_bankroll_name = bankroll["name"]
+
+        current_bankroll = float(
+            bankroll["current_balance"]
+        )
+
+        unit_percentage = float(
+            bankroll["unit_percentage"]
+        )
+
+        auto_resize = bool(
+            bankroll["auto_resize"]
+        )
+
+    # =========================================================
+    # DISPLAY TICKET PAGE
+    # =========================================================
     return render_template(
         "system_ticket.html",
         active_page="systems",
         system=system,
         combo=combo,
-        ticket=qualifier_result
+        ticket=qualifier_result,
+
+        # Bankroll values used by the new ticket page
+        selected_bankroll_id=selected_bankroll_id,
+        selected_bankroll_name=selected_bankroll_name,
+        current_bankroll=current_bankroll,
+        unit_percentage=unit_percentage,
+        auto_resize=auto_resize
     )
 
 @app.route("/systems/<system_code>/watch", methods=["POST"])

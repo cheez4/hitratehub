@@ -106,8 +106,78 @@
 
   <div class="bankroll-settings-grid">
     <label class="tracker-field"><span>Current Bankroll</span><div class="tracker-input-wrap"><span class="tracker-prefix">$</span><input type="number" id="bankrollInput" name="bankroll_snapshot" value="{{ '%.2f'|format(bankroll_value|float) }}" min="0" step="0.01" required></div><small class="field-help">This should come from the user's current tracker bankroll.</small></label>
-    <label class="tracker-field"><span>Unit Size</span><select id="unitPercentSelect" name="unit_percentage"><option value="0.0025">Very Conservative — 0.25%</option><option value="0.005">Conservative — 0.50%</option><option value="0.01" selected>Standard — 1.00%</option><option value="0.02">Aggressive — 2.00%</option><option value="custom">Custom</option></select><small class="field-help">Determines the dollar value of one full unit.</small></label>
-    <label class="tracker-field custom-unit-field" id="customUnitPercentField"><span>Custom Unit Percentage</span><div class="tracker-input-wrap"><input type="number" id="customUnitPercent" name="custom_unit_percentage" value="1.00" min="0.01" max="100" step="0.01"><span class="tracker-suffix">%</span></div></label>
+    {% set saved_unit_percentage = unit_percentage|default(0.01, true)|float %}
+    {% set is_standard_unit =
+        saved_unit_percentage == 0.0025
+        or saved_unit_percentage == 0.005
+        or saved_unit_percentage == 0.01
+        or saved_unit_percentage == 0.02
+    %}
+
+    <label class="tracker-field">
+        <span>Unit Size</span>
+
+        <select id="unitPercentSelect" name="unit_percentage">
+            <option
+                value="0.0025"
+                {% if saved_unit_percentage == 0.0025 %}selected{% endif %}
+            >
+                Very Conservative — 0.25%
+            </option>
+
+            <option
+                value="0.005"
+                {% if saved_unit_percentage == 0.005 %}selected{% endif %}
+            >
+                Conservative — 0.50%
+            </option>
+
+            <option
+                value="0.01"
+                {% if saved_unit_percentage == 0.01 %}selected{% endif %}
+            >
+                Standard — 1.00%
+            </option>
+
+            <option
+                value="0.02"
+                {% if saved_unit_percentage == 0.02 %}selected{% endif %}
+            >
+                Aggressive — 2.00%
+            </option>
+
+            <option
+                value="custom"
+                {% if not is_standard_unit %}selected{% endif %}
+            >
+                Custom
+            </option>
+        </select>
+
+        <small class="field-help">
+            Determines the dollar value of one full unit.
+        </small>
+    </label>
+
+    <label
+        class="tracker-field custom-unit-field{% if not is_standard_unit %} is-visible{% endif %}"
+        id="customUnitPercentField"
+    >
+        <span>Custom Unit Percentage</span>
+
+        <div class="tracker-input-wrap">
+            <input
+                type="number"
+                id="customUnitPercent"
+                name="custom_unit_percentage"
+                value="{{ '%.2f'|format(saved_unit_percentage * 100) }}"
+                min="0.01"
+                max="100"
+                step="0.01"
+            >
+            <span class="tracker-suffix">%</span>
+        </div>
+    </label>
     <div class="unit-value-card"><span>Value of 1 Unit</span><strong id="unitValue">$0.00</strong><small id="unitFormula">Current bankroll × 1.00%</small></div>
   </div>
 
@@ -153,7 +223,12 @@ function combined(){let dec=1,valid=true;legOddsInputs.forEach(i=>{const d=a2d(i
 function updateBankroll(){const bankroll=Number(bankrollInput.value)||0,pct=unitPct(),uVal=bankroll*pct,units=betUnits(),stake=uVal*units;bankrollDisplay.textContent=money(bankroll);unitValueOutput.textContent=money(uVal);recommendedStakeOutput.textContent=money(stake);unitFormulaOutput.textContent="Current bankroll × "+(pct*100).toFixed(2)+"%";if(!manualOverride){isSyncing=true;unitsInput.value=units.toFixed(2);stakeInput.value=stake.toFixed(2);isSyncing=false;manualAdjustmentNote.classList.remove("is-manual");manualAdjustmentNote.textContent="Recommended values are applied automatically. You can still edit either field."}combined()}
 function stakeChanged(){if(isSyncing)return;const uv=unitValue();if(uv<=0)return;isSyncing=true;unitsInput.value=((Number(stakeInput.value)||0)/uv).toFixed(2);isSyncing=false;manualOverride=true;manualAdjustmentNote.classList.add("is-manual");manualAdjustmentNote.textContent="Manual stake entered. Units were recalculated automatically.";combined()}
 function unitsChanged(){if(isSyncing)return;isSyncing=true;stakeInput.value=((Number(unitsInput.value)||0)*unitValue()).toFixed(2);isSyncing=false;manualOverride=true;manualAdjustmentNote.classList.add("is-manual");manualAdjustmentNote.textContent="Manual unit amount entered. Stake was recalculated automatically.";combined()}
-ticketSportsbook.addEventListener("change",()=>legSportsbookSelects.forEach(s=>s.value=ticketSportsbook.value));legOddsInputs.forEach(i=>i.addEventListener("input",combined));bankrollInput.addEventListener("input",()=>{manualOverride=false;updateBankroll()});unitPercentSelect.addEventListener("change",()=>{customUnitPercentField.classList.toggle("is-visible",unitPercentSelect.value==="custom");manualOverride=false;updateBankroll()});customUnitPercent.addEventListener("input",()=>{manualOverride=false;updateBankroll()});betSizeSelect.addEventListener("change",()=>{customBetSizeField.classList.toggle("is-visible",betSizeSelect.value==="custom");manualOverride=false;updateBankroll()});customBetSize.addEventListener("input",()=>{manualOverride=false;updateBankroll()});stakeInput.addEventListener("input",stakeChanged);unitsInput.addEventListener("input",unitsChanged);legSportsbookSelects.forEach(s=>s.value=ticketSportsbook.value);updateBankroll();
+ticketSportsbook.addEventListener("change",()=>legSportsbookSelects.forEach(s=>s.value=ticketSportsbook.value));legOddsInputs.forEach(i=>i.addEventListener("input",combined));bankrollInput.addEventListener("input",()=>{manualOverride=false;updateBankroll()});unitPercentSelect.addEventListener("change",()=>{customUnitPercentField.classList.toggle("is-visible",unitPercentSelect.value==="custom");manualOverride=false;updateBankroll()});customUnitPercent.addEventListener("input",()=>{manualOverride=false;updateBankroll()});betSizeSelect.addEventListener("change",()=>{customBetSizeField.classList.toggle("is-visible",betSizeSelect.value==="custom");manualOverride=false;updateBankroll()});customBetSize.addEventListener("input",()=>{manualOverride=false;updateBankroll()});stakeInput.addEventListener("input",stakeChanged);unitsInput.addEventListener("input",unitsChanged);legSportsbookSelects.forEach(s=>s.value=ticketSportsbook.value);
+customUnitPercentField.classList.toggle(
+    "is-visible",
+    unitPercentSelect.value === "custom"
+);
+updateBankroll();
 });
 </script>
 
