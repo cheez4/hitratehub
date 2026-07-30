@@ -214,25 +214,29 @@
     class="tracker-submit-button"
     id="trackerSubmitButton"
     {% if preview_mode %}disabled{% endif %}
->><span>＋</span><div>
+>
+    <span>＋</span>
 
-    <strong>
-        {% if preview_mode %}
-            Preview Mode
-        {% else %}
-            Add to Bet Tracker
-        {% endif %}
-    </strong>
+    <div>
+        <strong>
+            {% if preview_mode %}
+                Preview Mode
+            {% else %}
+                Add to Bet Tracker
+            {% endif %}
+        </strong>
 
-    <small>
-        {% if preview_mode %}
-            Test ticket cannot be saved
-        {% else %}
-            Save this qualified ticket as pending
-        {% endif %}
-    </small>
+        <small>
+            {% if preview_mode %}
+                Test ticket cannot be saved
+            {% else %}
+                Save this qualified ticket as pending
+            {% endif %}
+        </small>
+    </div>
 
-</div><span class="tracker-submit-arrow">→</span></button>
+    <span class="tracker-submit-arrow">→</span>
+</button>
 </section>
 
 </form>
@@ -250,6 +254,13 @@
 .tracker-submit-button:disabled:hover {
     transform: none;
     filter: grayscale(.25);
+}
+
+.tracker-submit-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+    transform: none;
+    filter: none;
 }
 </style>
 
@@ -269,6 +280,19 @@ customUnitPercentField.classList.toggle(
     "is-visible",
     unitPercentSelect.value === "custom"
 );
+const trackerForm = document.getElementById("trackerForm");
+const trackerSubmitButton =
+    document.getElementById("trackerSubmitButton");
+
+trackerForm.addEventListener("submit", function () {
+    trackerSubmitButton.disabled = true;
+
+    trackerSubmitButton.querySelector("strong").textContent =
+        "Saving Ticket...";
+
+    trackerSubmitButton.querySelector("small").textContent =
+        "Please do not click again";
+});
 updateBankroll();
 });
 </script>

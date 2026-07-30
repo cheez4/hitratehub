@@ -2828,7 +2828,10 @@ def system_detail_page(system_code):
         qualifier_result=qualifier_result
     )
 
-@app.route("/systems/<system_code>/ticket")
+@app.route(
+    "/systems/<system_code>/ticket",
+    methods=["GET", "POST"]
+)
 @login_required
 def system_ticket_page(system_code):
 
@@ -3066,7 +3069,667 @@ def system_ticket_page(system_code):
         auto_resize = bool(
             bankroll["auto_resize"]
         )
+    # =========================================================
+    # SAVE TICKET
+    # =========================================================
+    if request.method == "POST":
 
+        # Preview tickets must never be saved.
+        if preview_mode:
+            flash(
+                "Preview tickets cannot be added to the tracker.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code,
+                preview=1
+            ))
+
+        # Recheck qualification on the server.
+        qualifier_result = check_saved_system(
+            combo,
+            combo_legs,
+            preferred_sportsbook="fanduel"
+        )
+
+        if not qualifier_result.get("qualified"):
+            flash(
+                "This system no longer qualifies. The ticket was not saved.",
+                "warning"
+            )
+
+            return redirect(url_for(
+                "system_detail_page",
+                system_code=system_code
+            ))
+
+        # -----------------------------------------------------
+        # Validate stake and units
+        # -----------------------------------------------------
+        try:
+            stake = round(float(request.form.get("stake", 0)), 2)
+            units = round(float(request.form.get("units", 0)), 4)
+        except (TypeError, ValueError):
+            flash(
+                "Stake and units must be valid numbers.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        if stake <= 0:
+            flash(
+                "Stake must be greater than $0.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        if units <= 0:
+            flash(
+                "Units must be greater than zero.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        if stake > 1000000:
+            flash(
+                "The entered stake is too large.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        # -----------------------------------------------------
+        # Validate the selected bankroll
+        # -----------------------------------------------------
+        posted_bankroll_id = clean_text(
+            request.form.get("bankroll_id")
+        )
+
+        bankroll_id = None
+        bankroll_balance = 1000.00
+        saved_unit_percentage = 0.01
+
+        if posted_bankroll_id:
+            try:
+                posted_bankroll_id = int(posted_bankroll_id)
+            except (TypeError, ValueError):
+                flash(
+                    "The selected bankroll is invalid.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_ticket_page",
+                    system_code=system_code
+                ))
+
+            owned_bankroll_df = read_sql("""
+                SELECT
+                    id,
+                    current_balance,
+                    unit_percentage
+                FROM user_bankrolls
+                WHERE id = %s
+                  AND user_id = %s
+                LIMIT 1
+            """, (
+                posted_bankroll_id,
+                current_user.id
+            ))
+
+            if owned_bankroll_df.empty:
+                flash(
+                    "You do not have access to that bankroll.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_ticket_page",
+                    system_code=system_code
+                ))
+
+            owned_bankroll = (
+                owned_bankroll_df
+                .iloc[0]
+                .to_dict()
+            )
+
+            bankroll_id = int(owned_bankroll["id"])
+
+            bankroll_balance = round(
+                float(owned_bankroll["current_balance"]),
+                2
+            )
+
+            saved_unit_percentage = float(
+                owned_bankroll["unit_percentage"]
+            )
+
+        # -----------------------------------------------------
+        # Validate selected unit percentage
+        # -----------------------------------------------------
+        posted_unit_percentage = clean_text(
+            request.form.get("unit_percentage")
+        )
+
+        if posted_unit_percentage == "custom":
+            try:
+                custom_percent = float(
+                    request.form.get(
+                        "custom_unit_percentage",
+                        0
+                    )
+                )
+
+                unit_percentage = (
+                    custom_percent / 100
+                )
+
+            except (TypeError, ValueError):
+                unit_percentage = saved_unit_percentage
+
+        else:
+            try:
+                unit_percentage = float(
+                    posted_unit_percentage
+                )
+            except (TypeError, ValueError):
+                unit_percentage = saved_unit_percentage
+
+        if unit_percentage <= 0 or unit_percentage > 1:
+            flash(
+                "The selected unit percentage is invalid.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        unit_value = round(
+            bankroll_balance * unit_percentage,
+            2
+        )
+
+        # -----------------------------------------------------
+        # Build official and user-entered legs
+        # -----------------------------------------------------
+        official_legs = qualifier_result.get("legs", [])
+
+        if not official_legs:
+            flash(
+                "No qualified legs were available to save.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_detail_page",
+                system_code=system_code
+            ))
+
+        user_legs = []
+        user_decimal_total = 1.0
+
+        allowed_sportsbooks = {
+            "fanduel",
+            "draftkings",
+            "bet365",
+            "betmgm",
+            "caesars",
+            "betrivers",
+            "pointsbet",
+            "other"
+        }
+
+        for index, official_leg in enumerate(
+            official_legs,
+            start=1
+        ):
+            official_odds = official_leg.get(
+                "current_odds"
+            )
+
+            official_line = official_leg.get(
+                "current_line"
+            )
+
+            if official_odds is None:
+                flash(
+                    "One of the official ticket legs no longer has odds.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_detail_page",
+                    system_code=system_code
+                ))
+
+            try:
+                official_odds = int(official_odds)
+            except (TypeError, ValueError):
+                flash(
+                    "One of the official ticket odds is invalid.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_detail_page",
+                    system_code=system_code
+                ))
+
+            try:
+                user_odds = int(
+                    request.form.get(
+                        f"leg_odds_{index}",
+                        official_odds
+                    )
+                )
+            except (TypeError, ValueError):
+                flash(
+                    f"Leg {index} has invalid odds.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_ticket_page",
+                    system_code=system_code
+                ))
+
+            if user_odds == 0:
+                flash(
+                    f"Leg {index} odds cannot be zero.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_ticket_page",
+                    system_code=system_code
+                ))
+
+            if user_odds < -100000 or user_odds > 100000:
+                flash(
+                    f"Leg {index} odds are outside the allowed range.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_ticket_page",
+                    system_code=system_code
+                ))
+
+            user_sportsbook = clean_text(
+                request.form.get(
+                    f"leg_sportsbook_{index}",
+                    official_leg.get("sportsbook")
+                    or "fanduel"
+                )
+            ).lower()
+
+            if user_sportsbook not in allowed_sportsbooks:
+                user_sportsbook = "other"
+
+            decimal_odds = american_to_decimal(
+                user_odds
+            )
+
+            if decimal_odds is None:
+                flash(
+                    f"Leg {index} has invalid odds.",
+                    "error"
+                )
+
+                return redirect(url_for(
+                    "system_ticket_page",
+                    system_code=system_code
+                ))
+
+            user_decimal_total *= decimal_odds
+
+            user_legs.append({
+                "player_name": clean_text(
+                    official_leg.get("player_name")
+                ),
+                "prop": normalize_system_prop(
+                    official_leg.get("prop")
+                ),
+                "ou": clean_text(
+                    official_leg.get("ou")
+                ).lower(),
+                "official_line": official_line,
+                "user_line": official_line,
+                "official_odds": official_odds,
+                "user_odds": user_odds,
+                "official_sportsbook": clean_text(
+                    official_leg.get("sportsbook")
+                    or "fanduel"
+                ).lower(),
+                "user_sportsbook": user_sportsbook,
+                "game_id": clean_text(
+                    official_leg.get("game_id")
+                ) or None,
+                "home_team": clean_text(
+                    official_leg.get("home_team")
+                ) or None,
+                "away_team": clean_text(
+                    official_leg.get("away_team")
+                ) or None,
+                "start_time": official_leg.get(
+                    "start_time"
+                )
+            })
+
+        official_combined_odds = int(
+            qualifier_result["combined_odds"]
+        )
+
+        user_combined_odds = decimal_to_american(
+            user_decimal_total
+        )
+
+        if user_combined_odds is None:
+            flash(
+                "The entered ticket odds could not be calculated.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        user_combined_odds = int(
+            user_combined_odds
+        )
+
+        # Personal payout always uses the user's entered odds.
+        user_decimal_odds = american_to_decimal(
+            user_combined_odds
+        )
+
+        potential_return = round(
+            stake * user_decimal_odds,
+            2
+        )
+
+        potential_profit = round(
+            potential_return - stake,
+            2
+        )
+        # -----------------------------------------------------
+        # Find/create user-system record and save full ticket
+        # -----------------------------------------------------
+        ticket_id = uuid.uuid4()
+
+        ticket_sportsbook = clean_text(
+            request.form.get(
+                "ticket_sportsbook",
+                "fanduel"
+            )
+        ).lower()
+
+        if ticket_sportsbook not in allowed_sportsbooks:
+            ticket_sportsbook = "other"
+
+        conn = get_conn()
+
+        try:
+            with conn:
+                with conn.cursor() as cur:
+
+                    # -----------------------------------------
+                    # Find the user's existing system record
+                    # -----------------------------------------
+                    cur.execute("""
+                        SELECT id
+                        FROM user_systems
+                        WHERE user_id = %s
+                          AND system_id = %s
+                        LIMIT 1
+                    """, (
+                        current_user.id,
+                        system["id"]
+                    ))
+
+                    user_system_row = cur.fetchone()
+
+                    if user_system_row:
+                        user_system_id = user_system_row[0]
+
+                        cur.execute("""
+                            UPDATE user_systems
+                            SET
+                                betting = TRUE,
+                                started_betting = COALESCE(
+                                    started_betting,
+                                    NOW()
+                                )
+                            WHERE id = %s
+                        """, (
+                            user_system_id,
+                        ))
+
+                    else:
+                        cur.execute("""
+                            INSERT INTO user_systems (
+                                user_id,
+                                system_id,
+                                watching,
+                                betting,
+                                favorite,
+                                notifications,
+                                started_betting
+                            )
+                            VALUES (
+                                %s,
+                                %s,
+                                FALSE,
+                                TRUE,
+                                FALSE,
+                                FALSE,
+                                NOW()
+                            )
+                            RETURNING id
+                        """, (
+                            current_user.id,
+                            system["id"]
+                        ))
+
+                        user_system_id = cur.fetchone()[0]
+
+                    # -----------------------------------------
+                    # Save main ticket
+                    # -----------------------------------------
+                    cur.execute("""
+                        INSERT INTO user_bets (
+                            user_system_id,
+                            sportsbook,
+                            odds_taken,
+                            stake,
+                            units,
+                            result,
+                            profit,
+                            bet_time,
+                            created_at,
+                            ticket_id,
+                            bet_type,
+                            combined_odds,
+                            potential_profit,
+                            potential_return,
+                            status,
+                            user_id,
+                            unit_value,
+                            bankroll_id,
+                            official_combined_odds,
+                            user_combined_odds,
+                            bankroll_balance_at_bet,
+                            unit_percentage
+                        )
+                        VALUES (
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            NULL,
+                            NULL,
+                            NOW(),
+                            NOW(),
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s,
+                            %s
+                        )
+                        RETURNING id
+                    """, (
+                        user_system_id,
+                        ticket_sportsbook,
+                        user_combined_odds,
+                        stake,
+                        units,
+                        ticket_id,
+                        "parlay",
+                        user_combined_odds,
+                        potential_profit,
+                        potential_return,
+                        "pending",
+                        current_user.id,
+                        unit_value,
+                        bankroll_id,
+                        official_combined_odds,
+                        user_combined_odds,
+                        bankroll_balance,
+                        unit_percentage
+                    ))
+
+                    user_bet_id = cur.fetchone()[0]
+
+                    # -----------------------------------------
+                    # Save every ticket leg
+                    # -----------------------------------------
+                    for leg in user_legs:
+                        cur.execute("""
+                            INSERT INTO user_bet_legs (
+                                ticket_id,
+                                user_bet_id,
+                                player_name,
+                                prop,
+                                ou,
+                                line,
+                                odds,
+                                sportsbook,
+                                game_id,
+                                home_team,
+                                away_team,
+                                start_time,
+                                status,
+                                created_at,
+                                official_sportsbook,
+                                official_odds,
+                                user_sportsbook,
+                                user_odds,
+                                official_line,
+                                user_line
+                            )
+                            VALUES (
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                NOW(),
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s
+                            )
+                        """, (
+                            ticket_id,
+                            user_bet_id,
+                            leg["player_name"],
+                            leg["prop"],
+                            leg["ou"],
+                            leg["user_line"],
+                            leg["user_odds"],
+                            leg["user_sportsbook"],
+                            leg["game_id"],
+                            leg["home_team"],
+                            leg["away_team"],
+                            leg["start_time"],
+                            "pending",
+                            leg["official_sportsbook"],
+                            leg["official_odds"],
+                            leg["user_sportsbook"],
+                            leg["user_odds"],
+                            leg["official_line"],
+                            leg["user_line"]
+                        ))
+
+        except Exception:
+            app.logger.exception(
+                "Ticket save failed for system %s and user %s",
+                system_code,
+                current_user.id
+            )
+
+            flash(
+                "The ticket could not be saved. Nothing was added.",
+                "error"
+            )
+
+            return redirect(url_for(
+                "system_ticket_page",
+                system_code=system_code
+            ))
+
+        finally:
+            conn.close()
+
+        flash(
+            "Ticket added to your Bet Tracker.",
+            "success"
+        )
+
+        return redirect(url_for(
+            "system_detail_page",
+            system_code=system_code
+        ))
     # =========================================================
     # DISPLAY PAGE
     # =========================================================
