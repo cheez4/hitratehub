@@ -3484,7 +3484,7 @@ def system_ticket_page(system_code):
         # -----------------------------------------------------
         # Find/create user-system record and save full ticket
         # -----------------------------------------------------
-        ticket_id = uuid.uuid4()
+        ticket_id = str(uuid.uuid4())
 
         ticket_sportsbook = clean_text(
             request.form.get(
