@@ -3069,47 +3069,47 @@ def system_ticket_page(system_code):
         auto_resize = bool(
             bankroll["auto_resize"]
         )
+        # ============================================================
+    # SAVE TICKET
     # ============================================================
-# SAVE TICKET
-# ============================================================
-if request.method == "POST":
+    if request.method == "POST":
 
-    print("SAVE DEBUG: POST reached")
-    print("SAVE DEBUG: preview_mode =", preview_mode)
+        print("SAVE DEBUG: POST reached")
+        print("SAVE DEBUG: preview_mode =", preview_mode)
 
-    # Preview blocking temporarily disabled for testing.
-    # if preview_mode:
-    #     flash(
-    #         "Preview tickets cannot be added to the tracker.",
-    #         "error"
-    #     )
-    #
-    #     return redirect(url_for(
-    #         "system_ticket_page",
-    #         system_code=system_code,
-    #         preview=1
-    #     ))
+        # Preview blocking temporarily disabled for testing.
+        # if preview_mode:
+        #     flash(
+        #         "Preview tickets cannot be added to the tracker.",
+        #         "error"
+        #     )
+        #
+        #     return redirect(url_for(
+        #         "system_ticket_page",
+        #         system_code=system_code,
+        #         preview=1
+        #     ))
 
-    # Only recheck qualification for real tickets.
-    if not preview_mode:
-        qualifier_result = check_saved_system(
-            combo,
-            combo_legs,
-            preferred_sportsbook="fanduel"
-        )
-
-        if not qualifier_result.get("qualified"):
-            flash(
-                "This system no longer qualifies. The ticket was not saved.",
-                "warning"
+        # Only recheck qualification for real tickets.
+        if not preview_mode:
+            qualifier_result = check_saved_system(
+                combo,
+                combo_legs,
+                preferred_sportsbook="fanduel"
             )
 
-            return redirect(url_for(
-                "system_detail_page",
-                system_code=system_code
-            ))
+            if not qualifier_result.get("qualified"):
+                flash(
+                    "This system no longer qualifies. The ticket was not saved.",
+                    "warning"
+                )
 
-    print("SAVE DEBUG: reached database save block")
+                return redirect(url_for(
+                    "system_detail_page",
+                    system_code=system_code
+                ))
+
+        print("SAVE DEBUG: reached database save block")
 
     # Your stake/form validation and database save code continues here.
 
