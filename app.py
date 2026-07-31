@@ -3072,7 +3072,7 @@ def system_ticket_page(system_code):
     # =========================================================
     # SAVE TICKET
     # =========================================================
-    # if request.method == "POST":
+    if request.method == "POST":
 
     #     # Preview tickets must never be saved.
     #     if preview_mode:
