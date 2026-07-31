@@ -3754,7 +3754,306 @@ def system_ticket_page(system_code):
         unit_percentage=unit_percentage,
         auto_resize=auto_resize
     )
+@app.route("/my-hub/bets")
+@login_required
+def my_bets_page():
+    status_filter = clean_text(
+        request.args.get("status", "all")
+    ).lower()
 
+    bet_type_filter = clean_text(
+        request.args.get("bet_type", "all")
+    ).lower()
+
+    sport_filter = clean_text(
+        request.args.get("sport", "all")
+    ).lower()
+
+    allowed_statuses = {
+        "all",
+        "pending",
+        "won",
+        "lost",
+        "push",
+        "void"
+    }
+
+    allowed_bet_types = {
+        "all",
+        "straight",
+        "parlay"
+    }
+
+    if status_filter not in allowed_statuses:
+        status_filter = "all"
+
+    if bet_type_filter not in allowed_bet_types:
+        bet_type_filter = "all"
+
+    where_parts = ["ub.user_id = %s"]
+    params = [current_user.id]
+
+    if status_filter != "all":
+        where_parts.append(
+            "LOWER(COALESCE(ub.status, 'pending')) = %s"
+        )
+        params.append(status_filter)
+
+    if bet_type_filter != "all":
+        where_parts.append(
+            "LOWER(COALESCE(ub.bet_type, 'straight')) = %s"
+        )
+        params.append(bet_type_filter)
+
+    if sport_filter != "all":
+        where_parts.append(
+            "LOWER(COALESCE(ub.sport, '')) = %s"
+        )
+        params.append(sport_filter)
+
+    where_sql = " AND ".join(where_parts)
+
+    bets_df = read_sql(f"""
+        SELECT
+            ub.id,
+            ub.ticket_id,
+            ub.user_system_id,
+            ub.bankroll_id,
+            ub.title,
+            ub.sport,
+            ub.league,
+            ub.source,
+            ub.sportsbook,
+            ub.bet_type,
+            ub.odds_taken,
+            ub.combined_odds,
+            ub.user_combined_odds,
+            ub.stake,
+            ub.units,
+            ub.unit_value,
+            ub.potential_profit,
+            ub.potential_return,
+            ub.status,
+            ub.result,
+            ub.profit,
+            ub.bet_time,
+            ub.created_at,
+            ub.settled_at,
+            ub.notes,
+            ub.is_manual,
+            bk.name AS bankroll_name,
+            s.name AS system_name,
+            s.system_code
+        FROM user_bets ub
+        LEFT JOIN user_bankrolls bk
+            ON bk.id = ub.bankroll_id
+           AND bk.user_id = ub.user_id
+        LEFT JOIN user_systems us
+            ON us.id = ub.user_system_id
+           AND us.user_id = ub.user_id
+        LEFT JOIN systems s
+            ON s.id = us.system_id
+        WHERE {where_sql}
+        ORDER BY
+            COALESCE(ub.bet_time, ub.created_at) DESC,
+            ub.id DESC
+        LIMIT 500
+    """, params)
+
+    bet_ids = []
+
+    if not bets_df.empty:
+        bet_ids = [
+            int(value)
+            for value in bets_df["id"].dropna().tolist()
+        ]
+
+    legs_by_bet = {}
+
+    if bet_ids:
+        placeholders = ",".join(["%s"] * len(bet_ids))
+
+        legs_df = read_sql(f"""
+            SELECT
+                id,
+                user_bet_id,
+                player_name,
+                selection_name,
+                selection_type,
+                team_name,
+                opponent,
+                sport,
+                league,
+                prop,
+                ou,
+                line,
+                odds,
+                sportsbook,
+                game_id,
+                home_team,
+                away_team,
+                start_time,
+                status,
+                result,
+                sort_order,
+                official_sportsbook,
+                official_odds,
+                user_sportsbook,
+                user_odds,
+                official_line,
+                user_line
+            FROM user_bet_legs
+            WHERE user_bet_id IN ({placeholders})
+            ORDER BY
+                user_bet_id,
+                COALESCE(sort_order, id)
+        """, bet_ids)
+
+        for leg in legs_df.to_dict("records"):
+            bet_id = int(leg["user_bet_id"])
+
+            legs_by_bet.setdefault(
+                bet_id,
+                []
+            ).append(leg)
+
+    bets = []
+
+    if not bets_df.empty:
+        for bet in bets_df.to_dict("records"):
+            bet_id = int(bet["id"])
+            bet["legs"] = legs_by_bet.get(bet_id, [])
+            bet["leg_count"] = len(bet["legs"])
+            bets.append(bet)
+
+    summary_df = read_sql("""
+        SELECT
+            COUNT(*) AS total_bets,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, 'pending')) = 'pending'
+            ) AS pending_bets,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'won'
+            ) AS wins,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'lost'
+            ) AS losses,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'push'
+            ) AS pushes,
+
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                    THEN profit
+                    ELSE 0
+                END
+            ), 0) AS total_profit,
+
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                    THEN units
+                    ELSE 0
+                END
+            ), 0) AS settled_units_risked,
+
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) = 'pending'
+                    THEN stake
+                    ELSE 0
+                END
+            ), 0) AS open_risk
+        FROM user_bets
+        WHERE user_id = %s
+    """, (current_user.id,))
+
+    summary = {
+        "total_bets": 0,
+        "pending_bets": 0,
+        "wins": 0,
+        "losses": 0,
+        "pushes": 0,
+        "total_profit": 0,
+        "open_risk": 0,
+        "win_rate": 0
+    }
+
+    if not summary_df.empty:
+        row = summary_df.iloc[0]
+
+        wins = int(row["wins"] or 0)
+        losses = int(row["losses"] or 0)
+        graded = wins + losses
+
+        summary = {
+            "total_bets": int(row["total_bets"] or 0),
+            "pending_bets": int(row["pending_bets"] or 0),
+            "wins": wins,
+            "losses": losses,
+            "pushes": int(row["pushes"] or 0),
+            "total_profit": float(row["total_profit"] or 0),
+            "open_risk": float(row["open_risk"] or 0),
+            "win_rate": round(
+                wins / graded * 100,
+                1
+            ) if graded else 0
+        }
+
+    bankrolls_df = read_sql("""
+        SELECT
+            id,
+            name,
+            starting_balance,
+            current_balance,
+            unit_percentage,
+            auto_resize,
+            is_default
+        FROM user_bankrolls
+        WHERE user_id = %s
+        ORDER BY
+            is_default DESC,
+            created_at ASC
+    """, (current_user.id,))
+
+    bankrolls = (
+        bankrolls_df.to_dict("records")
+        if not bankrolls_df.empty
+        else []
+    )
+
+    sports_df = read_sql("""
+        SELECT DISTINCT sport
+        FROM user_bets
+        WHERE user_id = %s
+          AND sport IS NOT NULL
+          AND TRIM(sport) <> ''
+        ORDER BY sport
+    """, (current_user.id,))
+
+    sports = (
+        sports_df["sport"].dropna().astype(str).tolist()
+        if not sports_df.empty
+        else []
+    )
+
+    return render_template(
+        "my_bets.html",
+        active_page="my_hub",
+        bets=bets,
+        summary=summary,
+        bankrolls=bankrolls,
+        sports=sports,
+        status_filter=status_filter,
+        bet_type_filter=bet_type_filter,
+        sport_filter=sport_filter
+    )
+    
 @app.route("/systems/<system_code>/watch", methods=["POST"])
 @login_required
 def toggle_system_watch(system_code):

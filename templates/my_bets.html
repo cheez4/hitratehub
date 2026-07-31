@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="shell my-hub-shell">
+
+    <div class="my-hub-header">
+        <div>
+            <div class="my-hub-kicker">Personal Hub</div>
+            <h1 class="my-hub-title">My Bets</h1>
+            <p class="my-hub-subtitle">
+                Track every bet in one place, whether it came from HitRateHub,
+                your own research, Discord, or somewhere else.
+            </p>
+        </div>
+
+        <button class="hub-primary-btn" type="button" disabled>
+            + Add Manual Bet
+        </button>
+    </div>
+
+    <div class="hub-summary-grid">
+        <div class="hub-summary-card">
+            <div class="hub-summary-label">Total Bets</div>
+            <div class="hub-summary-value">{{ summary.total_bets }}</div>
+            <div class="hub-summary-note">{{ summary.pending_bets }} pending</div>
+        </div>
+
+        <div class="hub-summary-card">
+            <div class="hub-summary-label">Record</div>
+            <div class="hub-summary-value">
+                {{ summary.wins }}-{{ summary.losses }}
+            </div>
+            <div class="hub-summary-note">
+                {{ summary.pushes }} pushes
+            </div>
+        </div>
+
+        <div class="hub-summary-card">
+            <div class="hub-summary-label">Win Rate</div>
+            <div class="hub-summary-value">{{ summary.win_rate }}%</div>
+            <div class="hub-summary-note">Wins and losses only</div>
+        </div>
+
+        <div class="hub-summary-card">
+            <div class="hub-summary-label">Net Profit</div>
+            <div class="hub-summary-value {% if summary.total_profit > 0 %}hub-positive{% elif summary.total_profit < 0 %}hub-negative{% endif %}">
+                {% if summary.total_profit > 0 %}+{% endif %}${{ "%.2f"|format(summary.total_profit) }}
+            </div>
+            <div class="hub-summary-note">
+                ${{ "%.2f"|format(summary.open_risk) }} open risk
+            </div>
+        </div>
+    </div>
+
+    <div class="panel hub-filter-panel">
+        <div class="panel-body">
+            <form method="get" class="hub-filter-grid">
+                <div class="field">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        {% for value, label in [
+                            ("all", "All statuses"),
+                            ("pending", "Pending"),
+                            ("won", "Won"),
+                            ("lost", "Lost"),
+                            ("push", "Push"),
+                            ("void", "Void")
+                        ] %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="bet_type">Bet Type</label>
+                    <select id="bet_type" name="bet_type">
+                        <option value="all" {% if bet_type_filter == "all" %}selected{% endif %}>All bet types</option>
+                        <option value="straight" {% if bet_type_filter == "straight" %}selected{% endif %}>Straight</option>
+                        <option value="parlay" {% if bet_type_filter == "parlay" %}selected{% endif %}>Parlay</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="sport">Sport</label>
+                    <select id="sport" name="sport">
+                        <option value="all">All sports</option>
+                        {% for sport in sports %}
+                            <option value="{{ sport|lower }}" {% if sport_filter == sport|lower %}selected{% endif %}>
+                                {{ sport }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="field hub-filter-action">
+                    <button class="run-btn" type="submit">Apply Filters</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">Bet History</div>
+                <div class="hub-panel-note">
+                    Showing up to 500 of your most recent bets
+                </div>
+            </div>
+        </div>
+
+        {% if bets %}
+            <div class="hub-bet-list">
+                {% for bet in bets %}
+                    {% set display_odds = bet.user_combined_odds or bet.combined_odds or bet.odds_taken %}
+                    <article class="hub-bet-card">
+                        <div class="hub-bet-main">
+                            <div class="hub-bet-topline">
+                                <div class="hub-bet-tags">
+                                    <span class="hub-chip">
+                                        {{ (bet.sport or "Sport not set")|upper }}
+                                    </span>
+
+                                    <span class="hub-chip hub-chip-muted">
+                                        {{ (bet.bet_type or "straight")|title }}
+                                    </span>
+
+                                    {% if bet.source %}
+                                        <span class="hub-chip hub-chip-muted">
+                                            {{ bet.source }}
+                                        </span>
+                                    {% elif bet.system_name %}
+                                        <span class="hub-chip hub-chip-system">
+                                            HitRateHub System
+                                        </span>
+                                    {% endif %}
+                                </div>
+
+                                <span class="hub-status hub-status-{{ (bet.status or 'pending')|lower }}">
+                                    {{ (bet.status or "pending")|title }}
+                                </span>
+                            </div>
+
+                            <div class="hub-bet-title">
+                                {% if bet.title %}
+                                    {{ bet.title }}
+                                {% elif bet.system_name %}
+                                    {{ bet.system_name }}
+                                {% elif bet.legs %}
+                                    {% set first_leg = bet.legs[0] %}
+                                    {{ first_leg.selection_name or first_leg.player_name or first_leg.team_name or "Tracked Bet" }}
+                                {% else %}
+                                    Tracked Bet
+                                {% endif %}
+                            </div>
+
+                            {% if bet.system_name %}
+                                <div class="hub-bet-origin">
+                                    System: {{ bet.system_name }}
+                                    {% if bet.system_code %} · {{ bet.system_code }}{% endif %}
+                                </div>
+                            {% endif %}
+
+                            {% if bet.legs %}
+                                <div class="hub-leg-list">
+                                    {% for leg in bet.legs %}
+                                        <div class="hub-leg-row">
+                                            <div class="hub-leg-number">{{ loop.index }}</div>
+
+                                            <div class="hub-leg-copy">
+                                                <div class="hub-leg-name">
+                                                    {{ leg.selection_name or leg.player_name or leg.team_name or "Selection" }}
+                                                </div>
+
+                                                <div class="hub-leg-market">
+                                                    {% if leg.ou %}{{ leg.ou|title }} {% endif %}
+                                                    {% if leg.user_line is not none %}
+                                                        {{ leg.user_line }}
+                                                    {% elif leg.line is not none %}
+                                                        {{ leg.line }}
+                                                    {% endif %}
+                                                    {% if leg.prop %} {{ leg.prop }}{% endif %}
+                                                    {% if leg.opponent %} vs {{ leg.opponent }}{% endif %}
+                                                </div>
+                                            </div>
+
+                                            <div class="hub-leg-odds">
+                                                {% set leg_odds = leg.user_odds or leg.odds %}
+                                                {% if leg_odds is not none %}
+                                                    {% if leg_odds > 0 %}+{% endif %}{{ leg_odds }}
+                                                {% else %}
+                                                    —
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="hub-bet-metrics">
+                            <div class="hub-metric">
+                                <span>Sportsbook</span>
+                                <strong>{{ bet.sportsbook or "—" }}</strong>
+                            </div>
+
+                            <div class="hub-metric">
+                                <span>Odds</span>
+                                <strong>
+                                    {% if display_odds is not none %}
+                                        {% if display_odds > 0 %}+{% endif %}{{ display_odds }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <div class="hub-metric">
+                                <span>Stake</span>
+                                <strong>
+                                    {% if bet.stake is not none %}
+                                        ${{ "%.2f"|format(bet.stake) }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <div class="hub-metric">
+                                <span>Units</span>
+                                <strong>
+                                    {% if bet.units is not none %}
+                                        {{ "%.2f"|format(bet.units) }}u
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <div class="hub-metric">
+                                <span>Profit</span>
+                                <strong class="{% if bet.profit and bet.profit > 0 %}hub-positive{% elif bet.profit and bet.profit < 0 %}hub-negative{% endif %}">
+                                    {% if bet.profit is not none %}
+                                        {% if bet.profit > 0 %}+{% endif %}${{ "%.2f"|format(bet.profit) }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <div class="hub-metric">
+                                <span>Bankroll</span>
+                                <strong>{{ bet.bankroll_name or "—" }}</strong>
+                            </div>
+                        </div>
+
+                        <div class="hub-bet-footer">
+                            <span>
+                                {% if bet.bet_time %}
+                                    {{ bet.bet_time.strftime("%b %d, %Y · %I:%M %p") }}
+                                {% elif bet.created_at %}
+                                    {{ bet.created_at.strftime("%b %d, %Y · %I:%M %p") }}
+                                {% endif %}
+                            </span>
+
+                            {% if bet.notes %}
+                                <span class="hub-notes">{{ bet.notes }}</span>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="hub-empty-state">
+                <div class="hub-empty-icon">📊</div>
+                <h2>No bets found</h2>
+                <p>
+                    Your System Watch tickets and future manual bets will appear here.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
