@@ -360,6 +360,20 @@
     {% endif %}
 
 </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="hub-empty-state">
+                <div class="hub-empty-icon">📊</div>
+                <h2>No bets found</h2>
+                <p>
+                    Your System Watch tickets and future manual bets will appear here.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+</div>
 
 <div class="modal-backdrop" id="manualBetModal" aria-hidden="true">
     <div class="modal hub-manual-modal" role="dialog" aria-modal="true" aria-labelledby="manualBetTitle">
