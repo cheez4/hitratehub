@@ -3069,25 +3069,29 @@ def system_ticket_page(system_code):
         auto_resize = bool(
             bankroll["auto_resize"]
         )
-    # =========================================================
-    # SAVE TICKET
-    # =========================================================
-    if request.method == "POST":
+    # ============================================================
+# SAVE TICKET
+# ============================================================
+if request.method == "POST":
 
-    #     # Preview tickets must never be saved.
-    #     if preview_mode:
-    #         flash(
-    #             "Preview tickets cannot be added to the tracker.",
-    #             "error"
-    #         )
+    print("SAVE DEBUG: POST reached")
+    print("SAVE DEBUG: preview_mode =", preview_mode)
 
-    #         return redirect(url_for(
-    #             "system_ticket_page",
-    #             system_code=system_code,
-    #             preview=1
-    #         ))
+    # Preview blocking temporarily disabled for testing.
+    # if preview_mode:
+    #     flash(
+    #         "Preview tickets cannot be added to the tracker.",
+    #         "error"
+    #     )
+    #
+    #     return redirect(url_for(
+    #         "system_ticket_page",
+    #         system_code=system_code,
+    #         preview=1
+    #     ))
 
-        # Recheck qualification on the server.
+    # Only recheck qualification for real tickets.
+    if not preview_mode:
         qualifier_result = check_saved_system(
             combo,
             combo_legs,
@@ -3104,6 +3108,10 @@ def system_ticket_page(system_code):
                 "system_detail_page",
                 system_code=system_code
             ))
+
+    print("SAVE DEBUG: reached database save block")
+
+    # Your stake/form validation and database save code continues here.
 
         # -----------------------------------------------------
         # Validate stake and units
