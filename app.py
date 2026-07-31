@@ -4053,7 +4053,270 @@ def my_bets_page():
         bet_type_filter=bet_type_filter,
         sport_filter=sport_filter
     )
-    
+
+@app.route("/my-hub/bets/add", methods=["POST"])
+@login_required
+def add_manual_bet():
+    bankroll_id = request.form.get("bankroll_id", type=int)
+    sport = clean_text(request.form.get("sport"))
+    league = clean_text(request.form.get("league"))
+    source = clean_text(request.form.get("source"))
+    sportsbook = clean_text(request.form.get("sportsbook"))
+    selection_type = clean_text(request.form.get("selection_type"))
+    selection_name = clean_text(request.form.get("selection_name"))
+    prop = clean_text(request.form.get("prop"))
+    ou = clean_text(request.form.get("ou")).lower()
+    title = clean_text(request.form.get("title"))
+    notes = clean_text(request.form.get("notes"))
+    bet_time_raw = clean_text(request.form.get("bet_time"))
+
+    try:
+        odds = int(request.form.get("odds"))
+    except (TypeError, ValueError):
+        flash("Enter valid American odds.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    try:
+        stake = float(request.form.get("stake"))
+    except (TypeError, ValueError):
+        flash("Enter a valid stake.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    line_raw = clean_text(request.form.get("line"))
+    line = None
+
+    if line_raw:
+        try:
+            line = float(line_raw)
+        except ValueError:
+            flash("Enter a valid line.", "error")
+            return redirect(url_for("my_bets_page"))
+
+    if not bankroll_id:
+        flash("Choose a bankroll.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if not sport or not sportsbook or not selection_name:
+        flash("Sport, sportsbook and selection are required.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if odds == 0:
+        flash("American odds cannot be zero.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if stake <= 0:
+        flash("Stake must be greater than zero.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if odds > 0:
+        potential_profit = stake * odds / 100
+    else:
+        potential_profit = stake * 100 / abs(odds)
+
+    potential_return = stake + potential_profit
+    ticket_id = uuid.uuid4()
+
+    conn = get_conn()
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        current_balance,
+                        unit_percentage
+                    FROM user_bankrolls
+                    WHERE id = %s
+                      AND user_id = %s
+                    FOR UPDATE
+                """, (bankroll_id, current_user.id))
+
+                bankroll = cur.fetchone()
+
+                if not bankroll:
+                    flash("That bankroll could not be found.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                current_balance = float(bankroll[1] or 0)
+                unit_percentage = float(bankroll[2] or 0.01)
+                unit_value = current_balance * unit_percentage
+                units = stake / unit_value if unit_value > 0 else None
+
+                cur.execute("""
+                    INSERT INTO user_bets (
+                        user_system_id,
+                        live_result_id,
+                        sportsbook,
+                        odds_taken,
+                        line_taken,
+                        stake,
+                        units,
+                        result,
+                        profit,
+                        bet_time,
+                        ticket_id,
+                        bet_type,
+                        combined_odds,
+                        potential_profit,
+                        potential_return,
+                        status,
+                        user_id,
+                        unit_value,
+                        bankroll_id,
+                        official_combined_odds,
+                        user_combined_odds,
+                        bankroll_balance_at_bet,
+                        unit_percentage,
+                        sport,
+                        league,
+                        source,
+                        title,
+                        notes,
+                        settled_at,
+                        is_manual
+                    )
+                    VALUES (
+                        NULL,
+                        NULL,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        NULL,
+                        NULL,
+                        COALESCE(%s::timestamp, NOW()),
+                        %s,
+                        'straight',
+                        %s,
+                        %s,
+                        %s,
+                        'pending',
+                        %s,
+                        %s,
+                        %s,
+                        NULL,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        NULL,
+                        TRUE
+                    )
+                    RETURNING id
+                """, (
+                    sportsbook,
+                    odds,
+                    line,
+                    stake,
+                    units,
+                    bet_time_raw or None,
+                    str(ticket_id),
+                    odds,
+                    potential_profit,
+                    potential_return,
+                    current_user.id,
+                    unit_value,
+                    bankroll_id,
+                    odds,
+                    current_balance,
+                    unit_percentage,
+                    sport,
+                    league or None,
+                    source or "Manual",
+                    title or None,
+                    notes or None
+                ))
+
+                user_bet_id = cur.fetchone()[0]
+
+                cur.execute("""
+                    INSERT INTO user_bet_legs (
+                        ticket_id,
+                        user_bet_id,
+                        player_name,
+                        prop,
+                        ou,
+                        line,
+                        odds,
+                        sportsbook,
+                        status,
+                        created_at,
+                        official_sportsbook,
+                        official_odds,
+                        user_sportsbook,
+                        user_odds,
+                        official_line,
+                        user_line,
+                        sport,
+                        league,
+                        selection_type,
+                        selection_name,
+                        team_name,
+                        opponent,
+                        result,
+                        sort_order
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        'pending',
+                        NOW(),
+                        NULL,
+                        NULL,
+                        %s,
+                        %s,
+                        NULL,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        NULL,
+                        NULL,
+                        NULL,
+                        1
+                    )
+                """, (
+                    str(ticket_id),
+                    user_bet_id,
+                    selection_name if selection_type == "Player Prop" else None,
+                    prop or selection_type,
+                    ou or None,
+                    line,
+                    odds,
+                    sportsbook,
+                    sportsbook,
+                    odds,
+                    line,
+                    sport,
+                    league or None,
+                    selection_type,
+                    selection_name
+                ))
+
+        flash("Manual bet added.", "success")
+
+    except Exception as exc:
+        print("Manual bet save error:", exc)
+        flash("The bet could not be saved.", "error")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("my_bets_page"))    
+
 @app.route("/systems/<system_code>/watch", methods=["POST"])
 @login_required
 def toggle_system_watch(system_code):

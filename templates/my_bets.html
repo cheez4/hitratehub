@@ -13,7 +13,7 @@
             </p>
         </div>
 
-        <button class="hub-primary-btn" type="button" disabled>
+        <button class="hub-primary-btn" type="button" onclick="openManualBetModal()">
             + Add Manual Bet
         </button>
     </div>
@@ -283,4 +283,229 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+<div class="modal-backdrop" id="manualBetModal" aria-hidden="true">
+    <div class="modal hub-manual-modal" role="dialog" aria-modal="true" aria-labelledby="manualBetTitle">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="manualBetTitle">Add Manual Bet</div>
+                <div class="hub-panel-note">Straight bets first. Parlays are next.</div>
+            </div>
+
+            <button class="modal-close" type="button" onclick="closeManualBetModal()" aria-label="Close">
+                ×
+            </button>
+        </div>
+
+        <form method="post" action="{{ url_for('add_manual_bet') }}" id="manualBetForm">
+            <div class="modal-body">
+                <div class="hub-manual-grid">
+
+                    <div class="field">
+                        <label for="manual_bankroll_id">Bankroll</label>
+                        <select id="manual_bankroll_id" name="bankroll_id" required>
+                            <option value="">Choose bankroll</option>
+                            {% for bankroll in bankrolls %}
+                                <option value="{{ bankroll.id }}" {% if bankroll.is_default %}selected{% endif %}>
+                                    {{ bankroll.name }} — ${{ "%.2f"|format(bankroll.current_balance) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_sport">Sport</label>
+                        <select id="manual_sport" name="sport" required>
+                            <option value="MLB">MLB</option>
+                            <option value="WNBA">WNBA</option>
+                            <option value="NBA">NBA</option>
+                            <option value="NFL">NFL</option>
+                            <option value="NHL">NHL</option>
+                            <option value="Soccer">Soccer</option>
+                            <option value="Tennis">Tennis</option>
+                            <option value="Golf">Golf</option>
+                            <option value="MMA">MMA</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_league">League</label>
+                        <input id="manual_league" name="league" type="text" maxlength="80" placeholder="MLB, WNBA, ATP, EPL...">
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_source">Source</label>
+                        <select id="manual_source" name="source" required>
+                            <option value="Personal Research">Personal Research</option>
+                            <option value="HitRateHub">HitRateHub</option>
+                            <option value="Discord">Discord</option>
+                            <option value="X / Twitter">X / Twitter</option>
+                            <option value="Friend">Friend</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_sportsbook">Sportsbook</label>
+                        <input id="manual_sportsbook" name="sportsbook" type="text" maxlength="80" placeholder="FanDuel" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_selection_type">Bet Market</label>
+                        <select id="manual_selection_type" name="selection_type" required>
+                            <option value="Player Prop">Player Prop</option>
+                            <option value="Moneyline">Moneyline</option>
+                            <option value="Spread">Spread</option>
+                            <option value="Game Total">Game Total</option>
+                            <option value="Team Total">Team Total</option>
+                            <option value="Future">Future</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="manual_selection_name">Player, Team or Selection</label>
+                        <input id="manual_selection_name" name="selection_name" type="text" maxlength="200" placeholder="Aaron Judge" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_prop">Prop / Market</label>
+                        <input id="manual_prop" name="prop" type="text" maxlength="100" placeholder="Hits, Moneyline, Spread...">
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_ou">Side</label>
+                        <select id="manual_ou" name="ou">
+                            <option value="">Not applicable</option>
+                            <option value="over">Over</option>
+                            <option value="under">Under</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_line">Line</label>
+                        <input id="manual_line" name="line" type="number" step="0.01" placeholder="1.5">
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_odds">American Odds</label>
+                        <input id="manual_odds" name="odds" type="number" step="1" placeholder="+135" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_stake">Stake ($)</label>
+                        <input id="manual_stake" name="stake" type="number" min="0.01" step="0.01" placeholder="25.00" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="manual_bet_time">Bet Time</label>
+                        <input id="manual_bet_time" name="bet_time" type="datetime-local">
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="manual_title">Bet Title (optional)</label>
+                        <input id="manual_title" name="title" type="text" maxlength="200" placeholder="Judge over 1.5 hits">
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="manual_notes">Notes</label>
+                        <textarea id="manual_notes" name="notes" rows="3" maxlength="1000" placeholder="Why you placed it, where it came from, or anything you want to remember."></textarea>
+                    </div>
+                </div>
+
+                <div class="hub-manual-preview">
+                    <div>
+                        <span>Potential profit</span>
+                        <strong id="manualPotentialProfit">—</strong>
+                    </div>
+                    <div>
+                        <span>Potential return</span>
+                        <strong id="manualPotentialReturn">—</strong>
+                    </div>
+                </div>
+
+                <div class="hub-modal-actions">
+                    <button class="share-btn" type="button" onclick="closeManualBetModal()">Cancel</button>
+                    <button class="run-btn" type="submit">Save Bet</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+{% block scripts %}
+<script>
+function openManualBetModal() {
+    const modal = document.getElementById("manualBetModal");
+    if (!modal) return;
+
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+
+    const timeInput = document.getElementById("manual_bet_time");
+    if (timeInput && !timeInput.value) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        timeInput.value = now.toISOString().slice(0, 16);
+    }
+
+    const firstInput = document.getElementById("manual_bankroll_id");
+    if (firstInput) firstInput.focus();
+}
+
+function closeManualBetModal() {
+    const modal = document.getElementById("manualBetModal");
+    if (!modal) return;
+
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+function calculateManualPayout() {
+    const odds = Number(document.getElementById("manual_odds")?.value);
+    const stake = Number(document.getElementById("manual_stake")?.value);
+
+    const profitEl = document.getElementById("manualPotentialProfit");
+    const returnEl = document.getElementById("manualPotentialReturn");
+
+    if (!odds || !stake || stake <= 0) {
+        profitEl.textContent = "—";
+        returnEl.textContent = "—";
+        return;
+    }
+
+    let profit;
+
+    if (odds > 0) {
+        profit = stake * odds / 100;
+    } else {
+        profit = stake * 100 / Math.abs(odds);
+    }
+
+    const totalReturn = stake + profit;
+
+    profitEl.textContent = "$" + profit.toFixed(2);
+    returnEl.textContent = "$" + totalReturn.toFixed(2);
+}
+
+document.getElementById("manual_odds")?.addEventListener("input", calculateManualPayout);
+document.getElementById("manual_stake")?.addEventListener("input", calculateManualPayout);
+
+document.getElementById("manualBetModal")?.addEventListener("click", function(event) {
+    if (event.target === this) {
+        closeManualBetModal();
+    }
+});
+
+document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+        closeManualBetModal();
+    }
+});
+</script>
 {% endblock %}
