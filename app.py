@@ -3072,20 +3072,20 @@ def system_ticket_page(system_code):
     # =========================================================
     # SAVE TICKET
     # =========================================================
-    if request.method == "POST":
+    # if request.method == "POST":
 
-        # Preview tickets must never be saved.
-        if preview_mode:
-            flash(
-                "Preview tickets cannot be added to the tracker.",
-                "error"
-            )
+    #     # Preview tickets must never be saved.
+    #     if preview_mode:
+    #         flash(
+    #             "Preview tickets cannot be added to the tracker.",
+    #             "error"
+    #         )
 
-            return redirect(url_for(
-                "system_ticket_page",
-                system_code=system_code,
-                preview=1
-            ))
+    #         return redirect(url_for(
+    #             "system_ticket_page",
+    #             system_code=system_code,
+    #             preview=1
+    #         ))
 
         # Recheck qualification on the server.
         qualifier_result = check_saved_system(
