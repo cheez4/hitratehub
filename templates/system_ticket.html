@@ -7,7 +7,10 @@
 
 <div class="shell">
 <div class="panel ticket-panel">
-<form method="POST" action="{{ url_for('system_ticket_page', system_code=system.system_code) }}" class="tracker-form" id="trackerForm">
+<form method="POST"
+      action="{{ url_for('system_ticket_page', system_code=system.system_code, preview=1 if preview_mode else none) }}"
+      class="tracker-form"
+      id="trackerForm">
 
 <div class="ticket-header">
   <div>
