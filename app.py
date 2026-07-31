@@ -32,6 +32,7 @@ from datetime import date, timedelta
 import secrets
 from urllib.parse import urlencode
 from functools import wraps
+from services.grading_engine import grade_bet
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
@@ -4619,6 +4620,48 @@ def upgrade_page():
 def clear_cache():
     cache.clear()
     return "Cache cleared"
+
+@app.route("/my-hub/bets/<int:bet_id>/grade", methods=["POST"])
+@login_required
+def grade_personal_bet(bet_id):
+    result = clean_text(
+        request.form.get("result")
+    ).lower()
+
+    response = grade_bet(
+        bet_id=bet_id,
+        result=result,
+        user_id=current_user.id
+    )
+
+    if response["success"]:
+        profit = response["profit"]
+
+        if profit > 0:
+            profit_text = f"+${profit:.2f}"
+        elif profit < 0:
+            profit_text = f"-${abs(profit):.2f}"
+        else:
+            profit_text = "$0.00"
+
+        flash(
+            f"Bet graded {result.upper()} · "
+            f"{profit_text}",
+            "success"
+        )
+
+    else:
+        flash(
+            response.get(
+                "error",
+                "Bet could not be graded."
+            ),
+            "error"
+        )
+
+    return redirect(
+        url_for("my_bets_page")
+    )
 
 @app.route("/strategy-finder")
 @premium_required

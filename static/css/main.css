@@ -1926,6 +1926,78 @@
     margin-top:16px;
 }
 
+/* MY HUB — BET GRADING */
+
+.hub-grade-actions{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:7px;
+}
+
+.hub-grade-actions form{
+    margin:0;
+}
+
+.hub-grade-btn{
+    min-height:31px;
+    padding:0 11px;
+    border-radius:8px;
+    font-family:inherit;
+    font-size:11px;
+    font-weight:900;
+    cursor:pointer;
+    transition:
+        transform .12s ease,
+        opacity .12s ease,
+        border-color .12s ease;
+}
+
+.hub-grade-btn:hover{
+    transform:translateY(-1px);
+}
+
+.hub-grade-win{
+    border:1px solid rgba(87,211,123,.35);
+    background:rgba(87,211,123,.12);
+    color:#7bea98;
+}
+
+.hub-grade-loss{
+    border:1px solid rgba(239,106,106,.35);
+    background:rgba(239,106,106,.12);
+    color:#ff9999;
+}
+
+.hub-grade-push{
+    border:1px solid rgba(255,202,65,.30);
+    background:rgba(255,202,65,.10);
+    color:#ffd66b;
+}
+
+.hub-grade-void{
+    border:1px solid rgba(146,169,199,.25);
+    background:rgba(146,169,199,.08);
+    color:#b7c8dd;
+}
+
+@media (max-width:700px){
+
+    .hub-grade-actions{
+        width:100%;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+    }
+
+    .hub-grade-actions form{
+        width:100%;
+    }
+
+    .hub-grade-btn{
+        width:100%;
+    }
+}
+
 @media (max-width:700px){
     .hub-manual-grid,
     .hub-manual-preview,

@@ -256,32 +256,109 @@
                             </div>
                         </div>
 
-                        <div class="hub-bet-footer">
-                            <span>
-                                {% if bet.bet_time %}
-                                    {{ bet.bet_time.strftime("%b %d, %Y · %I:%M %p") }}
-                                {% elif bet.created_at %}
-                                    {{ bet.created_at.strftime("%b %d, %Y · %I:%M %p") }}
-                                {% endif %}
-                            </span>
+                       <div class="hub-bet-footer">
 
-                            {% if bet.notes %}
-                                <span class="hub-notes">{{ bet.notes }}</span>
-                            {% endif %}
-                        </div>
-                    </article>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="hub-empty-state">
-                <div class="hub-empty-icon">📊</div>
-                <h2>No bets found</h2>
-                <p>
-                    Your System Watch tickets and future manual bets will appear here.
-                </p>
-            </div>
+    <div>
+        {% if bet.bet_time %}
+            {{ bet.bet_time.strftime("%b %d, %Y · %I:%M %p") }}
+        {% elif bet.created_at %}
+            {{ bet.created_at.strftime("%b %d, %Y · %I:%M %p") }}
+        {% endif %}
+
+        {% if bet.notes %}
+            <span class="hub-notes">
+                · {{ bet.notes }}
+            </span>
         {% endif %}
     </div>
+
+    {% if (bet.status or "pending")|lower == "pending" %}
+
+        <div class="hub-grade-actions">
+
+            <form
+                method="post"
+                action="{{ url_for('grade_personal_bet', bet_id=bet.id) }}"
+            >
+                <input
+                    type="hidden"
+                    name="result"
+                    value="won"
+                >
+
+                <button
+                    type="submit"
+                    class="hub-grade-btn hub-grade-win"
+                    onclick="return confirm('Grade this bet as WON?');"
+                >
+                    ✓ Win
+                </button>
+            </form>
+
+
+            <form
+                method="post"
+                action="{{ url_for('grade_personal_bet', bet_id=bet.id) }}"
+            >
+                <input
+                    type="hidden"
+                    name="result"
+                    value="lost"
+                >
+
+                <button
+                    type="submit"
+                    class="hub-grade-btn hub-grade-loss"
+                    onclick="return confirm('Grade this bet as LOST?');"
+                >
+                    ✕ Loss
+                </button>
+            </form>
+
+
+            <form
+                method="post"
+                action="{{ url_for('grade_personal_bet', bet_id=bet.id) }}"
+            >
+                <input
+                    type="hidden"
+                    name="result"
+                    value="push"
+                >
+
+                <button
+                    type="submit"
+                    class="hub-grade-btn hub-grade-push"
+                    onclick="return confirm('Grade this bet as PUSH?');"
+                >
+                    − Push
+                </button>
+            </form>
+
+
+            <form
+                method="post"
+                action="{{ url_for('grade_personal_bet', bet_id=bet.id) }}"
+            >
+                <input
+                    type="hidden"
+                    name="result"
+                    value="void"
+                >
+
+                <button
+                    type="submit"
+                    class="hub-grade-btn hub-grade-void"
+                    onclick="return confirm('Void this bet?');"
+                >
+                    ⊘ Void
+                </button>
+            </form>
+
+        </div>
+
+    {% endif %}
+
 </div>
 
 <div class="modal-backdrop" id="manualBetModal" aria-hidden="true">
