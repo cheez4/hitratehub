@@ -3920,37 +3920,37 @@ def my_bets_page():
 
     bets = []
 
-now_df = read_sql("SELECT NOW() AS now_value")
-now_value = now_df.iloc[0]["now_value"]
+    now_df = read_sql("SELECT NOW() AS now_value")
+    now_value = now_df.iloc[0]["now_value"]
 
-if not bets_df.empty:
-    for bet in bets_df.to_dict("records"):
-        bet_id = int(bet["id"])
+    if not bets_df.empty:
+        for bet in bets_df.to_dict("records"):
+            bet_id = int(bet["id"])
 
-        bet["legs"] = legs_by_bet.get(bet_id, [])
-        bet["leg_count"] = len(bet["legs"])
+            bet["legs"] = legs_by_bet.get(bet_id, [])
+            bet["leg_count"] = len(bet["legs"])
 
-        event_starts = [
-            leg.get("start_time")
-            for leg in bet["legs"]
-            if leg.get("start_time") is not None
-        ]
+            event_starts = [
+                leg.get("start_time")
+                for leg in bet["legs"]
+                if leg.get("start_time") is not None
+            ]
 
-        bet["event_start"] = (
-            min(event_starts)
-            if event_starts
-            else None
-        )
-
-        bet["can_edit"] = (
-            str(bet.get("status") or "pending").lower() == "pending"
-            and (
-                bet["event_start"] is None
-                or now_value < bet["event_start"]
+            bet["event_start"] = (
+                min(event_starts)
+                if event_starts
+                else None
             )
-        )
 
-        bets.append(bet)
+            bet["can_edit"] = (
+                str(bet.get("status") or "pending").lower() == "pending"
+                and (
+                    bet["event_start"] is None
+                    or now_value < bet["event_start"]
+                )
+            )
+
+            bets.append(bet)
 
     summary_df = read_sql("""
         SELECT
