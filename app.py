@@ -33,6 +33,7 @@ import secrets
 from urllib.parse import urlencode
 from functools import wraps
 from services.grading_engine import grade_bet
+from zoneinfo import ZoneInfo
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
@@ -3922,7 +3923,9 @@ def my_bets_page():
 
     from datetime import datetime
 
-    now_value = datetime.now()
+    now_value = datetime.now(
+        ZoneInfo("America/Toronto")
+    ).replace(tzinfo=None)
 
     if not bets_df.empty:
         for bet in bets_df.to_dict("records"):
@@ -4151,8 +4154,9 @@ def edit_personal_bet(bet_id):
                     flash("Only pending bets can be edited.", "error")
                     return redirect(url_for("my_bets_page"))
 
-                cur.execute("SELECT NOW()")
-                now_value = cur.fetchone()[0]
+                now_value = datetime.now(
+                    ZoneInfo("America/Toronto")
+                ).replace(tzinfo=None)
 
                 if bet[1] is not None and now_value >= bet[1]:
                     flash("This bet is locked because the event has started.", "error")
