@@ -1981,6 +1981,25 @@
     color:#b7c8dd;
 }
 
+.hub-edit-btn{
+    border:1px solid rgba(47,140,255,.35);
+    background:rgba(47,140,255,.12);
+    color:#8ec8ff;
+}
+
+.hub-locked-label{
+    display:inline-flex;
+    align-items:center;
+    min-height:31px;
+    padding:0 10px;
+    border:1px solid rgba(146,169,199,.22);
+    border-radius:8px;
+    background:rgba(146,169,199,.08);
+    color:#9fb0c7;
+    font-size:11px;
+    font-weight:900;
+}
+
 @media (max-width:700px){
 
     .hub-grade-actions{

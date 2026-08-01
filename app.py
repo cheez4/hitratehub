@@ -3920,12 +3920,37 @@ def my_bets_page():
 
     bets = []
 
-    if not bets_df.empty:
-        for bet in bets_df.to_dict("records"):
-            bet_id = int(bet["id"])
-            bet["legs"] = legs_by_bet.get(bet_id, [])
-            bet["leg_count"] = len(bet["legs"])
-            bets.append(bet)
+now_df = read_sql("SELECT NOW() AS now_value")
+now_value = now_df.iloc[0]["now_value"]
+
+if not bets_df.empty:
+    for bet in bets_df.to_dict("records"):
+        bet_id = int(bet["id"])
+
+        bet["legs"] = legs_by_bet.get(bet_id, [])
+        bet["leg_count"] = len(bet["legs"])
+
+        event_starts = [
+            leg.get("start_time")
+            for leg in bet["legs"]
+            if leg.get("start_time") is not None
+        ]
+
+        bet["event_start"] = (
+            min(event_starts)
+            if event_starts
+            else None
+        )
+
+        bet["can_edit"] = (
+            str(bet.get("status") or "pending").lower() == "pending"
+            and (
+                bet["event_start"] is None
+                or now_value < bet["event_start"]
+            )
+        )
+
+        bets.append(bet)
 
     summary_df = read_sql("""
         SELECT
@@ -4070,6 +4095,9 @@ def add_manual_bet():
     title = clean_text(request.form.get("title"))
     notes = clean_text(request.form.get("notes"))
     bet_time_raw = clean_text(request.form.get("bet_time"))
+    event_start_raw = clean_text(
+    request.form.get("event_start")
+)
 
     try:
         odds = int(request.form.get("odds"))
@@ -4099,6 +4127,10 @@ def add_manual_bet():
 
     if not sport or not sportsbook or not selection_name:
         flash("Sport, sportsbook and selection are required.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if not event_start_raw:
+        flash("Event start is required.", "error")
         return redirect(url_for("my_bets_page"))
 
     if odds == 0:
@@ -4246,6 +4278,7 @@ def add_manual_bet():
                         line,
                         odds,
                         sportsbook,
+                        start_time,
                         status,
                         created_at,
                         official_sportsbook,
@@ -4272,6 +4305,7 @@ def add_manual_bet():
                         %s,
                         %s,
                         %s,
+                        %s::timestamp,
                         'pending',
                         NOW(),
                         NULL,
@@ -4298,6 +4332,7 @@ def add_manual_bet():
                     line,
                     odds,
                     sportsbook,
+                    event_start_raw,
                     sportsbook,
                     odds,
                     line,
