@@ -4079,7 +4079,147 @@ def my_bets_page():
         bet_type_filter=bet_type_filter,
         sport_filter=sport_filter
     )
+@app.route("/my-hub/bets/<int:bet_id>/edit", methods=["POST"])
+@login_required
+def edit_personal_bet(bet_id):
+    bankroll_id = request.form.get("bankroll_id", type=int)
+    sport = clean_text(request.form.get("sport"))
+    league = clean_text(request.form.get("league"))
+    source = clean_text(request.form.get("source"))
+    sportsbook = clean_text(request.form.get("sportsbook"))
+    selection_type = clean_text(request.form.get("selection_type"))
+    selection_name = clean_text(request.form.get("selection_name"))
+    prop = clean_text(request.form.get("prop"))
+    ou = clean_text(request.form.get("ou")).lower()
+    title = clean_text(request.form.get("title"))
+    notes = clean_text(request.form.get("notes"))
+    event_start_raw = clean_text(request.form.get("event_start"))
 
+    try:
+        odds = int(request.form.get("odds"))
+        stake = float(request.form.get("stake"))
+    except (TypeError, ValueError):
+        flash("Enter valid odds and stake.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    line = None
+    line_raw = clean_text(request.form.get("line"))
+    if line_raw:
+        try:
+            line = float(line_raw)
+        except ValueError:
+            flash("Enter a valid line.", "error")
+            return redirect(url_for("my_bets_page"))
+
+    if not bankroll_id or not sport or not sportsbook or not selection_name or not event_start_raw:
+        flash("Complete all required fields.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if odds == 0 or stake <= 0:
+        flash("Odds cannot be zero and stake must be positive.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    potential_profit = stake * odds / 100 if odds > 0 else stake * 100 / abs(odds)
+    potential_return = stake + potential_profit
+
+    conn = get_conn()
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        ub.status,
+                        MIN(ubl.start_time) AS event_start
+                    FROM user_bets ub
+                    LEFT JOIN user_bet_legs ubl ON ubl.user_bet_id = ub.id
+                    WHERE ub.id = %s
+                      AND ub.user_id = %s
+                    GROUP BY ub.id, ub.status
+                """, (bet_id, current_user.id))
+
+                bet = cur.fetchone()
+
+                if not bet:
+                    flash("Bet not found.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                if str(bet[0] or "pending").lower() != "pending":
+                    flash("Only pending bets can be edited.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                cur.execute("SELECT NOW()")
+                now_value = cur.fetchone()[0]
+
+                if bet[1] is not None and now_value >= bet[1]:
+                    flash("This bet is locked because the event has started.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                cur.execute("""
+                    SELECT current_balance, unit_percentage
+                    FROM user_bankrolls
+                    WHERE id = %s AND user_id = %s
+                """, (bankroll_id, current_user.id))
+
+                bankroll = cur.fetchone()
+
+                if not bankroll:
+                    flash("Bankroll not found.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                current_balance = float(bankroll[0] or 0)
+                unit_percentage = float(bankroll[1] or 0.01)
+                unit_value = current_balance * unit_percentage
+                units = stake / unit_value if unit_value > 0 else None
+
+                cur.execute("""
+                    UPDATE user_bets
+                    SET bankroll_id=%s, sport=%s, league=%s, source=%s,
+                        sportsbook=%s, odds_taken=%s, line_taken=%s,
+                        stake=%s, units=%s, unit_value=%s,
+                        user_combined_odds=%s, combined_odds=%s,
+                        potential_profit=%s, potential_return=%s,
+                        bankroll_balance_at_bet=%s, unit_percentage=%s,
+                        title=%s, notes=%s
+                    WHERE id=%s AND user_id=%s
+                """, (
+                    bankroll_id, sport, league or None, source or None,
+                    sportsbook, odds, line, stake, units, unit_value,
+                    odds, odds, potential_profit, potential_return,
+                    current_balance, unit_percentage,
+                    title or None, notes or None,
+                    bet_id, current_user.id
+                ))
+
+                cur.execute("""
+                    UPDATE user_bet_legs
+                    SET sport=%s, league=%s, selection_type=%s,
+                        selection_name=%s,
+                        player_name=CASE WHEN %s='Player Prop' THEN %s ELSE NULL END,
+                        prop=%s, ou=%s, line=%s, user_line=%s,
+                        odds=%s, user_odds=%s,
+                        sportsbook=%s, user_sportsbook=%s,
+                        start_time=%s::timestamp
+                    WHERE user_bet_id=%s
+                """, (
+                    sport, league or None, selection_type, selection_name,
+                    selection_type, selection_name,
+                    prop or selection_type, ou or None,
+                    line, line, odds, odds,
+                    sportsbook, sportsbook,
+                    event_start_raw, bet_id
+                ))
+
+        flash("Bet updated.", "success")
+
+    except Exception as exc:
+        print("Edit bet error:", exc)
+        flash("The bet could not be updated.", "error")
+    finally:
+        conn.close()
+
+    return redirect(url_for("my_bets_page"))
+    
 @app.route("/my-hub/bets/add", methods=["POST"])
 @login_required
 def add_manual_bet():
