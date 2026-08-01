@@ -3920,33 +3920,36 @@ def my_bets_page():
 
     bets = []
 
-    now_df = read_sql("SELECT NOW() AS now_value")
-    now_value = now_df.iloc[0]["now_value"]
+    from datetime import datetime
+
+    now_value = datetime.now()
 
     if not bets_df.empty:
         for bet in bets_df.to_dict("records"):
+
             bet_id = int(bet["id"])
 
             bet["legs"] = legs_by_bet.get(bet_id, [])
             bet["leg_count"] = len(bet["legs"])
 
             event_starts = [
-                leg.get("start_time")
+                leg["start_time"]
                 for leg in bet["legs"]
-                if leg.get("start_time") is not None
+                if leg.get("start_time")
             ]
 
-            bet["event_start"] = (
-                min(event_starts)
-                if event_starts
-                else None
-            )
+            event_start = min(event_starts) if event_starts else None
+
+            if event_start and getattr(event_start, "tzinfo", None):
+                event_start = event_start.replace(tzinfo=None)
+
+            bet["event_start"] = event_start
 
             bet["can_edit"] = (
                 str(bet.get("status") or "pending").lower() == "pending"
                 and (
-                    bet["event_start"] is None
-                    or now_value < bet["event_start"]
+                    event_start is None
+                    or now_value < event_start
                 )
             )
 
@@ -4219,7 +4222,7 @@ def edit_personal_bet(bet_id):
         conn.close()
 
     return redirect(url_for("my_bets_page"))
-    
+
 @app.route("/my-hub/bets/add", methods=["POST"])
 @login_required
 def add_manual_bet():
