@@ -2415,3 +2415,73 @@
         max-height:52vh;
     }
 }
+
+
+/* MY HUB — KEEP PAYOUT AND SAVE BUTTONS ALWAYS VISIBLE */
+
+#manualBetModal .hub-ticket-modal,
+#editBetModal .hub-ticket-modal{
+    height:calc(100vh - 32px);
+    max-height:calc(100vh - 32px);
+}
+
+#manualBetModal .hub-ticket-modal-body,
+#editBetModal .hub-ticket-modal-body{
+    display:flex;
+    flex-direction:column;
+    flex:1 1 auto;
+    min-height:0;
+    overflow:hidden !important;
+    padding-bottom:0;
+}
+
+#manualBetModal .hub-ticket-summary-grid,
+#editBetModal .hub-ticket-summary-grid,
+#manualBetModal .hub-leg-builder-head,
+#editBetModal .hub-leg-builder-head,
+#manualBetModal .hub-manual-preview,
+#editBetModal .hub-manual-preview,
+#manualBetModal .hub-ticket-sticky-actions,
+#editBetModal .hub-ticket-sticky-actions{
+    flex:0 0 auto;
+}
+
+#manualLegs,
+#editLegs{
+    flex:1 1 auto;
+    min-height:160px;
+    max-height:none !important;
+    overflow-y:auto !important;
+    overflow-x:hidden;
+    padding-right:8px;
+    margin-bottom:10px;
+}
+
+#manualBetModal .hub-manual-preview,
+#editBetModal .hub-manual-preview{
+    position:static;
+    margin-top:0;
+}
+
+#manualBetModal .hub-ticket-sticky-actions,
+#editBetModal .hub-ticket-sticky-actions{
+    position:static;
+    margin:0 -20px;
+}
+
+@media (max-height:800px){
+    #manualBetModal .hub-ticket-summary-grid,
+    #editBetModal .hub-ticket-summary-grid{
+        gap:8px;
+    }
+
+    #manualBetModal .hub-ticket-modal-body,
+    #editBetModal .hub-ticket-modal-body{
+        padding-top:12px;
+    }
+
+    #manualLegs,
+    #editLegs{
+        min-height:120px;
+    }
+}
