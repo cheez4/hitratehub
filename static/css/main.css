@@ -2487,99 +2487,142 @@
 }
 
 
-/* MY HUB — FINAL 100% ZOOM FIT */
+/* MY HUB — CLEAN MODAL GRID FIX */
+/* Scoped only to the Add/Edit ticket windows. */
 
 #manualBetModal,
 #editBetModal{
-    padding:6px 12px !important;
+    padding:12px !important;
+    align-items:center !important;
+    overflow:hidden !important;
 }
 
 #manualBetModal .hub-ticket-modal,
 #editBetModal .hub-ticket-modal{
-    height:calc(100vh - 12px) !important;
-    max-height:calc(100vh - 12px) !important;
+    width:min(1320px, calc(100vw - 24px)) !important;
+    height:min(900px, calc(100vh - 24px)) !important;
+    max-height:calc(100vh - 24px) !important;
+    display:flex !important;
+    flex-direction:column !important;
+    overflow:hidden !important;
+    margin:auto !important;
 }
 
 #manualBetModal .modal-head,
 #editBetModal .modal-head{
-    padding:12px 18px;
+    flex:0 0 auto !important;
 }
 
 #manualBetModal .hub-ticket-modal-body,
 #editBetModal .hub-ticket-modal-body{
-    padding:12px 18px 0;
+    display:grid !important;
+    grid-template-rows:
+        auto
+        auto
+        minmax(0, 1fr)
+        auto
+        auto !important;
+    flex:1 1 auto !important;
+    min-height:0 !important;
+    overflow:hidden !important;
+    padding:14px 20px 0 !important;
 }
 
 #manualBetModal .hub-ticket-summary-grid,
 #editBetModal .hub-ticket-summary-grid{
-    gap:10px 14px;
+    grid-row:1;
+    grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+    gap:10px 14px !important;
+    min-height:0 !important;
 }
 
-#manualBetModal .field label,
-#editBetModal .field label{
-    margin-bottom:5px;
+#manualBetModal .hub-leg-builder-head,
+#editBetModal .hub-leg-builder-head{
+    grid-row:2;
+    position:static !important;
+    margin:10px 0 8px !important;
+    padding:0 !important;
+}
+
+#manualLegs,
+#editLegs{
+    grid-row:3;
+    min-height:0 !important;
+    max-height:none !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    padding-right:8px !important;
+    margin:0 0 8px !important;
+    scrollbar-gutter:stable;
+}
+
+#manualBetModal .hub-manual-preview,
+#editBetModal .hub-manual-preview{
+    grid-row:4;
+    position:static !important;
+    display:grid !important;
+    grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
+    gap:10px !important;
+    margin:0 !important;
+    padding:8px 0 !important;
+}
+
+#manualBetModal .hub-manual-preview > div,
+#editBetModal .hub-manual-preview > div{
+    min-height:56px !important;
+    padding:9px 14px !important;
+}
+
+#manualBetModal .hub-ticket-sticky-actions,
+#editBetModal .hub-ticket-sticky-actions{
+    grid-row:5;
+    position:static !important;
+    margin:0 -20px !important;
+    padding:9px 20px 12px !important;
+}
+
+#manualBetModal textarea,
+#editBetModal textarea{
+    min-height:58px !important;
+    max-height:70px !important;
 }
 
 #manualBetModal .field input,
 #manualBetModal .field select,
 #editBetModal .field input,
 #editBetModal .field select{
-    height:36px;
-}
-
-#manualBetModal textarea,
-#editBetModal textarea{
-    min-height:58px !important;
-    max-height:72px;
-}
-
-#manualBetModal .hub-leg-builder-head,
-#editBetModal .hub-leg-builder-head{
-    margin:10px 0 8px;
-    padding:7px 0;
-}
-
-#manualLegs,
-#editLegs{
-    min-height:130px !important;
-    margin-bottom:6px;
+    height:38px !important;
 }
 
 #manualBetModal .hub-manual-leg,
 #editBetModal .hub-manual-leg{
-    padding:10px 14px;
+    padding:10px 14px !important;
 }
 
-#manualBetModal .hub-manual-leg-head,
-#editBetModal .hub-manual-leg-head{
-    margin-bottom:8px;
+@media (max-width:1100px){
+    #manualBetModal .hub-ticket-summary-grid,
+    #editBetModal .hub-ticket-summary-grid{
+        grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    #manualBetModal .hub-leg-fields-grid,
+    #editBetModal .hub-leg-fields-grid{
+        grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+    }
 }
 
-#manualBetModal .hub-manual-preview,
-#editBetModal .hub-manual-preview{
-    display:grid !important;
-    grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
-    gap:10px !important;
-    padding:8px 0 !important;
-}
+@media (max-width:700px){
+    #manualBetModal .hub-ticket-modal,
+    #editBetModal .hub-ticket-modal{
+        width:calc(100vw - 12px) !important;
+        height:calc(100vh - 12px) !important;
+        max-height:calc(100vh - 12px) !important;
+    }
 
-#manualBetModal .hub-manual-preview > div,
-#editBetModal .hub-manual-preview > div{
-    min-height:54px !important;
-    padding:9px 14px !important;
-}
-
-#manualBetModal .hub-ticket-sticky-actions,
-#editBetModal .hub-ticket-sticky-actions{
-    padding:8px 18px 10px !important;
-}
-
-#manualBetModal .hub-ticket-sticky-actions button,
-#editBetModal .hub-ticket-sticky-actions button{
-    height:36px;
-}
-
-@media (max-width:850px){
+    #manualBetModal .hub-ticket-summary-grid,
+    #editBetModal .hub-ticket-summary-grid,
+    #manualBetModal .hub-leg-fields-grid,
+    #editBetModal .hub-leg-fields-grid,
     #manualBetModal .hub-manual-preview,
     #editBetModal .hub-manual-preview{
         grid-template-columns:1fr !important;
