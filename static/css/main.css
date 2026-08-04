@@ -2000,6 +2000,51 @@
     font-weight:900;
 }
 
+.hub-copy-btn{
+    border:1px solid rgba(170,120,255,.35);
+    background:rgba(170,120,255,.12);
+    color:#cdb0ff;
+}
+
+/* MY HUB — MANUAL PARLAY BUILDER */
+
+.hub-leg-builder-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    margin:18px 0 10px;
+}
+
+.hub-manual-leg{
+    margin-bottom:12px;
+    padding:14px;
+    border:1px solid rgba(146,169,199,.18);
+    border-radius:12px;
+    background:rgba(10,18,31,.45);
+}
+
+.hub-manual-leg-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:12px;
+}
+
+.hub-remove-leg{
+    border:0;
+    background:transparent;
+    color:#ff9999;
+    font:inherit;
+    font-size:12px;
+    font-weight:800;
+    cursor:pointer;
+}
+
+#manual_ticket_type_display{
+    font-weight:900;
+}
+   
 @media (max-width:700px){
 
     .hub-grade-actions{
@@ -2014,6 +2059,10 @@
 
     .hub-grade-btn{
         width:100%;
+    }
+
+    .hub-leg-builder-head{
+        align-items:flex-start;
     }
 }
 

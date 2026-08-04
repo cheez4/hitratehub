@@ -4332,22 +4332,17 @@ def add_manual_bet():
     league = clean_text(request.form.get("league"))
     source = clean_text(request.form.get("source"))
     sportsbook = clean_text(request.form.get("sportsbook"))
-    selection_type = clean_text(request.form.get("selection_type"))
-    selection_name = clean_text(request.form.get("selection_name"))
-    prop = clean_text(request.form.get("prop"))
-    ou = clean_text(request.form.get("ou")).lower()
     title = clean_text(request.form.get("title"))
     notes = clean_text(request.form.get("notes"))
     bet_time_raw = clean_text(request.form.get("bet_time"))
-    event_start_raw = clean_text(
-    request.form.get("event_start")
-)
 
-    try:
-        odds = int(request.form.get("odds"))
-    except (TypeError, ValueError):
-        flash("Enter valid American odds.", "error")
-        return redirect(url_for("my_bets_page"))
+    selection_types = request.form.getlist("selection_type[]")
+    selection_names = request.form.getlist("selection_name[]")
+    props = request.form.getlist("prop[]")
+    sides = request.form.getlist("ou[]")
+    lines_raw = request.form.getlist("line[]")
+    odds_raw = request.form.getlist("leg_odds[]")
+    event_starts = request.form.getlist("event_start[]")
 
     try:
         stake = float(request.form.get("stake"))
@@ -4355,42 +4350,98 @@ def add_manual_bet():
         flash("Enter a valid stake.", "error")
         return redirect(url_for("my_bets_page"))
 
-    line_raw = clean_text(request.form.get("line"))
-    line = None
-
-    if line_raw:
-        try:
-            line = float(line_raw)
-        except ValueError:
-            flash("Enter a valid line.", "error")
-            return redirect(url_for("my_bets_page"))
+    leg_count = len(selection_names)
 
     if not bankroll_id:
         flash("Choose a bankroll.", "error")
         return redirect(url_for("my_bets_page"))
 
-    if not sport or not sportsbook or not selection_name:
-        flash("Sport, sportsbook and selection are required.", "error")
-        return redirect(url_for("my_bets_page"))
-
-    if not event_start_raw:
-        flash("Event start is required.", "error")
-        return redirect(url_for("my_bets_page"))
-
-    if odds == 0:
-        flash("American odds cannot be zero.", "error")
+    if not sport or not sportsbook:
+        flash("Sport and sportsbook are required.", "error")
         return redirect(url_for("my_bets_page"))
 
     if stake <= 0:
         flash("Stake must be greater than zero.", "error")
         return redirect(url_for("my_bets_page"))
 
-    if odds > 0:
-        potential_profit = stake * odds / 100
-    else:
-        potential_profit = stake * 100 / abs(odds)
+    if leg_count < 1 or leg_count > 20:
+        flash("Tickets must contain between 1 and 20 legs.", "error")
+        return redirect(url_for("my_bets_page"))
 
-    potential_return = stake + potential_profit
+    submitted_lists = [
+        selection_types,
+        props,
+        sides,
+        lines_raw,
+        odds_raw,
+        event_starts
+    ]
+
+    if any(len(items) != leg_count for items in submitted_lists):
+        flash("The ticket legs were incomplete.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    legs = []
+    combined_decimal = 1.0
+
+    for index in range(leg_count):
+        selection_type = clean_text(selection_types[index])
+        selection_name = clean_text(selection_names[index])
+        prop = clean_text(props[index])
+        ou = clean_text(sides[index]).lower()
+        event_start = clean_text(event_starts[index])
+
+        if not selection_type or not selection_name or not event_start:
+            flash(f"Complete all required fields for leg {index + 1}.", "error")
+            return redirect(url_for("my_bets_page"))
+
+        try:
+            odds = int(odds_raw[index])
+        except (TypeError, ValueError):
+            flash(f"Enter valid odds for leg {index + 1}.", "error")
+            return redirect(url_for("my_bets_page"))
+
+        if odds == 0:
+            flash(f"Odds cannot be zero for leg {index + 1}.", "error")
+            return redirect(url_for("my_bets_page"))
+
+        line = None
+        line_text = clean_text(lines_raw[index])
+
+        if line_text:
+            try:
+                line = float(line_text)
+            except ValueError:
+                flash(f"Enter a valid line for leg {index + 1}.", "error")
+                return redirect(url_for("my_bets_page"))
+
+        decimal_odds = (
+            1 + odds / 100
+            if odds > 0
+            else 1 + 100 / abs(odds)
+        )
+
+        combined_decimal *= decimal_odds
+
+        legs.append({
+            "selection_type": selection_type,
+            "selection_name": selection_name,
+            "prop": prop,
+            "ou": ou,
+            "line": line,
+            "odds": odds,
+            "event_start": event_start
+        })
+
+    combined_odds = (
+        round((combined_decimal - 1) * 100)
+        if combined_decimal >= 2
+        else round(-100 / (combined_decimal - 1))
+    )
+
+    potential_profit = round(stake * (combined_decimal - 1), 2)
+    potential_return = round(stake + potential_profit, 2)
+    bet_type = "straight" if leg_count == 1 else "parlay"
     ticket_id = uuid.uuid4()
 
     conn = get_conn()
@@ -4419,6 +4470,8 @@ def add_manual_bet():
                 unit_percentage = float(bankroll[2] or 0.01)
                 unit_value = current_balance * unit_percentage
                 units = stake / unit_value if unit_value > 0 else None
+
+                straight_line = legs[0]["line"] if leg_count == 1 else None
 
                 cur.execute("""
                     INSERT INTO user_bets (
@@ -4454,53 +4507,29 @@ def add_manual_bet():
                         is_manual
                     )
                     VALUES (
-                        NULL,
-                        NULL,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        NULL,
-                        NULL,
-                        COALESCE(%s::timestamp, NOW()),
-                        %s,
-                        'straight',
-                        %s,
-                        %s,
-                        %s,
-                        'pending',
-                        %s,
-                        %s,
-                        %s,
-                        NULL,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        NULL,
-                        TRUE
+                        NULL, NULL, %s, %s, %s, %s, %s,
+                        NULL, NULL, COALESCE(%s::timestamp, NOW()),
+                        %s, %s, %s, %s, %s, 'pending',
+                        %s, %s, %s, NULL, %s, %s, %s,
+                        %s, %s, %s, %s, %s, NULL, TRUE
                     )
                     RETURNING id
                 """, (
                     sportsbook,
-                    odds,
-                    line,
+                    combined_odds,
+                    straight_line,
                     stake,
                     units,
                     bet_time_raw or None,
                     str(ticket_id),
-                    odds,
+                    bet_type,
+                    combined_odds,
                     potential_profit,
                     potential_return,
                     current_user.id,
                     unit_value,
                     bankroll_id,
-                    odds,
+                    combined_odds,
                     current_balance,
                     unit_percentage,
                     sport,
@@ -4512,90 +4541,77 @@ def add_manual_bet():
 
                 user_bet_id = cur.fetchone()[0]
 
-                cur.execute("""
-                    INSERT INTO user_bet_legs (
-                        ticket_id,
+                for sort_order, leg in enumerate(legs, start=1):
+                    cur.execute("""
+                        INSERT INTO user_bet_legs (
+                            ticket_id,
+                            user_bet_id,
+                            player_name,
+                            prop,
+                            ou,
+                            line,
+                            odds,
+                            sportsbook,
+                            start_time,
+                            status,
+                            created_at,
+                            official_sportsbook,
+                            official_odds,
+                            user_sportsbook,
+                            user_odds,
+                            official_line,
+                            user_line,
+                            sport,
+                            league,
+                            selection_type,
+                            selection_name,
+                            team_name,
+                            opponent,
+                            result,
+                            sort_order
+                        )
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s::timestamp, 'pending', NOW(),
+                            NULL, NULL, %s, %s, NULL, %s,
+                            %s, %s, %s, %s,
+                            NULL, NULL, NULL, %s
+                        )
+                    """, (
+                        str(ticket_id),
                         user_bet_id,
-                        player_name,
-                        prop,
-                        ou,
-                        line,
-                        odds,
+                        leg["selection_name"]
+                        if leg["selection_type"] == "Player Prop"
+                        else None,
+                        leg["prop"] or leg["selection_type"],
+                        leg["ou"] or None,
+                        leg["line"],
+                        leg["odds"],
                         sportsbook,
-                        start_time,
-                        status,
-                        created_at,
-                        official_sportsbook,
-                        official_odds,
-                        user_sportsbook,
-                        user_odds,
-                        official_line,
-                        user_line,
+                        leg["event_start"],
+                        sportsbook,
+                        leg["odds"],
+                        leg["line"],
                         sport,
-                        league,
-                        selection_type,
-                        selection_name,
-                        team_name,
-                        opponent,
-                        result,
+                        league or None,
+                        leg["selection_type"],
+                        leg["selection_name"],
                         sort_order
-                    )
-                    VALUES (
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s::timestamp,
-                        'pending',
-                        NOW(),
-                        NULL,
-                        NULL,
-                        %s,
-                        %s,
-                        NULL,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        NULL,
-                        NULL,
-                        NULL,
-                        1
-                    )
-                """, (
-                    str(ticket_id),
-                    user_bet_id,
-                    selection_name if selection_type == "Player Prop" else None,
-                    prop or selection_type,
-                    ou or None,
-                    line,
-                    odds,
-                    sportsbook,
-                    event_start_raw,
-                    sportsbook,
-                    odds,
-                    line,
-                    sport,
-                    league or None,
-                    selection_type,
-                    selection_name
-                ))
+                    ))
 
-        flash("Manual bet added.", "success")
+        flash(
+            "Manual parlay added." if leg_count > 1 else "Manual bet added.",
+            "success"
+        )
 
     except Exception as exc:
-        print("Manual bet save error:", exc)
-        flash("The bet could not be saved.", "error")
+        print("Manual ticket save error:", exc)
+        flash("The ticket could not be saved.", "error")
 
     finally:
         conn.close()
 
-    return redirect(url_for("my_bets_page"))    
+    return redirect(url_for("my_bets_page"))
 
 @app.route("/systems/<system_code>/watch", methods=["POST"])
 @login_required

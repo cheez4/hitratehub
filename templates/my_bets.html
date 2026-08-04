@@ -296,6 +296,26 @@
             ✎ Edit
         </button>
 
+        <button type="button"
+                class="hub-grade-btn hub-copy-btn"
+                data-bankroll-id="{{ bet.bankroll_id or '' }}"
+                data-title="{{ bet.title or '' }}"
+                data-sport="{{ bet.sport or '' }}"
+                data-league="{{ bet.league or '' }}"
+                data-source="{{ bet.source or '' }}"
+                data-sportsbook="{{ bet.sportsbook or '' }}"
+                data-selection-type="{{ first_leg.selection_type or '' }}"
+                data-selection-name="{{ first_leg.selection_name or first_leg.player_name or first_leg.team_name or '' }}"
+                data-prop="{{ first_leg.prop or '' }}"
+                data-ou="{{ first_leg.ou or '' }}"
+                data-line="{{ first_leg.user_line if first_leg.user_line is not none else (first_leg.line if first_leg.line is not none else '') }}"
+                data-odds="{{ bet.user_combined_odds or bet.combined_odds or bet.odds_taken or '' }}"
+                data-stake="{{ bet.stake or '' }}"
+                data-notes="{{ bet.notes or '' }}"
+                onclick="duplicateBet(this)">
+            📄 Copy
+        </button>
+
         <form method="post"
       action="{{ url_for('delete_personal_bet', bet_id=bet.id) }}"
       style="display:inline;"
@@ -418,7 +438,7 @@
         <div class="modal-head">
             <div>
                 <div class="modal-title" id="manualBetTitle">Add Manual Bet</div>
-                <div class="hub-panel-note">Straight bets first. Parlays are next.</div>
+                <div class="hub-panel-note">Add a straight bet or build a multi-leg parlay.</div>
             </div>
 
             <button class="modal-close" type="button" onclick="closeManualBetModal()" aria-label="Close">
@@ -429,7 +449,6 @@
         <form method="post" action="{{ url_for('add_manual_bet') }}" id="manualBetForm">
             <div class="modal-body">
                 <div class="hub-manual-grid">
-
                     <div class="field">
                         <label for="manual_bankroll_id">Bankroll</label>
                         <select id="manual_bankroll_id" name="bankroll_id" required>
@@ -481,57 +500,8 @@
                     </div>
 
                     <div class="field">
-                        <label for="manual_selection_type">Bet Market</label>
-                        <select id="manual_selection_type" name="selection_type" required>
-                            <option value="Player Prop">Player Prop</option>
-                            <option value="Moneyline">Moneyline</option>
-                            <option value="Spread">Spread</option>
-                            <option value="Game Total">Game Total</option>
-                            <option value="Team Total">Team Total</option>
-                            <option value="Future">Future</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-
-                    <div class="field hub-span-2">
-                        <label for="manual_selection_name">Player, Team or Selection</label>
-                        <input id="manual_selection_name" name="selection_name" type="text" maxlength="200" placeholder="Aaron Judge" required>
-                    </div>
-
-                    <div class="field">
-                        <label for="manual_prop">Prop / Market</label>
-                        <input id="manual_prop" name="prop" type="text" maxlength="100" placeholder="Hits, Moneyline, Spread...">
-                    </div>
-
-                    <div class="field">
-                        <label for="manual_ou">Side</label>
-                        <select id="manual_ou" name="ou">
-                            <option value="">Not applicable</option>
-                            <option value="over">Over</option>
-                            <option value="under">Under</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="manual_line">Line</label>
-                        <input id="manual_line" name="line" type="number" step="0.01" placeholder="1.5">
-                    </div>
-
-                    <div class="field">
-                        <label for="manual_odds">American Odds</label>
-                        <input id="manual_odds" name="odds" type="number" step="1" placeholder="+135" required>
-                    </div>
-
-                    <div class="field">
                         <label for="manual_stake">Stake ($)</label>
                         <input id="manual_stake" name="stake" type="number" min="0.01" step="0.01" placeholder="25.00" required>
-                    </div>
-
-                    <div class="field">
-                        <label for="manual_event_start">Event Start</label>
-                        <input id="manual_event_start" name="event_start" type="datetime-local" required>
                     </div>
 
                     <div class="field">
@@ -539,18 +509,37 @@
                         <input id="manual_bet_time" name="bet_time" type="datetime-local">
                     </div>
 
+                    <div class="field">
+                        <label>Ticket Type</label>
+                        <input id="manual_ticket_type_display" type="text" value="Straight" readonly>
+                    </div>
+
                     <div class="field hub-span-2">
                         <label for="manual_title">Bet Title (optional)</label>
-                        <input id="manual_title" name="title" type="text" maxlength="200" placeholder="Judge over 1.5 hits">
+                        <input id="manual_title" name="title" type="text" maxlength="200" placeholder="Judge + Ohtani parlay">
                     </div>
 
                     <div class="field hub-span-2">
                         <label for="manual_notes">Notes</label>
-                        <textarea id="manual_notes" name="notes" rows="3" maxlength="1000" placeholder="Why you placed it, where it came from, or anything you want to remember."></textarea>
+                        <textarea id="manual_notes" name="notes" rows="3" maxlength="1000" placeholder="Why you placed it or anything you want to remember."></textarea>
                     </div>
                 </div>
 
+                <div class="hub-leg-builder-head">
+                    <div>
+                        <strong>Ticket Legs</strong>
+                        <div class="hub-panel-note">Add up to 20 legs.</div>
+                    </div>
+                    <button class="share-btn" type="button" onclick="addManualLeg()">+ Add Leg</button>
+                </div>
+
+                <div id="manualLegs"></div>
+
                 <div class="hub-manual-preview">
+                    <div>
+                        <span>Combined odds</span>
+                        <strong id="manualCombinedOdds">—</strong>
+                    </div>
                     <div>
                         <span>Potential profit</span>
                         <strong id="manualPotentialProfit">—</strong>
@@ -563,7 +552,7 @@
 
                 <div class="hub-modal-actions">
                     <button class="share-btn" type="button" onclick="closeManualBetModal()">Cancel</button>
-                    <button class="run-btn" type="submit">Save Bet</button>
+                    <button class="run-btn" type="submit">Save Ticket</button>
                 </div>
             </div>
         </form>
@@ -631,6 +620,135 @@
 
 {% block scripts %}
 <script>
+let manualLegCounter = 0;
+
+function localDateTimeNow() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+}
+
+function manualLegTemplate(index) {
+    return `
+        <div class="hub-manual-leg" data-leg-index="${index}">
+            <div class="hub-manual-leg-head">
+                <strong>Leg <span class="manual-leg-number"></span></strong>
+                <button type="button" class="hub-remove-leg" onclick="removeManualLeg(this)">Remove</button>
+            </div>
+
+            <div class="hub-manual-grid">
+                <div class="field">
+                    <label>Bet Market</label>
+                    <select name="selection_type[]" required>
+                        <option value="Player Prop">Player Prop</option>
+                        <option value="Moneyline">Moneyline</option>
+                        <option value="Spread">Spread</option>
+                        <option value="Game Total">Game Total</option>
+                        <option value="Team Total">Team Total</option>
+                        <option value="Future">Future</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="field hub-span-2">
+                    <label>Player, Team or Selection</label>
+                    <input name="selection_name[]" type="text" maxlength="200" placeholder="Aaron Judge" required>
+                </div>
+
+                <div class="field">
+                    <label>Prop / Market</label>
+                    <input name="prop[]" type="text" maxlength="100" placeholder="Hits, Moneyline, Spread...">
+                </div>
+
+                <div class="field">
+                    <label>Side</label>
+                    <select name="ou[]">
+                        <option value="">Not applicable</option>
+                        <option value="over">Over</option>
+                        <option value="under">Under</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Line</label>
+                    <input name="line[]" type="number" step="0.01" placeholder="1.5">
+                </div>
+
+                <div class="field">
+                    <label>American Odds</label>
+                    <input name="leg_odds[]" type="number" step="1" placeholder="+135" required oninput="calculateManualPayout()">
+                </div>
+
+                <div class="field">
+                    <label>Event Start</label>
+                    <input name="event_start[]" type="datetime-local" required>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function refreshManualLegNumbers() {
+    const legs = [...document.querySelectorAll("#manualLegs .hub-manual-leg")];
+
+    legs.forEach((leg, index) => {
+        const number = leg.querySelector(".manual-leg-number");
+        const remove = leg.querySelector(".hub-remove-leg");
+        if (number) number.textContent = index + 1;
+        if (remove) remove.style.display = legs.length === 1 ? "none" : "";
+    });
+
+    const ticketType = document.getElementById("manual_ticket_type_display");
+    if (ticketType) ticketType.value = legs.length > 1 ? `${legs.length}-Leg Parlay` : "Straight";
+}
+
+function addManualLeg(values = {}) {
+    const container = document.getElementById("manualLegs");
+    if (!container) return;
+
+    const currentLegs = container.querySelectorAll(".hub-manual-leg").length;
+    if (currentLegs >= 20) {
+        alert("Maximum 20 legs.");
+        return;
+    }
+
+    manualLegCounter += 1;
+    container.insertAdjacentHTML("beforeend", manualLegTemplate(manualLegCounter));
+
+    const leg = container.lastElementChild;
+    const setValue = (selector, value) => {
+        const element = leg.querySelector(selector);
+        if (element && value !== undefined && value !== null) {
+            element.value = value;
+        }
+    };
+
+    setValue('[name="selection_type[]"]', values.selectionType);
+    setValue('[name="selection_name[]"]', values.selectionName);
+    setValue('[name="prop[]"]', values.prop);
+    setValue('[name="ou[]"]', values.ou);
+    setValue('[name="line[]"]', values.line);
+    setValue('[name="leg_odds[]"]', values.odds);
+    setValue('[name="event_start[]"]', values.eventStart);
+
+    refreshManualLegNumbers();
+    calculateManualPayout();
+}
+
+function removeManualLeg(button) {
+    const leg = button.closest(".hub-manual-leg");
+    if (!leg) return;
+
+    const container = document.getElementById("manualLegs");
+    if (container.querySelectorAll(".hub-manual-leg").length <= 1) return;
+
+    leg.remove();
+    refreshManualLegNumbers();
+    calculateManualPayout();
+}
+
 function openManualBetModal() {
     const modal = document.getElementById("manualBetModal");
     if (!modal) return;
@@ -639,11 +757,10 @@ function openManualBetModal() {
     modal.setAttribute("aria-hidden", "false");
 
     const timeInput = document.getElementById("manual_bet_time");
-    if (timeInput && !timeInput.value) {
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        timeInput.value = now.toISOString().slice(0, 16);
-    }
+    if (timeInput && !timeInput.value) timeInput.value = localDateTimeNow();
+
+    const container = document.getElementById("manualLegs");
+    if (container && container.children.length === 0) addManualLeg();
 
     const firstInput = document.getElementById("manual_bankroll_id");
     if (firstInput) firstInput.focus();
@@ -657,45 +774,68 @@ function closeManualBetModal() {
     modal.setAttribute("aria-hidden", "true");
 }
 
+function americanToDecimal(odds) {
+    odds = Number(odds);
+    if (!odds) return null;
+    return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+}
+
+function decimalToAmerican(decimalOdds) {
+    if (!decimalOdds || decimalOdds <= 1) return null;
+    return decimalOdds >= 2
+        ? Math.round((decimalOdds - 1) * 100)
+        : Math.round(-100 / (decimalOdds - 1));
+}
+
 function calculateManualPayout() {
-    const odds = Number(document.getElementById("manual_odds")?.value);
+    const oddsInputs = [...document.querySelectorAll('#manualLegs [name="leg_odds[]"]')];
     const stake = Number(document.getElementById("manual_stake")?.value);
 
+    const combinedEl = document.getElementById("manualCombinedOdds");
     const profitEl = document.getElementById("manualPotentialProfit");
     const returnEl = document.getElementById("manualPotentialReturn");
 
-    if (!odds || !stake || stake <= 0) {
+    if (!oddsInputs.length || oddsInputs.some(input => !Number(input.value))) {
+        combinedEl.textContent = "—";
         profitEl.textContent = "—";
         returnEl.textContent = "—";
         return;
     }
 
-    let profit;
+    let combinedDecimal = 1;
 
-    if (odds > 0) {
-        profit = stake * odds / 100;
-    } else {
-        profit = stake * 100 / Math.abs(odds);
+    for (const input of oddsInputs) {
+        const decimalOdds = americanToDecimal(input.value);
+        if (!decimalOdds) return;
+        combinedDecimal *= decimalOdds;
     }
 
-    const totalReturn = stake + profit;
+    const combinedAmerican = decimalToAmerican(combinedDecimal);
+    combinedEl.textContent = combinedAmerican > 0
+        ? `+${combinedAmerican}`
+        : `${combinedAmerican}`;
 
+    if (!stake || stake <= 0) {
+        profitEl.textContent = "—";
+        returnEl.textContent = "—";
+        return;
+    }
+
+    const profit = stake * (combinedDecimal - 1);
     profitEl.textContent = "$" + profit.toFixed(2);
-    returnEl.textContent = "$" + totalReturn.toFixed(2);
+    returnEl.textContent = "$" + (stake + profit).toFixed(2);
 }
 
-document.getElementById("manual_odds")?.addEventListener("input", calculateManualPayout);
 document.getElementById("manual_stake")?.addEventListener("input", calculateManualPayout);
 
 document.getElementById("manualBetModal")?.addEventListener("click", function(event) {
-    if (event.target === this) {
-        closeManualBetModal();
-    }
+    if (event.target === this) closeManualBetModal();
 });
 
 document.addEventListener("keydown", function(event) {
     if (event.key === "Escape") {
         closeManualBetModal();
+        closeEditBetModal();
     }
 });
 
@@ -733,6 +873,51 @@ function openEditBetModal(button) {
     modal.setAttribute("aria-hidden", "false");
 }
 
+function duplicateBet(button) {
+    closeEditBetModal();
+
+    const form = document.getElementById("manualBetForm");
+    if (form) form.reset();
+
+    const container = document.getElementById("manualLegs");
+    if (container) container.innerHTML = "";
+
+    openManualBetModal();
+
+    const values = {
+        manual_bankroll_id: button.dataset.bankrollId,
+        manual_title: button.dataset.title,
+        manual_sport: button.dataset.sport,
+        manual_league: button.dataset.league,
+        manual_source: button.dataset.source,
+        manual_sportsbook: button.dataset.sportsbook,
+        manual_stake: button.dataset.stake,
+        manual_notes: button.dataset.notes
+    };
+
+    Object.entries(values).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value || "";
+    });
+
+    if (container) container.innerHTML = "";
+
+    addManualLeg({
+        selectionType: button.dataset.selectionType,
+        selectionName: button.dataset.selectionName,
+        prop: button.dataset.prop,
+        ou: button.dataset.ou,
+        line: button.dataset.line,
+        odds: button.dataset.odds,
+        eventStart: ""
+    });
+
+    const betTime = document.getElementById("manual_bet_time");
+    if (betTime) betTime.value = localDateTimeNow();
+
+    calculateManualPayout();
+}
+
 function closeEditBetModal() {
     const modal = document.getElementById("editBetModal");
     if (!modal) return;
@@ -744,5 +929,12 @@ document.getElementById("editBetModal")?.addEventListener("click", function(even
     if (event.target === this) closeEditBetModal();
 });
 
+document.getElementById("manualBetForm")?.addEventListener("submit", function(event) {
+    const legs = document.querySelectorAll("#manualLegs .hub-manual-leg");
+    if (!legs.length) {
+        event.preventDefault();
+        alert("Add at least one leg.");
+    }
+});
 </script>
 {% endblock %}
