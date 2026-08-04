@@ -2628,3 +2628,28 @@
         grid-template-columns:1fr !important;
     }
 }
+/* FORCE ONLY THE LEG LIST TO SCROLL */
+
+#manualLegs,
+#editLegs {
+    height: 290px !important;
+    min-height: 290px !important;
+    max-height: 290px !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    display: block !important;
+    padding-right: 10px !important;
+}
+
+#manualBetModal .hub-ticket-modal-body,
+#editBetModal .hub-ticket-modal-body {
+    overflow: hidden !important;
+}
+
+#manualBetModal .hub-manual-preview,
+#editBetModal .hub-manual-preview,
+#manualBetModal .hub-ticket-sticky-actions,
+#editBetModal .hub-ticket-sticky-actions {
+    position: static !important;
+    flex-shrink: 0 !important;
+}
