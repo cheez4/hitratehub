@@ -2354,3 +2354,64 @@
     overflow-y:auto;
     overscroll-behavior:contain;
 }
+
+
+/* MY HUB — TICKET LEG SCROLL FIX */
+
+#manualBetModal .hub-ticket-modal,
+#editBetModal .hub-ticket-modal{
+    height:calc(100vh - 48px);
+}
+
+#manualBetModal .hub-ticket-modal-body,
+#editBetModal .hub-ticket-modal-body{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto !important;
+}
+
+#manualLegs,
+#editLegs{
+    max-height:46vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding-right:8px;
+    scrollbar-gutter:stable;
+}
+
+#manualLegs::-webkit-scrollbar,
+#editLegs::-webkit-scrollbar,
+#manualBetModal .hub-ticket-modal-body::-webkit-scrollbar,
+#editBetModal .hub-ticket-modal-body::-webkit-scrollbar{
+    width:10px;
+}
+
+#manualLegs::-webkit-scrollbar-track,
+#editLegs::-webkit-scrollbar-track,
+#manualBetModal .hub-ticket-modal-body::-webkit-scrollbar-track,
+#editBetModal .hub-ticket-modal-body::-webkit-scrollbar-track{
+    background:rgba(255,255,255,.04);
+    border-radius:999px;
+}
+
+#manualLegs::-webkit-scrollbar-thumb,
+#editLegs::-webkit-scrollbar-thumb,
+#manualBetModal .hub-ticket-modal-body::-webkit-scrollbar-thumb,
+#editBetModal .hub-ticket-modal-body::-webkit-scrollbar-thumb{
+    background:rgba(47,140,255,.55);
+    border-radius:999px;
+}
+
+#manualLegs::-webkit-scrollbar-thumb:hover,
+#editLegs::-webkit-scrollbar-thumb:hover,
+#manualBetModal .hub-ticket-modal-body::-webkit-scrollbar-thumb:hover,
+#editBetModal .hub-ticket-modal-body::-webkit-scrollbar-thumb:hover{
+    background:rgba(47,140,255,.8);
+}
+
+@media (max-width:700px){
+    #manualLegs,
+    #editLegs{
+        max-height:52vh;
+    }
+}
