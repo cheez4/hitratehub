@@ -2653,3 +2653,28 @@
     position: static !important;
     flex-shrink: 0 !important;
 }
+
+/* KEEP CANCEL / SAVE VISIBLE */
+
+#manualBetModal .hub-ticket-sticky-actions,
+#editBetModal .hub-ticket-sticky-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 50 !important;
+    background: #06182a !important;
+    border-top: 1px solid rgba(75, 125, 185, 0.3) !important;
+    padding: 10px 20px 14px !important;
+    margin: 0 -20px !important;
+}
+
+#manualBetModal .hub-ticket-modal-body,
+#editBetModal .hub-ticket-modal-body {
+    padding-bottom: 0 !important;
+}
+
+#manualLegs,
+#editLegs {
+    height: 260px !important;
+    min-height: 260px !important;
+    max-height: 260px !important;
+}
