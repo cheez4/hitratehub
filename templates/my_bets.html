@@ -274,25 +274,11 @@
 
     {% if bet.can_edit %}
         {% set first_leg = bet.legs[0] if bet.legs else {} %}
-        <button type="button"
-                class="hub-grade-btn hub-edit-btn"
-                data-bet-id="{{ bet.id }}"
-                data-bankroll-id="{{ bet.bankroll_id or '' }}"
-                data-title="{{ bet.title or '' }}"
-                data-sport="{{ bet.sport or '' }}"
-                data-league="{{ bet.league or '' }}"
-                data-source="{{ bet.source or '' }}"
-                data-sportsbook="{{ bet.sportsbook or '' }}"
-                data-selection-type="{{ first_leg.selection_type or '' }}"
-                data-selection-name="{{ first_leg.selection_name or first_leg.player_name or first_leg.team_name or '' }}"
-                data-prop="{{ first_leg.prop or '' }}"
-                data-ou="{{ first_leg.ou or '' }}"
-                data-line="{{ first_leg.user_line if first_leg.user_line is not none else (first_leg.line if first_leg.line is not none else '') }}"
-                data-odds="{{ bet.user_combined_odds or bet.combined_odds or bet.odds_taken or '' }}"
-                data-stake="{{ bet.stake or '' }}"
-                data-event-start="{{ bet.event_start.strftime('%Y-%m-%dT%H:%M') if bet.event_start else '' }}"
-                data-notes="{{ bet.notes or '' }}"
-                onclick="openEditBetModal(this)">
+        <button
+            type="button"
+            class="hub-grade-btn hub-edit-btn"
+            data-bet-id="{{ bet.id }}"
+            onclick="openEditBetModal(this)">
             ✎ Edit
         </button>
 
@@ -434,7 +420,7 @@
 </div>
 
 <div class="modal-backdrop" id="manualBetModal" aria-hidden="true">
-    <div class="modal hub-manual-modal" role="dialog" aria-modal="true" aria-labelledby="manualBetTitle">
+    <div class="modal hub-manual-modal hub-ticket-modal" role="dialog" aria-modal="true" aria-labelledby="manualBetTitle">
         <div class="modal-head">
             <div>
                 <div class="modal-title" id="manualBetTitle">Add Manual Bet</div>
@@ -447,8 +433,8 @@
         </div>
 
         <form method="post" action="{{ url_for('add_manual_bet') }}" id="manualBetForm">
-            <div class="modal-body">
-                <div class="hub-manual-grid">
+            <div class="modal-body hub-ticket-modal-body">
+                <div class="hub-manual-grid hub-ticket-summary-grid">
                     <div class="field">
                         <label for="manual_bankroll_id">Bankroll</label>
                         <select id="manual_bankroll_id" name="bankroll_id" required>
@@ -528,12 +514,12 @@
                 <div class="hub-leg-builder-head">
                     <div>
                         <strong>Ticket Legs</strong>
-                        <div class="hub-panel-note">Add up to 20 legs.</div>
+                        <div class="hub-panel-note">Legs stay inside this scrollable ticket window.</div>
                     </div>
                     <button class="share-btn" type="button" onclick="addManualLeg()">+ Add Leg</button>
                 </div>
 
-                <div id="manualLegs"></div>
+                <div id="manualLegs" class="hub-ticket-legs-scroll"></div>
 
                 <div class="hub-manual-preview">
                     <div>
@@ -550,7 +536,7 @@
                     </div>
                 </div>
 
-                <div class="hub-modal-actions">
+                <div class="hub-modal-actions hub-ticket-sticky-actions">
                     <button class="share-btn" type="button" onclick="closeManualBetModal()">Cancel</button>
                     <button class="run-btn" type="submit">Save Ticket</button>
                 </div>
@@ -561,18 +547,18 @@
 
 
 <div class="modal-backdrop" id="editBetModal" aria-hidden="true">
-    <div class="modal hub-manual-modal" role="dialog" aria-modal="true" aria-labelledby="editBetTitle">
+    <div class="modal hub-manual-modal hub-ticket-modal" role="dialog" aria-modal="true" aria-labelledby="editBetTitle">
         <div class="modal-head">
             <div>
-                <div class="modal-title" id="editBetTitle">Edit Bet</div>
-                <div class="hub-panel-note">Only available before the event starts.</div>
+                <div class="modal-title" id="editBetTitle">Edit Ticket</div>
+                <div class="hub-panel-note">The entire ticket locks when its first event starts.</div>
             </div>
             <button class="modal-close" type="button" onclick="closeEditBetModal()" aria-label="Close">×</button>
         </div>
 
         <form method="post" id="editBetForm">
-            <div class="modal-body">
-                <div class="hub-manual-grid">
+            <div class="modal-body hub-ticket-modal-body">
+                <div class="hub-manual-grid hub-ticket-summary-grid">
                     <div class="field">
                         <label for="edit_bankroll_id">Bankroll</label>
                         <select id="edit_bankroll_id" name="bankroll_id" required>
@@ -582,32 +568,73 @@
                         </select>
                     </div>
 
-                    <div class="field"><label for="edit_sport">Sport</label><input id="edit_sport" name="sport" type="text" required></div>
-                    <div class="field"><label for="edit_league">League</label><input id="edit_league" name="league" type="text"></div>
-                    <div class="field"><label for="edit_source">Source</label><input id="edit_source" name="source" type="text"></div>
-                    <div class="field"><label for="edit_sportsbook">Sportsbook</label><input id="edit_sportsbook" name="sportsbook" type="text" required></div>
-                    <div class="field"><label for="edit_selection_type">Bet Market</label><input id="edit_selection_type" name="selection_type" type="text" required></div>
-                    <div class="field hub-span-2"><label for="edit_selection_name">Player, Team or Selection</label><input id="edit_selection_name" name="selection_name" type="text" required></div>
-                    <div class="field"><label for="edit_prop">Prop / Market</label><input id="edit_prop" name="prop" type="text"></div>
                     <div class="field">
-                        <label for="edit_ou">Side</label>
-                        <select id="edit_ou" name="ou">
-                            <option value="">Not applicable</option>
-                            <option value="over">Over</option>
-                            <option value="under">Under</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
+                        <label for="edit_sport">Sport</label>
+                        <input id="edit_sport" name="sport" type="text" required>
                     </div>
-                    <div class="field"><label for="edit_line">Line</label><input id="edit_line" name="line" type="number" step="0.01"></div>
-                    <div class="field"><label for="edit_odds">American Odds</label><input id="edit_odds" name="odds" type="number" step="1" required></div>
-                    <div class="field"><label for="edit_stake">Stake ($)</label><input id="edit_stake" name="stake" type="number" min="0.01" step="0.01" required></div>
-                    <div class="field"><label for="edit_event_start">Event Start</label><input id="edit_event_start" name="event_start" type="datetime-local" required></div>
-                    <div class="field hub-span-2"><label for="edit_title">Bet Title</label><input id="edit_title" name="title" type="text"></div>
-                    <div class="field hub-span-2"><label for="edit_notes">Notes</label><textarea id="edit_notes" name="notes" rows="3"></textarea></div>
+
+                    <div class="field">
+                        <label for="edit_league">League</label>
+                        <input id="edit_league" name="league" type="text">
+                    </div>
+
+                    <div class="field">
+                        <label for="edit_source">Source</label>
+                        <input id="edit_source" name="source" type="text">
+                    </div>
+
+                    <div class="field">
+                        <label for="edit_sportsbook">Sportsbook</label>
+                        <input id="edit_sportsbook" name="sportsbook" type="text" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="edit_stake">Stake ($)</label>
+                        <input id="edit_stake" name="stake" type="number" min="0.01" step="0.01" required>
+                    </div>
+
+                    <div class="field">
+                        <label>Ticket Type</label>
+                        <input id="edit_ticket_type_display" type="text" readonly>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="edit_title">Bet Title</label>
+                        <input id="edit_title" name="title" type="text">
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="edit_notes">Notes</label>
+                        <textarea id="edit_notes" name="notes" rows="3"></textarea>
+                    </div>
                 </div>
 
-                <div class="hub-modal-actions">
+                <div class="hub-leg-builder-head">
+                    <div>
+                        <strong>Ticket Legs</strong>
+                        <div class="hub-panel-note">Add, remove or change legs before the first event starts.</div>
+                    </div>
+                    <button class="share-btn" type="button" onclick="addEditLeg()">+ Add Leg</button>
+                </div>
+
+                <div id="editLegs" class="hub-ticket-legs-scroll"></div>
+
+                <div class="hub-manual-preview">
+                    <div>
+                        <span>Combined odds</span>
+                        <strong id="editCombinedOdds">—</strong>
+                    </div>
+                    <div>
+                        <span>Potential profit</span>
+                        <strong id="editPotentialProfit">—</strong>
+                    </div>
+                    <div>
+                        <span>Potential return</span>
+                        <strong id="editPotentialReturn">—</strong>
+                    </div>
+                </div>
+
+                <div class="hub-modal-actions hub-ticket-sticky-actions">
                     <button class="share-btn" type="button" onclick="closeEditBetModal()">Cancel</button>
                     <button class="run-btn" type="submit">Save Changes</button>
                 </div>
@@ -615,7 +642,6 @@
         </form>
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -636,7 +662,7 @@ function manualLegTemplate(index) {
                 <button type="button" class="hub-remove-leg" onclick="removeManualLeg(this)">Remove</button>
             </div>
 
-            <div class="hub-manual-grid">
+            <div class="hub-manual-grid hub-leg-fields-grid">
                 <div class="field">
                     <label>Bet Market</label>
                     <select name="selection_type[]" required>
@@ -839,95 +865,294 @@ document.addEventListener("keydown", function(event) {
     }
 });
 
-function openEditBetModal(button) {
-    const modal = document.getElementById("editBetModal");
-    const form = document.getElementById("editBetForm");
-    if (!modal || !form) return;
+let editLegCounter = 0;
 
-    form.action = `/my-hub/bets/${button.dataset.betId}/edit`;
+function editLegTemplate(index) {
+    return `
+        <div class="hub-manual-leg" data-edit-leg-index="${index}">
+            <div class="hub-manual-leg-head">
+                <strong>Leg <span class="edit-leg-number"></span></strong>
+                <button type="button" class="hub-remove-leg" onclick="removeEditLeg(this)">Remove</button>
+            </div>
 
-    const values = {
-        edit_bankroll_id: button.dataset.bankrollId,
-        edit_title: button.dataset.title,
-        edit_sport: button.dataset.sport,
-        edit_league: button.dataset.league,
-        edit_source: button.dataset.source,
-        edit_sportsbook: button.dataset.sportsbook,
-        edit_selection_type: button.dataset.selectionType,
-        edit_selection_name: button.dataset.selectionName,
-        edit_prop: button.dataset.prop,
-        edit_ou: button.dataset.ou,
-        edit_line: button.dataset.line,
-        edit_odds: button.dataset.odds,
-        edit_stake: button.dataset.stake,
-        edit_event_start: button.dataset.eventStart,
-        edit_notes: button.dataset.notes
-    };
+            <div class="hub-manual-grid hub-leg-fields-grid">
+                <div class="field">
+                    <label>Bet Market</label>
+                    <select name="selection_type[]" required>
+                        <option value="Player Prop">Player Prop</option>
+                        <option value="Moneyline">Moneyline</option>
+                        <option value="Spread">Spread</option>
+                        <option value="Game Total">Game Total</option>
+                        <option value="Team Total">Team Total</option>
+                        <option value="Future">Future</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
 
-    Object.entries(values).forEach(([id, value]) => {
-        const el = document.getElementById(id);
-        if (el) el.value = value || "";
-    });
+                <div class="field hub-span-2">
+                    <label>Player, Team or Selection</label>
+                    <input name="selection_name[]" type="text" maxlength="200" required>
+                </div>
 
-    modal.classList.add("show");
-    modal.setAttribute("aria-hidden", "false");
+                <div class="field">
+                    <label>Prop / Market</label>
+                    <input name="prop[]" type="text" maxlength="100">
+                </div>
+
+                <div class="field">
+                    <label>Side</label>
+                    <select name="ou[]">
+                        <option value="">Not applicable</option>
+                        <option value="over">Over</option>
+                        <option value="under">Under</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Line</label>
+                    <input name="line[]" type="number" step="0.01">
+                </div>
+
+                <div class="field">
+                    <label>American Odds</label>
+                    <input name="leg_odds[]" type="number" step="1" required oninput="calculateEditPayout()">
+                </div>
+
+                <div class="field">
+                    <label>Event Start</label>
+                    <input name="event_start[]" type="datetime-local" required>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
-function duplicateBet(button) {
-    closeEditBetModal();
+function refreshEditLegNumbers() {
+    const legs = [...document.querySelectorAll("#editLegs .hub-manual-leg")];
 
-    const form = document.getElementById("manualBetForm");
-    if (form) form.reset();
+    legs.forEach((leg, index) => {
+        const number = leg.querySelector(".edit-leg-number");
+        const remove = leg.querySelector(".hub-remove-leg");
 
-    const container = document.getElementById("manualLegs");
-    if (container) container.innerHTML = "";
+        if (number) number.textContent = index + 1;
+        if (remove) remove.style.display = legs.length === 1 ? "none" : "";
+    });
 
-    openManualBetModal();
+    const ticketType = document.getElementById("edit_ticket_type_display");
 
-    const values = {
-        manual_bankroll_id: button.dataset.bankrollId,
-        manual_title: button.dataset.title,
-        manual_sport: button.dataset.sport,
-        manual_league: button.dataset.league,
-        manual_source: button.dataset.source,
-        manual_sportsbook: button.dataset.sportsbook,
-        manual_stake: button.dataset.stake,
-        manual_notes: button.dataset.notes
+    if (ticketType) {
+        ticketType.value = legs.length > 1
+            ? `${legs.length}-Leg Parlay`
+            : "Straight";
+    }
+}
+
+function addEditLeg(values = {}) {
+    const container = document.getElementById("editLegs");
+    if (!container) return;
+
+    const legCount = container.querySelectorAll(".hub-manual-leg").length;
+
+    if (legCount >= 20) {
+        alert("Maximum 20 legs.");
+        return;
+    }
+
+    editLegCounter += 1;
+    container.insertAdjacentHTML("beforeend", editLegTemplate(editLegCounter));
+
+    const leg = container.lastElementChild;
+
+    const setValue = (selector, value) => {
+        const element = leg.querySelector(selector);
+
+        if (
+            element
+            && value !== undefined
+            && value !== null
+        ) {
+            element.value = value;
+        }
     };
 
-    Object.entries(values).forEach(([id, value]) => {
-        const el = document.getElementById(id);
-        if (el) el.value = value || "";
-    });
+    setValue('[name="selection_type[]"]', values.selection_type);
+    setValue('[name="selection_name[]"]', values.selection_name);
+    setValue('[name="prop[]"]', values.prop);
+    setValue('[name="ou[]"]', values.ou);
+    setValue('[name="line[]"]', values.line);
+    setValue('[name="leg_odds[]"]', values.odds);
+    setValue('[name="event_start[]"]', values.event_start);
 
-    if (container) container.innerHTML = "";
+    refreshEditLegNumbers();
+    calculateEditPayout();
+}
 
-    addManualLeg({
-        selectionType: button.dataset.selectionType,
-        selectionName: button.dataset.selectionName,
-        prop: button.dataset.prop,
-        ou: button.dataset.ou,
-        line: button.dataset.line,
-        odds: button.dataset.odds,
-        eventStart: ""
-    });
+function removeEditLeg(button) {
+    const container = document.getElementById("editLegs");
+    const leg = button.closest(".hub-manual-leg");
 
-    const betTime = document.getElementById("manual_bet_time");
-    if (betTime) betTime.value = localDateTimeNow();
+    if (!container || !leg) return;
 
-    calculateManualPayout();
+    if (container.querySelectorAll(".hub-manual-leg").length <= 1) {
+        return;
+    }
+
+    leg.remove();
+    refreshEditLegNumbers();
+    calculateEditPayout();
+}
+
+function calculateEditPayout() {
+    const oddsInputs = [
+        ...document.querySelectorAll(
+            '#editLegs [name="leg_odds[]"]'
+        )
+    ];
+
+    const stake = Number(
+        document.getElementById("edit_stake")?.value
+    );
+
+    const combinedEl = document.getElementById("editCombinedOdds");
+    const profitEl = document.getElementById("editPotentialProfit");
+    const returnEl = document.getElementById("editPotentialReturn");
+
+    if (
+        !oddsInputs.length
+        || oddsInputs.some(input => !Number(input.value))
+    ) {
+        combinedEl.textContent = "—";
+        profitEl.textContent = "—";
+        returnEl.textContent = "—";
+        return;
+    }
+
+    let combinedDecimal = 1;
+
+    for (const input of oddsInputs) {
+        const decimalOdds = americanToDecimal(input.value);
+
+        if (!decimalOdds) return;
+
+        combinedDecimal *= decimalOdds;
+    }
+
+    const combinedAmerican = decimalToAmerican(combinedDecimal);
+
+    combinedEl.textContent = combinedAmerican > 0
+        ? `+${combinedAmerican}`
+        : `${combinedAmerican}`;
+
+    if (!stake || stake <= 0) {
+        profitEl.textContent = "—";
+        returnEl.textContent = "—";
+        return;
+    }
+
+    const profit = stake * (combinedDecimal - 1);
+
+    profitEl.textContent = "$" + profit.toFixed(2);
+    returnEl.textContent = "$" + (stake + profit).toFixed(2);
+}
+
+async function openEditBetModal(button) {
+    const modal = document.getElementById("editBetModal");
+    const form = document.getElementById("editBetForm");
+    const container = document.getElementById("editLegs");
+
+    if (!modal || !form || !container) return;
+
+    try {
+        const response = await fetch(
+            `/my-hub/bets/${button.dataset.betId}/edit-data`,
+            {
+                headers: {
+                    "Accept": "application/json"
+                }
+            }
+        );
+
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success) {
+            alert(payload.error || "The ticket could not be loaded.");
+            return;
+        }
+
+        const bet = payload.bet;
+
+        form.action = `/my-hub/bets/${bet.id}/edit`;
+
+        const values = {
+            edit_bankroll_id: bet.bankroll_id,
+            edit_title: bet.title,
+            edit_sport: bet.sport,
+            edit_league: bet.league,
+            edit_source: bet.source,
+            edit_sportsbook: bet.sportsbook,
+            edit_stake: bet.stake,
+            edit_notes: bet.notes
+        };
+
+        Object.entries(values).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+
+            if (element) {
+                element.value = (
+                    value === undefined
+                    || value === null
+                )
+                    ? ""
+                    : value;
+            }
+        });
+
+        container.innerHTML = "";
+        editLegCounter = 0;
+
+        for (const leg of bet.legs) {
+            addEditLeg(leg);
+        }
+
+        if (!bet.legs.length) {
+            addEditLeg();
+        }
+
+        modal.classList.add("show");
+        modal.setAttribute("aria-hidden", "false");
+
+        calculateEditPayout();
+
+    } catch (error) {
+        console.error("Edit ticket load error:", error);
+        alert("The ticket could not be loaded.");
+    }
 }
 
 function closeEditBetModal() {
     const modal = document.getElementById("editBetModal");
+
     if (!modal) return;
+
     modal.classList.remove("show");
     modal.setAttribute("aria-hidden", "true");
 }
 
-document.getElementById("editBetModal")?.addEventListener("click", function(event) {
-    if (event.target === this) closeEditBetModal();
-});
+document.getElementById("edit_stake")?.addEventListener(
+    "input",
+    calculateEditPayout
+);
+
+document.getElementById("editBetModal")?.addEventListener(
+    "click",
+    function(event) {
+        if (event.target === this) {
+            closeEditBetModal();
+        }
+    }
+);
 
 document.getElementById("manualBetForm")?.addEventListener("submit", function(event) {
     const legs = document.querySelectorAll("#manualLegs .hub-manual-leg");

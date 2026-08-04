@@ -2160,3 +2160,150 @@
         font-size:29px;
     }
 }
+
+
+/* MY HUB — PARLAY EDITOR */
+
+#editBetModal .hub-manual-modal{
+    width:min(900px, 100%);
+    max-height:92vh;
+    overflow:auto;
+}
+
+#editLegs{
+    margin-bottom:12px;
+}
+
+
+/* MY HUB — LARGE TICKET MODAL FIX */
+
+.hub-ticket-modal{
+    width:min(1180px, 96vw);
+    max-height:92vh;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+}
+
+.hub-ticket-modal .modal-head{
+    flex:0 0 auto;
+    position:sticky;
+    top:0;
+    z-index:6;
+    background:linear-gradient(180deg, rgba(8,24,42,.99), rgba(5,18,31,.99));
+}
+
+.hub-ticket-modal-body{
+    min-height:0;
+    overflow-y:auto;
+    padding-bottom:0;
+}
+
+.hub-ticket-summary-grid{
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+}
+
+.hub-leg-builder-head{
+    position:sticky;
+    top:0;
+    z-index:4;
+    padding:12px 0 10px;
+    background:linear-gradient(
+        180deg,
+        rgba(5,18,31,.99) 0%,
+        rgba(5,18,31,.96) 78%,
+        rgba(5,18,31,0) 100%
+    );
+}
+
+.hub-ticket-legs-scroll{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
+
+.hub-manual-leg{
+    margin-bottom:0;
+}
+
+.hub-leg-fields-grid{
+    grid-template-columns:
+        minmax(150px, .9fr)
+        minmax(220px, 1.35fr)
+        minmax(160px, 1fr)
+        minmax(110px, .65fr)
+        minmax(110px, .65fr)
+        minmax(120px, .7fr)
+        minmax(190px, 1fr);
+    gap:10px;
+    align-items:end;
+}
+
+.hub-leg-fields-grid .hub-span-2{
+    grid-column:auto;
+}
+
+.hub-leg-fields-grid .field label{
+    min-height:28px;
+    display:flex;
+    align-items:flex-end;
+}
+
+.hub-leg-fields-grid .field input,
+.hub-leg-fields-grid .field select{
+    min-width:0;
+}
+
+.hub-manual-preview{
+    position:sticky;
+    bottom:64px;
+    z-index:5;
+    margin-top:14px;
+    background:linear-gradient(180deg, rgba(7,25,43,.98), rgba(4,18,31,.99));
+    border-top:1px solid rgba(75,125,185,.18);
+    border-bottom:1px solid rgba(75,125,185,.18);
+}
+
+.hub-ticket-sticky-actions{
+    position:sticky;
+    bottom:0;
+    z-index:6;
+    margin:0 -20px;
+    padding:12px 20px 16px;
+    background:linear-gradient(180deg, rgba(5,18,31,.96), rgba(5,18,31,1));
+    border-top:1px solid rgba(75,125,185,.18);
+}
+
+@media (max-width:1100px){
+    .hub-ticket-summary-grid{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+
+    .hub-leg-fields-grid{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+
+    .hub-leg-fields-grid .hub-span-2{
+        grid-column:1 / -1;
+    }
+}
+
+@media (max-width:700px){
+    .hub-ticket-modal{
+        width:100%;
+        max-height:96vh;
+    }
+
+    .hub-ticket-summary-grid,
+    .hub-leg-fields-grid{
+        grid-template-columns:1fr;
+    }
+
+    .hub-leg-fields-grid .hub-span-2{
+        grid-column:auto;
+    }
+
+    .hub-manual-preview{
+        bottom:74px;
+    }
+}

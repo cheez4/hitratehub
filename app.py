@@ -4085,6 +4085,148 @@ def my_bets_page():
         bet_type_filter=bet_type_filter,
         sport_filter=sport_filter
     )
+@app.route("/my-hub/bets/<int:bet_id>/edit-data", methods=["GET"])
+@login_required
+def personal_bet_edit_data(bet_id):
+    conn = get_conn()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    ub.id,
+                    ub.user_id,
+                    ub.bankroll_id,
+                    ub.title,
+                    ub.sport,
+                    ub.league,
+                    ub.source,
+                    ub.sportsbook,
+                    ub.stake,
+                    ub.notes,
+                    ub.status,
+                    ub.bet_type
+                FROM user_bets ub
+                WHERE ub.id = %s
+                  AND ub.user_id = %s
+            """, (bet_id, current_user.id))
+
+            bet = cur.fetchone()
+
+            if not bet:
+                return jsonify({
+                    "success": False,
+                    "error": "Bet not found."
+                }), 404
+
+            if str(bet[10] or "pending").lower() != "pending":
+                return jsonify({
+                    "success": False,
+                    "error": "Only pending bets can be edited."
+                }), 400
+
+            cur.execute("""
+                SELECT
+                    id,
+                    selection_type,
+                    selection_name,
+                    player_name,
+                    team_name,
+                    prop,
+                    ou,
+                    COALESCE(user_line, line) AS display_line,
+                    COALESCE(user_odds, odds) AS display_odds,
+                    start_time,
+                    sort_order
+                FROM user_bet_legs
+                WHERE user_bet_id = %s
+                ORDER BY COALESCE(sort_order, id)
+            """, (bet_id,))
+
+            leg_rows = cur.fetchall()
+
+        now_value = datetime.now(
+            ZoneInfo("America/Toronto")
+        ).replace(tzinfo=None)
+
+        event_starts = []
+
+        for row in leg_rows:
+            start_time = row[9]
+
+            if start_time is not None:
+                if getattr(start_time, "tzinfo", None):
+                    start_time = start_time.replace(tzinfo=None)
+
+                event_starts.append(start_time)
+
+        earliest_start = min(event_starts) if event_starts else None
+
+        if earliest_start is not None and now_value >= earliest_start:
+            return jsonify({
+                "success": False,
+                "error": "This ticket is locked because an event has started."
+            }), 400
+
+        legs = []
+
+        for row in leg_rows:
+            start_time = row[9]
+
+            if start_time is not None:
+                if getattr(start_time, "tzinfo", None):
+                    start_time = start_time.replace(tzinfo=None)
+
+                start_value = start_time.strftime("%Y-%m-%dT%H:%M")
+            else:
+                start_value = ""
+
+            legs.append({
+                "id": row[0],
+                "selection_type": row[1] or "",
+                "selection_name": (
+                    row[2]
+                    or row[3]
+                    or row[4]
+                    or ""
+                ),
+                "prop": row[5] or "",
+                "ou": row[6] or "",
+                "line": (
+                    float(row[7])
+                    if row[7] is not None
+                    else ""
+                ),
+                "odds": row[8],
+                "event_start": start_value,
+                "sort_order": row[10]
+            })
+
+        return jsonify({
+            "success": True,
+            "bet": {
+                "id": bet[0],
+                "bankroll_id": bet[2],
+                "title": bet[3] or "",
+                "sport": bet[4] or "",
+                "league": bet[5] or "",
+                "source": bet[6] or "",
+                "sportsbook": bet[7] or "",
+                "stake": (
+                    float(bet[8])
+                    if bet[8] is not None
+                    else ""
+                ),
+                "notes": bet[9] or "",
+                "bet_type": bet[11] or "straight",
+                "legs": legs
+            }
+        })
+
+    finally:
+        conn.close()
+
+
 @app.route("/my-hub/bets/<int:bet_id>/edit", methods=["POST"])
 @login_required
 def edit_personal_bet(bet_id):
@@ -4093,40 +4235,134 @@ def edit_personal_bet(bet_id):
     league = clean_text(request.form.get("league"))
     source = clean_text(request.form.get("source"))
     sportsbook = clean_text(request.form.get("sportsbook"))
-    selection_type = clean_text(request.form.get("selection_type"))
-    selection_name = clean_text(request.form.get("selection_name"))
-    prop = clean_text(request.form.get("prop"))
-    ou = clean_text(request.form.get("ou")).lower()
     title = clean_text(request.form.get("title"))
     notes = clean_text(request.form.get("notes"))
-    event_start_raw = clean_text(request.form.get("event_start"))
+
+    selection_types = request.form.getlist("selection_type[]")
+    selection_names = request.form.getlist("selection_name[]")
+    props = request.form.getlist("prop[]")
+    sides = request.form.getlist("ou[]")
+    lines_raw = request.form.getlist("line[]")
+    odds_raw = request.form.getlist("leg_odds[]")
+    event_starts = request.form.getlist("event_start[]")
 
     try:
-        odds = int(request.form.get("odds"))
         stake = float(request.form.get("stake"))
     except (TypeError, ValueError):
-        flash("Enter valid odds and stake.", "error")
+        flash("Enter a valid stake.", "error")
         return redirect(url_for("my_bets_page"))
 
-    line = None
-    line_raw = clean_text(request.form.get("line"))
-    if line_raw:
-        try:
-            line = float(line_raw)
-        except ValueError:
-            flash("Enter a valid line.", "error")
+    leg_count = len(selection_names)
+
+    if not bankroll_id or not sport or not sportsbook:
+        flash("Complete the required ticket fields.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if stake <= 0:
+        flash("Stake must be greater than zero.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if leg_count < 1 or leg_count > 20:
+        flash("Tickets must contain between 1 and 20 legs.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    submitted_lists = [
+        selection_types,
+        props,
+        sides,
+        lines_raw,
+        odds_raw,
+        event_starts
+    ]
+
+    if any(len(items) != leg_count for items in submitted_lists):
+        flash("The ticket legs were incomplete.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    legs = []
+    combined_decimal = 1.0
+
+    for index in range(leg_count):
+        selection_type = clean_text(selection_types[index])
+        selection_name = clean_text(selection_names[index])
+        prop = clean_text(props[index])
+        ou = clean_text(sides[index]).lower()
+        event_start = clean_text(event_starts[index])
+
+        if not selection_type or not selection_name or not event_start:
+            flash(
+                f"Complete all required fields for leg {index + 1}.",
+                "error"
+            )
             return redirect(url_for("my_bets_page"))
 
-    if not bankroll_id or not sport or not sportsbook or not selection_name or not event_start_raw:
-        flash("Complete all required fields.", "error")
-        return redirect(url_for("my_bets_page"))
+        try:
+            odds = int(odds_raw[index])
+        except (TypeError, ValueError):
+            flash(
+                f"Enter valid odds for leg {index + 1}.",
+                "error"
+            )
+            return redirect(url_for("my_bets_page"))
 
-    if odds == 0 or stake <= 0:
-        flash("Odds cannot be zero and stake must be positive.", "error")
-        return redirect(url_for("my_bets_page"))
+        if odds == 0:
+            flash(
+                f"Odds cannot be zero for leg {index + 1}.",
+                "error"
+            )
+            return redirect(url_for("my_bets_page"))
 
-    potential_profit = stake * odds / 100 if odds > 0 else stake * 100 / abs(odds)
-    potential_return = stake + potential_profit
+        line = None
+        line_text = clean_text(lines_raw[index])
+
+        if line_text:
+            try:
+                line = float(line_text)
+            except ValueError:
+                flash(
+                    f"Enter a valid line for leg {index + 1}.",
+                    "error"
+                )
+                return redirect(url_for("my_bets_page"))
+
+        decimal_odds = (
+            1 + odds / 100
+            if odds > 0
+            else 1 + 100 / abs(odds)
+        )
+
+        combined_decimal *= decimal_odds
+
+        legs.append({
+            "selection_type": selection_type,
+            "selection_name": selection_name,
+            "prop": prop,
+            "ou": ou,
+            "line": line,
+            "odds": odds,
+            "event_start": event_start
+        })
+
+    combined_odds = (
+        round((combined_decimal - 1) * 100)
+        if combined_decimal >= 2
+        else round(-100 / (combined_decimal - 1))
+    )
+
+    potential_profit = round(
+        stake * (combined_decimal - 1),
+        2
+    )
+    potential_return = round(
+        stake + potential_profit,
+        2
+    )
+
+    bet_type = (
+        "straight"
+        if leg_count == 1
+        else "parlay"
+    )
 
     conn = get_conn()
 
@@ -4135,38 +4371,81 @@ def edit_personal_bet(bet_id):
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT
+                        ub.ticket_id,
                         ub.status,
-                        MIN(ubl.start_time) AS event_start
+                        MIN(ubl.start_time) AS earliest_start
                     FROM user_bets ub
-                    LEFT JOIN user_bet_legs ubl ON ubl.user_bet_id = ub.id
+                    LEFT JOIN user_bet_legs ubl
+                        ON ubl.user_bet_id = ub.id
                     WHERE ub.id = %s
                       AND ub.user_id = %s
-                    GROUP BY ub.id, ub.status
-                """, (bet_id, current_user.id))
+                    GROUP BY
+                        ub.id,
+                        ub.ticket_id,
+                        ub.status
+                    FOR UPDATE OF ub
+                """, (
+                    bet_id,
+                    current_user.id
+                ))
 
-                bet = cur.fetchone()
+                existing = cur.fetchone()
 
-                if not bet:
+                if not existing:
                     flash("Bet not found.", "error")
                     return redirect(url_for("my_bets_page"))
 
-                if str(bet[0] or "pending").lower() != "pending":
-                    flash("Only pending bets can be edited.", "error")
+                ticket_id = existing[0]
+                current_status = str(
+                    existing[1] or "pending"
+                ).lower()
+                earliest_start = existing[2]
+
+                if current_status != "pending":
+                    flash(
+                        "Only pending bets can be edited.",
+                        "error"
+                    )
                     return redirect(url_for("my_bets_page"))
 
                 now_value = datetime.now(
                     ZoneInfo("America/Toronto")
                 ).replace(tzinfo=None)
 
-                if bet[1] is not None and now_value >= bet[1]:
-                    flash("This bet is locked because the event has started.", "error")
-                    return redirect(url_for("my_bets_page"))
+                if earliest_start is not None:
+                    if getattr(
+                        earliest_start,
+                        "tzinfo",
+                        None
+                    ):
+                        earliest_start = (
+                            earliest_start.replace(
+                                tzinfo=None
+                            )
+                        )
+
+                    if now_value >= earliest_start:
+                        flash(
+                            "This ticket is locked because "
+                            "an event has started.",
+                            "error"
+                        )
+                        return redirect(
+                            url_for("my_bets_page")
+                        )
 
                 cur.execute("""
-                    SELECT current_balance, unit_percentage
+                    SELECT
+                        current_balance,
+                        unit_percentage
                     FROM user_bankrolls
-                    WHERE id = %s AND user_id = %s
-                """, (bankroll_id, current_user.id))
+                    WHERE id = %s
+                      AND user_id = %s
+                    FOR UPDATE
+                """, (
+                    bankroll_id,
+                    current_user.id
+                ))
 
                 bankroll = cur.fetchone()
 
@@ -4174,54 +4453,164 @@ def edit_personal_bet(bet_id):
                     flash("Bankroll not found.", "error")
                     return redirect(url_for("my_bets_page"))
 
-                current_balance = float(bankroll[0] or 0)
-                unit_percentage = float(bankroll[1] or 0.01)
-                unit_value = current_balance * unit_percentage
-                units = stake / unit_value if unit_value > 0 else None
+                current_balance = float(
+                    bankroll[0] or 0
+                )
+                unit_percentage = float(
+                    bankroll[1] or 0.01
+                )
+                unit_value = (
+                    current_balance
+                    * unit_percentage
+                )
+                units = (
+                    stake / unit_value
+                    if unit_value > 0
+                    else None
+                )
+
+                straight_line = (
+                    legs[0]["line"]
+                    if leg_count == 1
+                    else None
+                )
 
                 cur.execute("""
                     UPDATE user_bets
-                    SET bankroll_id=%s, sport=%s, league=%s, source=%s,
-                        sportsbook=%s, odds_taken=%s, line_taken=%s,
-                        stake=%s, units=%s, unit_value=%s,
-                        user_combined_odds=%s, combined_odds=%s,
-                        potential_profit=%s, potential_return=%s,
-                        bankroll_balance_at_bet=%s, unit_percentage=%s,
-                        title=%s, notes=%s
-                    WHERE id=%s AND user_id=%s
+                    SET
+                        bankroll_id = %s,
+                        sport = %s,
+                        league = %s,
+                        source = %s,
+                        sportsbook = %s,
+                        odds_taken = %s,
+                        line_taken = %s,
+                        stake = %s,
+                        units = %s,
+                        unit_value = %s,
+                        bet_type = %s,
+                        user_combined_odds = %s,
+                        combined_odds = %s,
+                        potential_profit = %s,
+                        potential_return = %s,
+                        bankroll_balance_at_bet = %s,
+                        unit_percentage = %s,
+                        title = %s,
+                        notes = %s
+                    WHERE id = %s
+                      AND user_id = %s
                 """, (
-                    bankroll_id, sport, league or None, source or None,
-                    sportsbook, odds, line, stake, units, unit_value,
-                    odds, odds, potential_profit, potential_return,
-                    current_balance, unit_percentage,
-                    title or None, notes or None,
-                    bet_id, current_user.id
+                    bankroll_id,
+                    sport,
+                    league or None,
+                    source or None,
+                    sportsbook,
+                    combined_odds,
+                    straight_line,
+                    stake,
+                    units,
+                    unit_value,
+                    bet_type,
+                    combined_odds,
+                    combined_odds,
+                    potential_profit,
+                    potential_return,
+                    current_balance,
+                    unit_percentage,
+                    title or None,
+                    notes or None,
+                    bet_id,
+                    current_user.id
                 ))
 
                 cur.execute("""
-                    UPDATE user_bet_legs
-                    SET sport=%s, league=%s, selection_type=%s,
-                        selection_name=%s,
-                        player_name=CASE WHEN %s='Player Prop' THEN %s ELSE NULL END,
-                        prop=%s, ou=%s, line=%s, user_line=%s,
-                        odds=%s, user_odds=%s,
-                        sportsbook=%s, user_sportsbook=%s,
-                        start_time=%s::timestamp
-                    WHERE user_bet_id=%s
-                """, (
-                    sport, league or None, selection_type, selection_name,
-                    selection_type, selection_name,
-                    prop or selection_type, ou or None,
-                    line, line, odds, odds,
-                    sportsbook, sportsbook,
-                    event_start_raw, bet_id
-                ))
+                    DELETE FROM user_bet_legs
+                    WHERE user_bet_id = %s
+                """, (bet_id,))
 
-        flash("Bet updated.", "success")
+                for sort_order, leg in enumerate(
+                    legs,
+                    start=1
+                ):
+                    cur.execute("""
+                        INSERT INTO user_bet_legs (
+                            ticket_id,
+                            user_bet_id,
+                            player_name,
+                            prop,
+                            ou,
+                            line,
+                            odds,
+                            sportsbook,
+                            start_time,
+                            status,
+                            created_at,
+                            official_sportsbook,
+                            official_odds,
+                            user_sportsbook,
+                            user_odds,
+                            official_line,
+                            user_line,
+                            sport,
+                            league,
+                            selection_type,
+                            selection_name,
+                            team_name,
+                            opponent,
+                            result,
+                            sort_order
+                        )
+                        VALUES (
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s,
+                            %s::timestamp,
+                            'pending',
+                            NOW(),
+                            NULL, NULL,
+                            %s, %s,
+                            NULL, %s,
+                            %s, %s,
+                            %s, %s,
+                            NULL, NULL, NULL,
+                            %s
+                        )
+                    """, (
+                        str(ticket_id),
+                        bet_id,
+                        (
+                            leg["selection_name"]
+                            if leg["selection_type"]
+                            == "Player Prop"
+                            else None
+                        ),
+                        (
+                            leg["prop"]
+                            or leg["selection_type"]
+                        ),
+                        leg["ou"] or None,
+                        leg["line"],
+                        leg["odds"],
+                        sportsbook,
+                        leg["event_start"],
+                        sportsbook,
+                        leg["odds"],
+                        leg["line"],
+                        sport,
+                        league or None,
+                        leg["selection_type"],
+                        leg["selection_name"],
+                        sort_order
+                    ))
+
+        flash("Ticket updated.", "success")
 
     except Exception as exc:
-        print("Edit bet error:", exc)
-        flash("The bet could not be updated.", "error")
+        print("Parlay edit error:", exc)
+        flash(
+            "The ticket could not be updated.",
+            "error"
+        )
+
     finally:
         conn.close()
 
