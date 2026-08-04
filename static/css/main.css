@@ -2485,3 +2485,103 @@
         min-height:120px;
     }
 }
+
+
+/* MY HUB — FINAL 100% ZOOM FIT */
+
+#manualBetModal,
+#editBetModal{
+    padding:6px 12px !important;
+}
+
+#manualBetModal .hub-ticket-modal,
+#editBetModal .hub-ticket-modal{
+    height:calc(100vh - 12px) !important;
+    max-height:calc(100vh - 12px) !important;
+}
+
+#manualBetModal .modal-head,
+#editBetModal .modal-head{
+    padding:12px 18px;
+}
+
+#manualBetModal .hub-ticket-modal-body,
+#editBetModal .hub-ticket-modal-body{
+    padding:12px 18px 0;
+}
+
+#manualBetModal .hub-ticket-summary-grid,
+#editBetModal .hub-ticket-summary-grid{
+    gap:10px 14px;
+}
+
+#manualBetModal .field label,
+#editBetModal .field label{
+    margin-bottom:5px;
+}
+
+#manualBetModal .field input,
+#manualBetModal .field select,
+#editBetModal .field input,
+#editBetModal .field select{
+    height:36px;
+}
+
+#manualBetModal textarea,
+#editBetModal textarea{
+    min-height:58px !important;
+    max-height:72px;
+}
+
+#manualBetModal .hub-leg-builder-head,
+#editBetModal .hub-leg-builder-head{
+    margin:10px 0 8px;
+    padding:7px 0;
+}
+
+#manualLegs,
+#editLegs{
+    min-height:130px !important;
+    margin-bottom:6px;
+}
+
+#manualBetModal .hub-manual-leg,
+#editBetModal .hub-manual-leg{
+    padding:10px 14px;
+}
+
+#manualBetModal .hub-manual-leg-head,
+#editBetModal .hub-manual-leg-head{
+    margin-bottom:8px;
+}
+
+#manualBetModal .hub-manual-preview,
+#editBetModal .hub-manual-preview{
+    display:grid !important;
+    grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
+    gap:10px !important;
+    padding:8px 0 !important;
+}
+
+#manualBetModal .hub-manual-preview > div,
+#editBetModal .hub-manual-preview > div{
+    min-height:54px !important;
+    padding:9px 14px !important;
+}
+
+#manualBetModal .hub-ticket-sticky-actions,
+#editBetModal .hub-ticket-sticky-actions{
+    padding:8px 18px 10px !important;
+}
+
+#manualBetModal .hub-ticket-sticky-actions button,
+#editBetModal .hub-ticket-sticky-actions button{
+    height:36px;
+}
+
+@media (max-width:850px){
+    #manualBetModal .hub-manual-preview,
+    #editBetModal .hub-manual-preview{
+        grid-template-columns:1fr !important;
+    }
+}
