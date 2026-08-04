@@ -28,7 +28,7 @@ import re
 import os
 import uuid
 
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import secrets
 from urllib.parse import urlencode
 from functools import wraps
@@ -4222,6 +4222,103 @@ def edit_personal_bet(bet_id):
     except Exception as exc:
         print("Edit bet error:", exc)
         flash("The bet could not be updated.", "error")
+    finally:
+        conn.close()
+
+    return redirect(url_for("my_bets_page"))
+
+@app.route("/my-hub/bets/<int:bet_id>/delete", methods=["POST"])
+@login_required
+def delete_personal_bet(bet_id):
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute("""
+            SELECT
+                ub.user_id,
+                MIN(ubl.start_time)
+            FROM user_bets ub
+            LEFT JOIN user_bet_legs ubl
+                ON ub.id = ubl.user_bet_id
+            WHERE ub.id=%s
+            GROUP BY ub.user_id
+        """, (bet_id,))
+
+        row = cur.fetchone()
+
+        if not row:
+            flash("Bet not found.", "error")
+            return redirect(url_for("my_bets_page"))
+
+        owner_id, event_start = row
+
+        if owner_id != current_user.id:
+            flash("Unauthorized.", "error")
+            return redirect(url_for("my_bets_page"))
+
+        now = datetime.now(
+            ZoneInfo("America/Toronto")
+        ).replace(tzinfo=None)
+
+        if event_start:
+
+            if getattr(event_start, "tzinfo", None):
+                event_start = event_start.replace(tzinfo=None)
+
+            if now >= event_start:
+                flash(
+                    "This bet can no longer be deleted.",
+                    "error"
+                )
+                return redirect(url_for("my_bets_page"))
+
+        cur.execute("""
+            INSERT INTO deleted_bets_log (
+                user_id,
+                bet_id,
+                bet_snapshot,
+                legs_snapshot,
+                deleted_at
+            )
+            SELECT
+                %s,
+                ub.id,
+                TO_JSONB(ub),
+                COALESCE(
+                    (
+                        SELECT JSONB_AGG(TO_JSONB(ubl))
+                        FROM user_bet_legs ubl
+                        WHERE ubl.user_bet_id = ub.id
+                    ),
+                    '[]'::jsonb
+                ),
+                NOW()
+            FROM user_bets ub
+            WHERE ub.id = %s
+            AND ub.user_id = %s
+        """, (
+            current_user.id,
+            bet_id,
+            current_user.id
+        ))
+
+        cur.execute(
+            "DELETE FROM user_bet_legs WHERE user_bet_id=%s",
+            (bet_id,)
+        )
+
+        cur.execute(
+            "DELETE FROM user_bets WHERE id=%s",
+            (bet_id,)
+        )
+
+        conn.commit()
+
+        flash("Bet deleted.", "success")
+
     finally:
         conn.close()
 

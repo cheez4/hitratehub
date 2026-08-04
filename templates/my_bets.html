@@ -295,6 +295,19 @@
                 onclick="openEditBetModal(this)">
             ✎ Edit
         </button>
+
+        <form method="post"
+      action="{{ url_for('delete_personal_bet', bet_id=bet.id) }}"
+      style="display:inline;"
+      onsubmit="return confirm('Delete this bet? This action will be permanently logged.');">
+
+    <button
+        type="submit"
+        class="hub-grade-btn hub-grade-loss">
+        🗑 Delete
+    </button>
+
+</form>
     {% elif (bet.status or "pending")|lower == "pending" %}
         <span class="hub-locked-label">🔒 Locked</span>
     {% endif %}
