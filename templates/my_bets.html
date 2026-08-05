@@ -195,13 +195,20 @@
                                             </div>
 
                                             <div class="hub-leg-odds">
-                                                {% set leg_odds = leg.user_odds or leg.odds %}
-                                                {% if leg_odds is not none %}
-                                                    {% if leg_odds > 0 %}+{% endif %}{{ leg_odds }}
-                                                {% else %}
-                                                    —
-                                                {% endif %}
-                                            </div>
+    {% set leg_odds = leg.user_odds or leg.odds %}
+
+    {% if leg_odds is not none %}
+        {% if leg_odds > 0 %}+{% endif %}{{ leg_odds }}
+    {% else %}
+        —
+    {% endif %}
+
+    {% set leg_status = (leg.status or leg.result or "pending")|lower %}
+
+    <span class="hub-leg-status hub-leg-status-{{ leg_status }}">
+        {{ leg_status|title }}
+    </span>
+</div>
                                         </div>
                                     {% endfor %}
                                 </div>

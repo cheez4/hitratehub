@@ -2678,3 +2678,47 @@
     min-height: 260px !important;
     max-height: 260px !important;
 }
+
+.hub-leg-odds{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:10px;
+}
+
+.hub-leg-status{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:64px;
+    padding:4px 8px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:900;
+    text-transform:uppercase;
+}
+
+.hub-leg-status-won{
+    color:#7df59c;
+    background:rgba(35,177,87,.15);
+    border:1px solid rgba(35,177,87,.35);
+}
+
+.hub-leg-status-lost{
+    color:#ff8e8e;
+    background:rgba(220,65,65,.14);
+    border:1px solid rgba(220,65,65,.35);
+}
+
+.hub-leg-status-push,
+.hub-leg-status-void{
+    color:#ffd36b;
+    background:rgba(210,160,40,.14);
+    border:1px solid rgba(210,160,40,.35);
+}
+
+.hub-leg-status-pending{
+    color:#9fb2ca;
+    background:rgba(120,145,175,.12);
+    border:1px solid rgba(120,145,175,.25);
+}
