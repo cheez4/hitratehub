@@ -4038,6 +4038,107 @@ def my_bets_page():
             ) if graded else 0
         }
 
+
+    dashboard_df = read_sql("""
+        SELECT
+            COALESCE(SUM(CASE
+                WHEN settled_at::date = CURRENT_DATE
+                THEN profit ELSE 0 END
+            ), 0) AS today_profit,
+
+            COALESCE(SUM(CASE
+                WHEN settled_at >= DATE_TRUNC('week', CURRENT_DATE)
+                THEN profit ELSE 0 END
+            ), 0) AS week_profit,
+
+            COALESCE(SUM(CASE
+                WHEN settled_at >= DATE_TRUNC('month', CURRENT_DATE)
+                THEN profit ELSE 0 END
+            ), 0) AS month_profit,
+
+            COALESCE(SUM(CASE
+                WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                THEN profit ELSE 0 END
+            ), 0) AS all_time_profit,
+
+            COALESCE(SUM(CASE
+                WHEN LOWER(COALESCE(status, '')) IN ('won', 'lost')
+                THEN stake ELSE 0 END
+            ), 0) AS settled_stake,
+
+            COALESCE(SUM(CASE
+                WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                THEN units ELSE 0 END
+            ), 0) AS total_units,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, 'pending')) = 'pending'
+            ) AS open_bets,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'won'
+            ) AS wins,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'lost'
+            ) AS losses,
+
+            MAX(CASE
+                WHEN LOWER(COALESCE(status, '')) = 'won'
+                THEN profit END
+            ) AS largest_win,
+
+            MIN(CASE
+                WHEN LOWER(COALESCE(status, '')) = 'lost'
+                THEN profit END
+            ) AS largest_loss
+
+        FROM user_bets
+        WHERE user_id = %s
+    """, (current_user.id,))
+
+    dashboard_summary = {
+        "current_bankroll": 0,
+        "today_profit": 0,
+        "week_profit": 0,
+        "month_profit": 0,
+        "all_time_profit": 0,
+        "roi": 0,
+        "total_units": 0,
+        "open_bets": 0,
+        "win_rate": 0,
+        "largest_win": 0,
+        "largest_loss": 0
+    }
+
+    if not dashboard_df.empty:
+        row = dashboard_df.iloc[0]
+
+        wins = int(row["wins"] or 0)
+        losses = int(row["losses"] or 0)
+        graded = wins + losses
+        settled_stake = float(row["settled_stake"] or 0)
+        all_time_profit = float(row["all_time_profit"] or 0)
+
+        dashboard_summary.update({
+            "today_profit": float(row["today_profit"] or 0),
+            "week_profit": float(row["week_profit"] or 0),
+            "month_profit": float(row["month_profit"] or 0),
+            "all_time_profit": all_time_profit,
+            "roi": round(
+                all_time_profit / settled_stake * 100,
+                1
+            ) if settled_stake else 0,
+            "total_units": float(row["total_units"] or 0),
+            "open_bets": int(row["open_bets"] or 0),
+            "win_rate": round(
+                wins / graded * 100,
+                1
+            ) if graded else 0,
+            "largest_win": float(row["largest_win"] or 0),
+            "largest_loss": float(row["largest_loss"] or 0)
+        })
+
     bankrolls_df = read_sql("""
         SELECT
             id,
@@ -4060,6 +4161,15 @@ def my_bets_page():
         else []
     )
 
+
+    dashboard_summary["current_bankroll"] = round(
+        sum(
+            float(bankroll.get("current_balance") or 0)
+            for bankroll in bankrolls
+        ),
+        2
+    )
+
     sports_df = read_sql("""
         SELECT DISTINCT sport
         FROM user_bets
@@ -4080,6 +4190,7 @@ def my_bets_page():
         active_page="my_hub",
         bets=bets,
         summary=summary,
+        dashboard_summary=dashboard_summary,
         bankrolls=bankrolls,
         sports=sports,
         status_filter=status_filter,
