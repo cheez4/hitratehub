@@ -26,39 +26,94 @@
         </div>
     </div>
 
-    <div class="hub-summary-grid">
-        <div class="hub-summary-card">
-            <div class="hub-summary-label">Total Bets</div>
-            <div class="hub-summary-value">{{ summary.total_bets }}</div>
-            <div class="hub-summary-note">{{ summary.pending_bets }} pending</div>
+    <section class="hub-dashboard-overview">
+        <div class="hub-dashboard-hero">
+            <div>
+                <div class="hub-dashboard-eyebrow">Current Bankroll</div>
+                <div class="hub-dashboard-bankroll">
+                    ${{ "%.2f"|format(dashboard_summary.current_bankroll) }}
+                </div>
+                <div class="hub-dashboard-alltime {% if dashboard_summary.all_time_profit > 0 %}hub-positive{% elif dashboard_summary.all_time_profit < 0 %}hub-negative{% endif %}">
+                    {% if dashboard_summary.all_time_profit > 0 %}+{% endif %}
+                    ${{ "%.2f"|format(dashboard_summary.all_time_profit) }} all time
+                </div>
+            </div>
+
+            <div class="hub-dashboard-record">
+                <div class="hub-dashboard-record-label">Record</div>
+                <div class="hub-dashboard-record-value">
+                    {{ summary.wins }}-{{ summary.losses }}
+                </div>
+                <div class="hub-dashboard-record-note">
+                    {{ summary.pushes }} pushes · {{ summary.pending_bets }} pending
+                </div>
+            </div>
         </div>
 
-        <div class="hub-summary-card">
-            <div class="hub-summary-label">Record</div>
-            <div class="hub-summary-value">
-                {{ summary.wins }}-{{ summary.losses }}
-            </div>
-            <div class="hub-summary-note">
-                {{ summary.pushes }} pushes
-            </div>
+        <div class="hub-dashboard-grid">
+            {% set dashboard_cards = [
+                ("Today", dashboard_summary.today_profit, "money"),
+                ("This Week", dashboard_summary.week_profit, "money"),
+                ("This Month", dashboard_summary.month_profit, "money"),
+                ("ROI", dashboard_summary.roi, "percent"),
+                ("Win Rate", dashboard_summary.win_rate, "percent"),
+                ("Units", dashboard_summary.total_units, "units"),
+                ("Open Bets", dashboard_summary.open_bets, "count"),
+                ("Open Risk", summary.open_risk, "money")
+            ] %}
+
+            {% for label, value, kind in dashboard_cards %}
+                <div class="hub-dashboard-card">
+                    <div class="hub-dashboard-card-label">{{ label }}</div>
+
+                    <div class="hub-dashboard-card-value
+                        {% if kind in ('money', 'units') and value > 0 %}hub-positive
+                        {% elif kind in ('money', 'units') and value < 0 %}hub-negative
+                        {% endif %}">
+                        {% if kind == "money" %}
+                            {% if value > 0 %}+{% endif %}${{ "%.2f"|format(value) }}
+                        {% elif kind == "percent" %}
+                            {{ "%.1f"|format(value) }}%
+                        {% elif kind == "units" %}
+                            {% if value > 0 %}+{% endif %}{{ "%.2f"|format(value) }}u
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
         </div>
 
-        <div class="hub-summary-card">
-            <div class="hub-summary-label">Win Rate</div>
-            <div class="hub-summary-value">{{ summary.win_rate }}%</div>
-            <div class="hub-summary-note">Wins and losses only</div>
-        </div>
+        <div class="hub-dashboard-highlights">
+            <div class="hub-dashboard-highlight">
+                <span>Largest Win</span>
+                <strong class="hub-positive">
+                    {% if dashboard_summary.largest_win > 0 %}+{% endif %}
+                    ${{ "%.2f"|format(dashboard_summary.largest_win) }}
+                </strong>
+            </div>
 
-        <div class="hub-summary-card">
-            <div class="hub-summary-label">Net Profit</div>
-            <div class="hub-summary-value {% if summary.total_profit > 0 %}hub-positive{% elif summary.total_profit < 0 %}hub-negative{% endif %}">
-                {% if summary.total_profit > 0 %}+{% endif %}${{ "%.2f"|format(summary.total_profit) }}
+            <div class="hub-dashboard-highlight">
+                <span>Largest Loss</span>
+                <strong class="hub-negative">
+                    ${{ "%.2f"|format(dashboard_summary.largest_loss) }}
+                </strong>
             </div>
-            <div class="hub-summary-note">
-                ${{ "%.2f"|format(summary.open_risk) }} open risk
+
+            <div class="hub-dashboard-highlight">
+                <span>Total Bets</span>
+                <strong>{{ summary.total_bets }}</strong>
+            </div>
+
+            <div class="hub-dashboard-highlight">
+                <span>Net Profit</span>
+                <strong class="{% if summary.total_profit > 0 %}hub-positive{% elif summary.total_profit < 0 %}hub-negative{% endif %}">
+                    {% if summary.total_profit > 0 %}+{% endif %}
+                    ${{ "%.2f"|format(summary.total_profit) }}
+                </strong>
             </div>
         </div>
-    </div>
+    </section>
 
     <div class="panel hub-filter-panel">
         <div class="panel-body">

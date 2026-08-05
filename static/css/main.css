@@ -2722,3 +2722,152 @@
     background:rgba(120,145,175,.12);
     border:1px solid rgba(120,145,175,.25);
 }
+
+/* PERSONAL HUB — DASHBOARD OVERVIEW */
+
+.hub-dashboard-overview{
+    display:grid;
+    gap:14px;
+    margin-bottom:16px;
+}
+
+.hub-dashboard-hero{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:24px;
+    padding:22px 24px;
+    border:1px solid rgba(73,123,184,.28);
+    border-radius:16px;
+    background:
+        radial-gradient(circle at top right, rgba(47,140,255,.18), transparent 38%),
+        linear-gradient(180deg, rgba(8,31,54,.98), rgba(4,18,31,.98));
+    box-shadow:0 18px 40px rgba(0,0,0,.24);
+}
+
+.hub-dashboard-eyebrow,
+.hub-dashboard-record-label,
+.hub-dashboard-card-label{
+    color:#92a9c7;
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.7px;
+}
+
+.hub-dashboard-bankroll{
+    margin-top:6px;
+    color:#f4f8ff;
+    font-size:40px;
+    line-height:1;
+    font-weight:950;
+    letter-spacing:-1.2px;
+}
+
+.hub-dashboard-alltime{
+    margin-top:9px;
+    font-size:14px;
+    font-weight:800;
+}
+
+.hub-dashboard-record{
+    min-width:190px;
+    padding:14px 18px;
+    border:1px solid rgba(104,156,219,.2);
+    border-radius:12px;
+    background:rgba(4,18,31,.52);
+    text-align:right;
+}
+
+.hub-dashboard-record-value{
+    margin-top:5px;
+    color:#eef5ff;
+    font-size:30px;
+    font-weight:950;
+}
+
+.hub-dashboard-record-note{
+    margin-top:4px;
+    color:#92a9c7;
+    font-size:12px;
+}
+
+.hub-dashboard-grid{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:12px;
+}
+
+.hub-dashboard-card{
+    min-height:108px;
+    padding:16px 18px;
+    border:1px solid rgba(73,123,184,.22);
+    border-radius:13px;
+    background:linear-gradient(180deg, rgba(7,25,43,.94), rgba(4,18,31,.98));
+    box-shadow:0 10px 22px rgba(0,0,0,.18);
+}
+
+.hub-dashboard-card-value{
+    margin-top:12px;
+    color:#eef5ff;
+    font-size:25px;
+    font-weight:950;
+    letter-spacing:-.4px;
+}
+
+.hub-dashboard-highlights{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:12px;
+}
+
+.hub-dashboard-highlight{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    min-height:58px;
+    padding:13px 16px;
+    border:1px solid rgba(73,123,184,.18);
+    border-radius:11px;
+    background:rgba(5,23,40,.72);
+}
+
+.hub-dashboard-highlight span{
+    color:#92a9c7;
+    font-size:12px;
+    font-weight:800;
+}
+
+.hub-dashboard-highlight strong{
+    color:#eef5ff;
+    font-size:16px;
+}
+
+@media (max-width:1100px){
+    .hub-dashboard-grid,
+    .hub-dashboard-highlights{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width:700px){
+    .hub-dashboard-hero{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+
+    .hub-dashboard-record{
+        width:100%;
+        text-align:left;
+    }
+
+    .hub-dashboard-bankroll{
+        font-size:34px;
+    }
+
+    .hub-dashboard-grid,
+    .hub-dashboard-highlights{
+        grid-template-columns:1fr;
+    }
+}
