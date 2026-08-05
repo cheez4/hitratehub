@@ -3,119 +3,188 @@
 {% block content %}
 <div class="shell my-hub-shell">
 
-    <div class="my-hub-header">
+    <section class="hub-v2-intro">
         <div>
             <div class="my-hub-kicker">Personal Hub</div>
-            <h1 class="my-hub-title">My Bets</h1>
+            <h1 class="my-hub-title">
+                Good {{ "Morning" if now_hour < 12 else "Afternoon" if now_hour < 17 else "Evening" }},
+                {{ current_user.username or "Bettor" }} 👋
+            </h1>
             <p class="my-hub-subtitle">
-                Track every bet in one place, whether it came from HitRateHub,
-                your own research, Discord, or somewhere else.
+                Your bankroll, recent performance, and open tickets in one place.
             </p>
         </div>
+    </section>
 
-        <div class="hub-header-actions">
-            <form method="post" action="{{ url_for('sync_personal_bet_results') }}">
-                <button class="share-btn hub-sync-results-btn" type="submit">
-                    ↻ Sync Results
-                </button>
-            </form>
-
-            <button class="hub-primary-btn" type="button" onclick="openManualBetModal()">
-                + Add Manual Bet
-            </button>
-        </div>
-    </div>
-
-    <section class="hub-dashboard-overview">
-        <div class="hub-dashboard-hero">
-            <div>
-                <div class="hub-dashboard-eyebrow">Current Bankroll</div>
-                <div class="hub-dashboard-bankroll">
-                    ${{ "%.2f"|format(dashboard_summary.current_bankroll) }}
-                </div>
-                <div class="hub-dashboard-alltime {% if dashboard_summary.all_time_profit > 0 %}hub-positive{% elif dashboard_summary.all_time_profit < 0 %}hub-negative{% endif %}">
-                    {% if dashboard_summary.all_time_profit > 0 %}+{% endif %}
-                    ${{ "%.2f"|format(dashboard_summary.all_time_profit) }} all time
-                </div>
+    <section class="hub-v2-hero">
+        <div class="hub-v2-bankroll-panel">
+            <div class="hub-v2-eyebrow">Current Bankroll</div>
+            <div class="hub-v2-bankroll">
+                ${{ "%.2f"|format(dashboard_summary.current_bankroll) }}
             </div>
 
-            <div class="hub-dashboard-record">
-                <div class="hub-dashboard-record-label">Record</div>
-                <div class="hub-dashboard-record-value">
+            <div class="hub-v2-bankroll-meta">
+                <span class="{% if dashboard_summary.all_time_profit > 0 %}hub-positive{% elif dashboard_summary.all_time_profit < 0 %}hub-negative{% endif %}">
+                    {% if dashboard_summary.all_time_profit > 0 %}▲ +{% elif dashboard_summary.all_time_profit < 0 %}▼ {% endif %}
+                    ${{ "%.2f"|format(dashboard_summary.all_time_profit|abs) }}
+                    lifetime
+                </span>
+
+                <span>
                     {{ summary.wins }}-{{ summary.losses }}
-                </div>
-                <div class="hub-dashboard-record-note">
-                    {{ summary.pushes }} pushes · {{ summary.pending_bets }} pending
-                </div>
+                    · {{ summary.pending_bets }} pending
+                </span>
             </div>
         </div>
 
-        <div class="hub-dashboard-grid">
-            {% set dashboard_cards = [
-                ("Today", dashboard_summary.today_profit, "money"),
-                ("This Week", dashboard_summary.week_profit, "money"),
-                ("This Month", dashboard_summary.month_profit, "money"),
-                ("ROI", dashboard_summary.roi, "percent"),
-                ("Win Rate", dashboard_summary.win_rate, "percent"),
-                ("Units", dashboard_summary.total_units, "units"),
-                ("Open Bets", dashboard_summary.open_bets, "count"),
-                ("Open Risk", summary.open_risk, "money")
-            ] %}
-
-            {% for label, value, kind in dashboard_cards %}
-                <div class="hub-dashboard-card">
-                    <div class="hub-dashboard-card-label">{{ label }}</div>
-
-                    <div class="hub-dashboard-card-value
-                        {% if kind in ('money', 'units') and value > 0 %}hub-positive
-                        {% elif kind in ('money', 'units') and value < 0 %}hub-negative
-                        {% endif %}">
-                        {% if kind == "money" %}
-                            {% if value > 0 %}+{% endif %}${{ "%.2f"|format(value) }}
-                        {% elif kind == "percent" %}
-                            {{ "%.1f"|format(value) }}%
-                        {% elif kind == "units" %}
-                            {% if value > 0 %}+{% endif %}{{ "%.2f"|format(value) }}u
-                        {% else %}
-                            {{ value }}
-                        {% endif %}
-                    </div>
+        <div class="hub-v2-actions-panel">
+            <div class="hub-v2-actions-head">
+                <div>
+                    <div class="hub-v2-eyebrow">Quick Actions</div>
+                    <div class="hub-v2-actions-sub">Common Personal Hub tasks</div>
                 </div>
-            {% endfor %}
-        </div>
-
-        <div class="hub-dashboard-highlights">
-            <div class="hub-dashboard-highlight">
-                <span>Largest Win</span>
-                <strong class="hub-positive">
-                    {% if dashboard_summary.largest_win > 0 %}+{% endif %}
-                    ${{ "%.2f"|format(dashboard_summary.largest_win) }}
-                </strong>
             </div>
 
-            <div class="hub-dashboard-highlight">
-                <span>Largest Loss</span>
-                <strong class="hub-negative">
-                    ${{ "%.2f"|format(dashboard_summary.largest_loss) }}
-                </strong>
-            </div>
+            <div class="hub-v2-actions-grid">
+                <button class="hub-v2-action hub-v2-action-primary" type="button" onclick="openManualBetModal()">
+                    <span>＋</span>
+                    <strong>Add Bet</strong>
+                </button>
 
-            <div class="hub-dashboard-highlight">
-                <span>Total Bets</span>
-                <strong>{{ summary.total_bets }}</strong>
-            </div>
+                <form method="post" action="{{ url_for('sync_personal_bet_results') }}">
+                    <button class="hub-v2-action" type="submit">
+                        <span>↻</span>
+                        <strong>Sync Results</strong>
+                    </button>
+                </form>
 
-            <div class="hub-dashboard-highlight">
-                <span>Net Profit</span>
-                <strong class="{% if summary.total_profit > 0 %}hub-positive{% elif summary.total_profit < 0 %}hub-negative{% endif %}">
-                    {% if summary.total_profit > 0 %}+{% endif %}
-                    ${{ "%.2f"|format(summary.total_profit) }}
-                </strong>
+                <a class="hub-v2-action" href="#bet-history">
+                    <span>▤</span>
+                    <strong>Bet History</strong>
+                </a>
+
+                <a class="hub-v2-action" href="#bet-filters">
+                    <span>⚙</span>
+                    <strong>Filters</strong>
+                </a>
             </div>
         </div>
     </section>
 
-    <div class="panel hub-filter-panel">
+    <section class="hub-v2-performance">
+        {% set performance_cards = [
+            ("Today", dashboard_summary.today_profit, "money"),
+            ("This Week", dashboard_summary.week_profit, "money"),
+            ("This Month", dashboard_summary.month_profit, "money"),
+            ("All Time", dashboard_summary.all_time_profit, "money")
+        ] %}
+
+        {% for label, value, kind in performance_cards %}
+            <div class="hub-v2-performance-card">
+                <div class="hub-v2-card-label">{{ label }}</div>
+                <div class="hub-v2-card-value {% if value > 0 %}hub-positive{% elif value < 0 %}hub-negative{% endif %}">
+                    {% if value > 0 %}▲ +{% elif value < 0 %}▼ {% endif %}
+                    ${{ "%.2f"|format(value|abs) }}
+                </div>
+            </div>
+        {% endfor %}
+    </section>
+
+    <section class="hub-v2-metrics">
+        <div class="hub-v2-metric">
+            <span>ROI</span>
+            <strong class="{% if dashboard_summary.roi > 0 %}hub-positive{% elif dashboard_summary.roi < 0 %}hub-negative{% endif %}">
+                {{ "%.1f"|format(dashboard_summary.roi) }}%
+            </strong>
+        </div>
+
+        <div class="hub-v2-metric">
+            <span>Win Rate</span>
+            <strong>{{ "%.1f"|format(dashboard_summary.win_rate) }}%</strong>
+        </div>
+
+        <div class="hub-v2-metric">
+            <span>Total Units</span>
+            <strong class="{% if dashboard_summary.total_units > 0 %}hub-positive{% elif dashboard_summary.total_units < 0 %}hub-negative{% endif %}">
+                {% if dashboard_summary.total_units > 0 %}+{% endif %}
+                {{ "%.2f"|format(dashboard_summary.total_units) }}u
+            </strong>
+        </div>
+
+        <div class="hub-v2-metric">
+            <span>Open Tickets</span>
+            <strong>{{ dashboard_summary.open_bets }}</strong>
+        </div>
+
+        <div class="hub-v2-metric">
+            <span>Open Risk</span>
+            <strong>${{ "%.2f"|format(summary.open_risk) }}</strong>
+        </div>
+
+        <div class="hub-v2-metric">
+            <span>Largest Win</span>
+            <strong class="hub-positive">
+                +${{ "%.2f"|format(dashboard_summary.largest_win) }}
+            </strong>
+        </div>
+    </section>
+
+    <section class="panel hub-v2-activity">
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">Recent Activity</div>
+                <div class="hub-panel-note">Your five most recent tickets</div>
+            </div>
+
+            <a class="hub-v2-view-all" href="#bet-history">View all →</a>
+        </div>
+
+        <div class="hub-v2-activity-list">
+            {% for bet in bets[:5] %}
+                {% set recent_title = bet.title %}
+                {% if not recent_title and bet.legs %}
+                    {% set first_recent_leg = bet.legs[0] %}
+                    {% set recent_title = first_recent_leg.selection_name or first_recent_leg.player_name or first_recent_leg.team_name %}
+                {% endif %}
+
+                <div class="hub-v2-activity-row">
+                    <div class="hub-v2-activity-icon hub-v2-activity-{{ (bet.status or 'pending')|lower }}">
+                        {% if (bet.status or "pending")|lower == "won" %}✓
+                        {% elif (bet.status or "pending")|lower == "lost" %}✕
+                        {% elif (bet.status or "pending")|lower in ("push", "void") %}−
+                        {% else %}…{% endif %}
+                    </div>
+
+                    <div class="hub-v2-activity-copy">
+                        <strong>{{ recent_title or "Tracked Bet" }}</strong>
+                        <span>
+                            {{ (bet.sport or "Sport")|upper }}
+                            · {{ (bet.bet_type or "straight")|title }}
+                            {% if bet.sportsbook %} · {{ bet.sportsbook }}{% endif %}
+                        </span>
+                    </div>
+
+                    <div class="hub-v2-activity-result">
+                        <span class="hub-status hub-status-{{ (bet.status or 'pending')|lower }}">
+                            {{ (bet.status or "pending")|title }}
+                        </span>
+
+                        {% if bet.profit is not none %}
+                            <strong class="{% if bet.profit > 0 %}hub-positive{% elif bet.profit < 0 %}hub-negative{% endif %}">
+                                {% if bet.profit > 0 %}+{% endif %}${{ "%.2f"|format(bet.profit) }}
+                            </strong>
+                        {% else %}
+                            <strong>—</strong>
+                        {% endif %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="hub-v2-activity-empty">No activity yet.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div id="bet-filters" class="panel hub-filter-panel">
         <div class="panel-body">
             <form method="get" class="hub-filter-grid">
                 <div class="field">
@@ -164,7 +233,7 @@
         </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="bet-history">
         <div class="panel-header">
             <div>
                 <div class="panel-title">Bet History</div>

@@ -4184,6 +4184,10 @@ def my_bets_page():
         if not sports_df.empty
         else []
     )
+    
+    now_hour = datetime.now(
+        ZoneInfo("America/Toronto")
+    ).hour
 
     return render_template(
         "my_bets.html",
@@ -4195,7 +4199,8 @@ def my_bets_page():
         sports=sports,
         status_filter=status_filter,
         bet_type_filter=bet_type_filter,
-        sport_filter=sport_filter
+        sport_filter=sport_filter,
+        now_hour=now_hour
     )
 @app.route("/my-hub/bets/<int:bet_id>/edit-data", methods=["GET"])
 @login_required
