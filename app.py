@@ -33,6 +33,7 @@ import secrets
 from urllib.parse import urlencode
 from functools import wraps
 from services.grading_engine import grade_bet
+from services.auto_grading import grade_pending_mlb_straights
 from zoneinfo import ZoneInfo
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -5304,6 +5305,68 @@ def upgrade_page():
 def clear_cache():
     cache.clear()
     return "Cache cleared"
+
+@app.route("/my-hub/bets/sync-results", methods=["POST"])
+@login_required
+def sync_personal_bet_results():
+    try:
+        scan = grade_pending_mlb_straights(
+            user_id=current_user.id
+        )
+
+        settled = 0
+        failed = 0
+
+        # Use the existing settlement engine so bankroll updates,
+        # profit and transaction history remain in one place.
+        for item in scan["graded"]:
+            response = grade_bet(
+                bet_id=item["bet_id"],
+                result=item["result"],
+                user_id=current_user.id
+            )
+
+            if response.get("success"):
+                settled += 1
+            else:
+                failed += 1
+
+        skipped = len(scan["skipped"])
+
+        if settled:
+            flash(
+                f"Results synced: {settled} bet"
+                f"{'' if settled == 1 else 's'} graded"
+                + (
+                    f" · {skipped} left pending"
+                    if skipped
+                    else ""
+                ),
+                "success"
+            )
+        elif failed:
+            flash(
+                "Stats were matched, but settlement failed. "
+                "Check the server log.",
+                "error"
+            )
+        else:
+            flash(
+                "No pending MLB straight bets were ready to grade.",
+                "info"
+            )
+
+    except Exception as exc:
+        app.logger.exception(
+            "Personal Hub result sync failed"
+        )
+        flash(
+            "Result sync failed. No bets were changed.",
+            "error"
+        )
+
+    return redirect(url_for("my_bets_page"))
+
 
 @app.route("/my-hub/bets/<int:bet_id>/grade", methods=["POST"])
 @login_required

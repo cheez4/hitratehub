@@ -13,9 +13,17 @@
             </p>
         </div>
 
-        <button class="hub-primary-btn" type="button" onclick="openManualBetModal()">
-            + Add Manual Bet
-        </button>
+        <div class="hub-header-actions">
+            <form method="post" action="{{ url_for('sync_personal_bet_results') }}">
+                <button class="share-btn hub-sync-results-btn" type="submit">
+                    ↻ Sync Results
+                </button>
+            </form>
+
+            <button class="hub-primary-btn" type="button" onclick="openManualBetModal()">
+                + Add Manual Bet
+            </button>
+        </div>
     </div>
 
     <div class="hub-summary-grid">
