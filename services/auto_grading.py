@@ -103,7 +103,7 @@ def get_single_hitter_result(cur, player_name, event_date, stat_key):
         SELECT
             game_date,
             {stat_sql} AS stat_value,
-            COUNT(DISTINCT COALESCE(game_id::text, game_date::text)) AS game_count
+            COUNT(DISTINCT COALESCE(gamepk::text, game_date::text)) AS game_count
         FROM mlb_pa_gamelog
         WHERE LOWER(TRIM(batter_name)) = LOWER(TRIM(%s))
           AND game_date = %s
