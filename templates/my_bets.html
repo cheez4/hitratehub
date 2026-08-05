@@ -129,6 +129,80 @@
         </div>
     </section>
 
+    <section class="hub-analytics-row">
+        <div class="panel hub-streak-panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">Ticket Streaks</div>
+                    <div class="hub-panel-note">Settled wins and losses only</div>
+                </div>
+            </div>
+
+            <div class="hub-streak-grid">
+                <div class="hub-streak-main hub-streak-{{ streak_summary.current_type or 'none' }}">
+                    <span>Current</span>
+                    <strong>
+                        {% if streak_summary.current_type %}
+                            {{ "W" if streak_summary.current_type == "won" else "L" }}{{ streak_summary.current_count }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </strong>
+                </div>
+
+                <div class="hub-streak-stat">
+                    <span>Longest Win</span>
+                    <strong>W{{ streak_summary.longest_win }}</strong>
+                </div>
+
+                <div class="hub-streak-stat">
+                    <span>Longest Loss</span>
+                    <strong>L{{ streak_summary.longest_loss }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel hub-insights-panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">Performance Insights</div>
+                    <div class="hub-panel-note">Minimum three decisions when available</div>
+                </div>
+            </div>
+
+            <div class="hub-insights-grid">
+                {% for label, insight, mode in [
+                    ("Best Sport", performance_insights.best_sport, "profit"),
+                    ("Best Book", performance_insights.best_sportsbook, "profit"),
+                    ("Best Prop", performance_insights.best_prop, "rate"),
+                    ("Best Bet Type", performance_insights.best_bet_type, "profit")
+                ] %}
+                    <div class="hub-insight-card">
+                        <span>{{ label }}</span>
+
+                        {% if insight %}
+                            <strong>{{ insight.name }}</strong>
+
+                            <small>
+                                {% if mode == "rate" %}
+                                    {{ "%.1f"|format(insight.win_rate) }}%
+                                    · {{ insight.record }}
+                                {% else %}
+                                    {% if insight.profit > 0 %}+{% endif %}
+                                    ${{ "%.2f"|format(insight.profit) }}
+                                    · {{ insight.record }}
+                                {% endif %}
+                            </small>
+                        {% else %}
+                            <strong>—</strong>
+                            <small>Not enough data</small>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
     <section class="panel hub-bankroll-chart-panel">
         <div class="panel-header">
             <div>
@@ -154,6 +228,39 @@
             <div class="hub-chart-empty" id="bankrollChartEmpty">
                 Settle more bets to build your bankroll history.
             </div>
+        </div>
+    </section>
+
+    <section class="panel hub-calendar-panel">
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">Profit Calendar</div>
+                <div class="hub-panel-note">Click a day to see its settled tickets</div>
+            </div>
+
+            <div class="hub-calendar-controls">
+                <button type="button" onclick="changeCalendarMonth(-1)">‹</button>
+                <strong id="calendarMonthLabel"></strong>
+                <button type="button" onclick="changeCalendarMonth(1)">›</button>
+            </div>
+        </div>
+
+        <div class="hub-calendar-layout">
+            <div>
+                <div class="hub-calendar-weekdays">
+                    {% for weekday in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] %}
+                        <span>{{ weekday }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="hub-calendar-grid" id="profitCalendar"></div>
+            </div>
+
+            <aside class="hub-calendar-details" id="calendarDetails">
+                <div class="hub-calendar-details-empty">
+                    Select a settled day to view its tickets.
+                </div>
+            </aside>
         </div>
     </section>
 
@@ -1486,6 +1593,187 @@ function drawBankrollChart() {
 
 window.addEventListener("load", drawBankrollChart);
 window.addEventListener("resize", drawBankrollChart);
+
+
+const calendarDailyData = {{ calendar_daily|tojson }};
+const calendarBetData = {{ calendar_bets|tojson }};
+
+let calendarCursor = new Date();
+calendarCursor.setDate(1);
+
+function dateKey(year, monthIndex, day) {
+    return [
+        year,
+        String(monthIndex + 1).padStart(2, "0"),
+        String(day).padStart(2, "0")
+    ].join("-");
+}
+
+function moneyText(value) {
+    const number = Number(value || 0);
+    const sign = number > 0 ? "+" : "";
+    return `${sign}$${number.toFixed(2)}`;
+}
+
+function renderProfitCalendar() {
+    const grid = document.getElementById("profitCalendar");
+    const label = document.getElementById("calendarMonthLabel");
+
+    if (!grid || !label) return;
+
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+
+    label.textContent = calendarCursor.toLocaleDateString(
+        undefined,
+        {
+            month: "long",
+            year: "numeric"
+        }
+    );
+
+    grid.innerHTML = "";
+
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let blank = 0; blank < firstWeekday; blank += 1) {
+        const empty = document.createElement("div");
+        empty.className = "hub-calendar-day hub-calendar-day-empty";
+        grid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+        const key = dateKey(year, month, day);
+        const data = calendarDailyData[key];
+        const cell = document.createElement("button");
+
+        cell.type = "button";
+        cell.className = "hub-calendar-day";
+        cell.dataset.date = key;
+
+        if (data) {
+            const profit = Number(data.profit || 0);
+
+            if (profit > 0) {
+                cell.classList.add("hub-calendar-day-positive");
+            } else if (profit < 0) {
+                cell.classList.add("hub-calendar-day-negative");
+            } else {
+                cell.classList.add("hub-calendar-day-flat");
+            }
+
+            cell.innerHTML = `
+                <span class="hub-calendar-day-number">${day}</span>
+                <strong>${moneyText(profit)}</strong>
+                <small>${data.ticket_count} ticket${data.ticket_count === 1 ? "" : "s"}</small>
+            `;
+
+            cell.addEventListener("click", () => showCalendarDay(key));
+        } else {
+            cell.innerHTML = `
+                <span class="hub-calendar-day-number">${day}</span>
+            `;
+            cell.disabled = true;
+        }
+
+        grid.appendChild(cell);
+    }
+}
+
+function changeCalendarMonth(offset) {
+    calendarCursor.setMonth(calendarCursor.getMonth() + offset);
+    renderProfitCalendar();
+}
+
+function showCalendarDay(key) {
+    const details = document.getElementById("calendarDetails");
+    const daily = calendarDailyData[key];
+    const bets = calendarBetData[key] || [];
+
+    if (!details || !daily) return;
+
+    document.querySelectorAll(".hub-calendar-day-selected").forEach(cell => {
+        cell.classList.remove("hub-calendar-day-selected");
+    });
+
+    const selected = document.querySelector(
+        `.hub-calendar-day[data-date="${key}"]`
+    );
+
+    if (selected) {
+        selected.classList.add("hub-calendar-day-selected");
+    }
+
+    const formattedDate = new Date(
+        `${key}T12:00:00`
+    ).toLocaleDateString(
+        undefined,
+        {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric"
+        }
+    );
+
+    const rows = bets.map(bet => {
+        const status = String(bet.status || "pending").toLowerCase();
+        const profit = bet.profit === null
+            ? "—"
+            : moneyText(bet.profit);
+
+        return `
+            <div class="hub-calendar-ticket">
+                <div>
+                    <strong>${escapeCalendarHtml(bet.title)}</strong>
+                    <span>
+                        ${escapeCalendarHtml((bet.sport || "").toUpperCase())}
+                        · ${escapeCalendarHtml(bet.bet_type || "straight")}
+                        ${bet.sportsbook ? ` · ${escapeCalendarHtml(bet.sportsbook)}` : ""}
+                    </span>
+                </div>
+
+                <div class="hub-calendar-ticket-result">
+                    <span class="hub-status hub-status-${status}">
+                        ${escapeCalendarHtml(status)}
+                    </span>
+                    <strong class="${Number(bet.profit) > 0 ? "hub-positive" : Number(bet.profit) < 0 ? "hub-negative" : ""}">
+                        ${profit}
+                    </strong>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    details.innerHTML = `
+        <div class="hub-calendar-detail-head">
+            <span>${formattedDate}</span>
+            <strong class="${Number(daily.profit) > 0 ? "hub-positive" : Number(daily.profit) < 0 ? "hub-negative" : ""}">
+                ${moneyText(daily.profit)}
+            </strong>
+            <small>
+                ${daily.wins}-${daily.losses}
+                ${daily.pushes ? ` · ${daily.pushes} push/void` : ""}
+            </small>
+        </div>
+
+        <div class="hub-calendar-ticket-list">
+            ${rows || '<div class="hub-calendar-details-empty">No tickets found.</div>'}
+        </div>
+    `;
+}
+
+function escapeCalendarHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+window.addEventListener("load", renderProfitCalendar);
 
 </script>
 {% endblock %}

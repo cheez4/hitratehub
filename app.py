@@ -320,6 +320,56 @@ def generate_ticket_title(legs):
     return f"{' + '.join(short_names[:3])} + {len(short_names) - 3} More"
 
 
+def calculate_bet_streaks(results):
+    """Calculate current and longest ticket win/loss streaks."""
+    normalized = [
+        str(result or "").strip().lower()
+        for result in results
+        if str(result or "").strip().lower() in {"won", "lost"}
+    ]
+
+    if not normalized:
+        return {
+            "current_type": "",
+            "current_count": 0,
+            "longest_win": 0,
+            "longest_loss": 0
+        }
+
+    current_type = normalized[0]
+    current_count = 0
+
+    for result in normalized:
+        if result == current_type:
+            current_count += 1
+        else:
+            break
+
+    longest_win = 0
+    longest_loss = 0
+    running_type = None
+    running_count = 0
+
+    for result in reversed(normalized):
+        if result == running_type:
+            running_count += 1
+        else:
+            running_type = result
+            running_count = 1
+
+        if result == "won":
+            longest_win = max(longest_win, running_count)
+        else:
+            longest_loss = max(longest_loss, running_count)
+
+    return {
+        "current_type": current_type,
+        "current_count": current_count,
+        "longest_win": longest_win,
+        "longest_loss": longest_loss
+    }
+
+
 def normalize_name(name):
     if not name:
         return ""
@@ -4287,6 +4337,361 @@ def my_bets_page():
                 )
             ]
 
+    streak_df = read_sql("""
+        SELECT
+            LOWER(COALESCE(result, status)) AS result
+        FROM user_bets
+        WHERE user_id = %s
+          AND LOWER(COALESCE(result, status, '')) IN ('won', 'lost')
+        ORDER BY settled_at DESC NULLS LAST, id DESC
+    """, (current_user.id,))
+
+    streak_summary = calculate_bet_streaks(
+        streak_df["result"].tolist()
+        if not streak_df.empty
+        else []
+    )
+
+    category_df = read_sql("""
+        SELECT
+            'sport' AS category_type,
+            COALESCE(NULLIF(TRIM(sport), ''), 'Unknown') AS category_name,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) IN ('won', 'lost')
+            ) AS decisions,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'won'
+            ) AS wins,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'lost'
+            ) AS losses,
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                    THEN profit ELSE 0
+                END
+            ), 0) AS profit,
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) IN ('won', 'lost')
+                    THEN stake ELSE 0
+                END
+            ), 0) AS stake
+        FROM user_bets
+        WHERE user_id = %s
+        GROUP BY 2
+
+        UNION ALL
+
+        SELECT
+            'sportsbook' AS category_type,
+            COALESCE(NULLIF(TRIM(sportsbook), ''), 'Unknown') AS category_name,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) IN ('won', 'lost')
+            ) AS decisions,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'won'
+            ) AS wins,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'lost'
+            ) AS losses,
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                    THEN profit ELSE 0
+                END
+            ), 0) AS profit,
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) IN ('won', 'lost')
+                    THEN stake ELSE 0
+                END
+            ), 0) AS stake
+        FROM user_bets
+        WHERE user_id = %s
+        GROUP BY 2
+
+        UNION ALL
+
+        SELECT
+            'bet_type' AS category_type,
+            INITCAP(COALESCE(NULLIF(TRIM(bet_type), ''), 'straight')) AS category_name,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) IN ('won', 'lost')
+            ) AS decisions,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'won'
+            ) AS wins,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'lost'
+            ) AS losses,
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) <> 'pending'
+                    THEN profit ELSE 0
+                END
+            ), 0) AS profit,
+            COALESCE(SUM(
+                CASE
+                    WHEN LOWER(COALESCE(status, '')) IN ('won', 'lost')
+                    THEN stake ELSE 0
+                END
+            ), 0) AS stake
+        FROM user_bets
+        WHERE user_id = %s
+        GROUP BY 2
+    """, (
+        current_user.id,
+        current_user.id,
+        current_user.id
+    ))
+
+    performance_insights = {
+        "best_sport": None,
+        "best_sportsbook": None,
+        "best_bet_type": None,
+        "best_prop": None
+    }
+
+    if not category_df.empty:
+        category_df["decisions"] = pd.to_numeric(
+            category_df["decisions"],
+            errors="coerce"
+        ).fillna(0)
+
+        category_df["wins"] = pd.to_numeric(
+            category_df["wins"],
+            errors="coerce"
+        ).fillna(0)
+
+        category_df["losses"] = pd.to_numeric(
+            category_df["losses"],
+            errors="coerce"
+        ).fillna(0)
+
+        category_df["profit"] = pd.to_numeric(
+            category_df["profit"],
+            errors="coerce"
+        ).fillna(0)
+
+        category_df["stake"] = pd.to_numeric(
+            category_df["stake"],
+            errors="coerce"
+        ).fillna(0)
+
+        category_df["roi"] = category_df.apply(
+            lambda row: (
+                float(row["profit"]) / float(row["stake"]) * 100
+                if float(row["stake"]) > 0
+                else 0
+            ),
+            axis=1
+        )
+
+        category_df["win_rate"] = category_df.apply(
+            lambda row: (
+                float(row["wins"]) / float(row["decisions"]) * 100
+                if float(row["decisions"]) > 0
+                else 0
+            ),
+            axis=1
+        )
+
+        def best_category(category_type):
+            eligible = category_df[
+                (category_df["category_type"] == category_type)
+                & (category_df["decisions"] >= 3)
+            ].copy()
+
+            if eligible.empty:
+                eligible = category_df[
+                    category_df["category_type"] == category_type
+                ].copy()
+
+            if eligible.empty:
+                return None
+
+            eligible = eligible.sort_values(
+                ["profit", "roi", "decisions"],
+                ascending=[False, False, False]
+            )
+
+            row = eligible.iloc[0]
+
+            return {
+                "name": str(row["category_name"]),
+                "profit": round(float(row["profit"]), 2),
+                "roi": round(float(row["roi"]), 1),
+                "win_rate": round(float(row["win_rate"]), 1),
+                "record": (
+                    f"{int(row['wins'])}-{int(row['losses'])}"
+                ),
+                "sample": int(row["decisions"])
+            }
+
+        performance_insights["best_sport"] = best_category("sport")
+        performance_insights["best_sportsbook"] = best_category("sportsbook")
+        performance_insights["best_bet_type"] = best_category("bet_type")
+
+    prop_df = read_sql("""
+        SELECT
+            COALESCE(NULLIF(TRIM(ubl.prop), ''), 'Other') AS prop,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(ubl.status, '')) IN ('won', 'lost')
+            ) AS decisions,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(ubl.status, '')) = 'won'
+            ) AS wins,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(ubl.status, '')) = 'lost'
+            ) AS losses
+        FROM user_bet_legs ubl
+        JOIN user_bets ub
+          ON ub.id = ubl.user_bet_id
+        WHERE ub.user_id = %s
+        GROUP BY 1
+        ORDER BY 2 DESC
+    """, (current_user.id,))
+
+    if not prop_df.empty:
+        prop_df["decisions"] = pd.to_numeric(
+            prop_df["decisions"],
+            errors="coerce"
+        ).fillna(0)
+
+        prop_df["wins"] = pd.to_numeric(
+            prop_df["wins"],
+            errors="coerce"
+        ).fillna(0)
+
+        prop_df["losses"] = pd.to_numeric(
+            prop_df["losses"],
+            errors="coerce"
+        ).fillna(0)
+
+        prop_df["win_rate"] = prop_df.apply(
+            lambda row: (
+                float(row["wins"]) / float(row["decisions"]) * 100
+                if float(row["decisions"]) > 0
+                else 0
+            ),
+            axis=1
+        )
+
+        eligible_props = prop_df[
+            prop_df["decisions"] >= 3
+        ].copy()
+
+        if eligible_props.empty:
+            eligible_props = prop_df[
+                prop_df["decisions"] > 0
+            ].copy()
+
+        if not eligible_props.empty:
+            eligible_props = eligible_props.sort_values(
+                ["win_rate", "decisions"],
+                ascending=[False, False]
+            )
+
+            prop_row = eligible_props.iloc[0]
+
+            performance_insights["best_prop"] = {
+                "name": str(prop_row["prop"]),
+                "win_rate": round(
+                    float(prop_row["win_rate"]),
+                    1
+                ),
+                "record": (
+                    f"{int(prop_row['wins'])}-"
+                    f"{int(prop_row['losses'])}"
+                ),
+                "sample": int(prop_row["decisions"])
+            }
+
+    calendar_df = read_sql("""
+        SELECT
+            settled_at::date AS activity_date,
+            COALESCE(SUM(profit), 0) AS profit,
+            COUNT(*) AS ticket_count,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'won'
+            ) AS wins,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) = 'lost'
+            ) AS losses,
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) IN ('push', 'void')
+            ) AS pushes
+        FROM user_bets
+        WHERE user_id = %s
+          AND settled_at IS NOT NULL
+          AND LOWER(COALESCE(status, 'pending')) <> 'pending'
+        GROUP BY settled_at::date
+        ORDER BY activity_date
+    """, (current_user.id,))
+
+    calendar_daily = {}
+
+    if not calendar_df.empty:
+        for _, day_row in calendar_df.iterrows():
+            activity_date = day_row["activity_date"]
+
+            if hasattr(activity_date, "strftime"):
+                date_key = activity_date.strftime("%Y-%m-%d")
+            else:
+                date_key = str(activity_date)
+
+            calendar_daily[date_key] = {
+                "profit": round(float(day_row["profit"] or 0), 2),
+                "ticket_count": int(day_row["ticket_count"] or 0),
+                "wins": int(day_row["wins"] or 0),
+                "losses": int(day_row["losses"] or 0),
+                "pushes": int(day_row["pushes"] or 0)
+            }
+
+    calendar_bets_df = read_sql("""
+        SELECT
+            id,
+            settled_at::date AS activity_date,
+            COALESCE(NULLIF(TRIM(title), ''), 'Tracked Bet') AS title,
+            sport,
+            bet_type,
+            sportsbook,
+            status,
+            profit
+        FROM user_bets
+        WHERE user_id = %s
+          AND settled_at IS NOT NULL
+          AND LOWER(COALESCE(status, 'pending')) <> 'pending'
+        ORDER BY settled_at DESC, id DESC
+        LIMIT 1000
+    """, (current_user.id,))
+
+    calendar_bets = {}
+
+    if not calendar_bets_df.empty:
+        for _, calendar_row in calendar_bets_df.iterrows():
+            activity_date = calendar_row["activity_date"]
+
+            if hasattr(activity_date, "strftime"):
+                date_key = activity_date.strftime("%Y-%m-%d")
+            else:
+                date_key = str(activity_date)
+
+            calendar_bets.setdefault(date_key, []).append({
+                "id": int(calendar_row["id"]),
+                "title": str(calendar_row["title"]),
+                "sport": str(calendar_row["sport"] or ""),
+                "bet_type": str(calendar_row["bet_type"] or "straight"),
+                "sportsbook": str(calendar_row["sportsbook"] or ""),
+                "status": str(calendar_row["status"] or ""),
+                "profit": (
+                    round(float(calendar_row["profit"]), 2)
+                    if calendar_row["profit"] is not None
+                    else None
+                )
+            })
+
     sports_df = read_sql("""
         SELECT DISTINCT sport
         FROM user_bets
@@ -4313,6 +4718,10 @@ def my_bets_page():
         summary=summary,
         dashboard_summary=dashboard_summary,
         bankroll_chart=bankroll_chart,
+        streak_summary=streak_summary,
+        performance_insights=performance_insights,
+        calendar_daily=calendar_daily,
+        calendar_bets=calendar_bets,
         bankrolls=bankrolls,
         sports=sports,
         status_filter=status_filter,
