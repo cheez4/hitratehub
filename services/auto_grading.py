@@ -153,7 +153,7 @@ def get_single_pitcher_result(cur, player_name, event_date, stat_key):
     return float(rows[0][0] or 0), None
 
 
-def grade_pending_mlb_straights(user_id):
+def grade_pending_mlb_bets(user_id):
     """
     Match and grade pending one-leg MLB tickets.
 
@@ -188,8 +188,7 @@ def grade_pending_mlb_straights(user_id):
                         ON ubl.user_bet_id = ub.id
                     WHERE ub.user_id = %s
                       AND LOWER(COALESCE(ub.status, 'pending')) = 'pending'
-                      AND LOWER(COALESCE(ub.bet_type, 'straight')) = 'straight'
-                      AND UPPER(COALESCE(ub.sport, '')) = 'MLB'
+                                            AND UPPER(COALESCE(ub.sport, '')) = 'MLB'
                       AND LOWER(COALESCE(ubl.status, 'pending')) = 'pending'
                     ORDER BY ub.id
                 """, (user_id,))
@@ -281,11 +280,66 @@ def grade_pending_mlb_straights(user_id):
                         "prop": raw_prop
                     })
 
+        ready_tickets = []
+
+        with get_conn() as ticket_conn:
+            with ticket_conn.cursor() as ticket_cur:
+                ticket_cur.execute("""
+                    SELECT
+                        ub.id,
+                        ub.bet_type,
+                        ARRAY_AGG(
+                            LOWER(COALESCE(ubl.status, 'pending'))
+                            ORDER BY COALESCE(ubl.sort_order, ubl.id)
+                        ) AS leg_statuses
+                    FROM user_bets ub
+                    JOIN user_bet_legs ubl
+                        ON ubl.user_bet_id = ub.id
+                    WHERE ub.user_id = %s
+                      AND LOWER(COALESCE(ub.status, 'pending')) = 'pending'
+                      AND UPPER(COALESCE(ub.sport, '')) = 'MLB'
+                    GROUP BY ub.id, ub.bet_type
+                    ORDER BY ub.id
+                """, (user_id,))
+
+                for bet_id, bet_type, leg_statuses in ticket_cur.fetchall():
+                    statuses = [
+                        str(value or "pending").lower()
+                        for value in (leg_statuses or [])
+                    ]
+
+                    if "lost" in statuses:
+                        ticket_result = "lost"
+                    elif "pending" in statuses:
+                        ticket_result = "pending"
+                    elif statuses and all(value == "won" for value in statuses):
+                        ticket_result = "won"
+                    elif statuses and all(
+                        value in {"won", "push", "void"}
+                        for value in statuses
+                    ):
+                        ticket_result = "push"
+                    else:
+                        ticket_result = "pending"
+
+                    if ticket_result != "pending":
+                        ready_tickets.append({
+                            "bet_id": int(bet_id),
+                            "bet_type": bet_type or "straight",
+                            "result": ticket_result,
+                            "leg_statuses": statuses
+                        })
+
         return {
             "success": True,
-            "graded": graded,
-            "skipped": skipped
+            "graded_legs": graded,
+            "skipped_legs": skipped,
+            "ready_tickets": ready_tickets
         }
 
     finally:
         conn.close()
+
+
+def grade_pending_mlb_straights(user_id):
+    return grade_pending_mlb_bets(user_id)

@@ -33,7 +33,7 @@ import secrets
 from urllib.parse import urlencode
 from functools import wraps
 from services.grading_engine import grade_bet
-from services.auto_grading import grade_pending_mlb_straights
+from services.auto_grading import grade_pending_mlb_bets
 from zoneinfo import ZoneInfo
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -5310,20 +5310,19 @@ def clear_cache():
 @login_required
 def sync_personal_bet_results():
     try:
-        scan = grade_pending_mlb_straights(
+        scan = grade_pending_mlb_bets(
             user_id=current_user.id
         )
 
         settled = 0
         failed = 0
 
-        # Use the existing settlement engine so bankroll updates,
-        # profit and transaction history remain in one place.
-        for item in scan["graded"]:
+        for ticket in scan["ready_tickets"]:
             response = grade_bet(
-                bet_id=item["bet_id"],
-                result=item["result"],
-                user_id=current_user.id
+                bet_id=ticket["bet_id"],
+                result=ticket["result"],
+                user_id=current_user.id,
+                update_legs=False
             )
 
             if response.get("success"):
@@ -5331,37 +5330,47 @@ def sync_personal_bet_results():
             else:
                 failed += 1
 
-        skipped = len(scan["skipped"])
+        graded_legs = len(scan["graded_legs"])
+        skipped_legs = len(scan["skipped_legs"])
 
         if settled:
             flash(
-                f"Results synced: {settled} bet"
-                f"{'' if settled == 1 else 's'} graded"
+                f"Results synced: {graded_legs} leg"
+                f"{'' if graded_legs == 1 else 's'} graded"
+                f" · {settled} ticket"
+                f"{'' if settled == 1 else 's'} settled"
                 + (
-                    f" · {skipped} left pending"
-                    if skipped
+                    f" · {skipped_legs} leg"
+                    f"{'' if skipped_legs == 1 else 's'} pending"
+                    if skipped_legs
                     else ""
                 ),
                 "success"
             )
+        elif graded_legs:
+            flash(
+                f"{graded_legs} leg"
+                f"{'' if graded_legs == 1 else 's'} graded. "
+                "The remaining ticket legs are still pending.",
+                "info"
+            )
         elif failed:
             flash(
-                "Stats were matched, but settlement failed. "
-                "Check the server log.",
+                "Ticket results were found, but settlement failed.",
                 "error"
             )
         else:
             flash(
-                "No pending MLB straight bets were ready to grade.",
+                "No pending MLB legs were ready to grade.",
                 "info"
             )
 
-    except Exception as exc:
+    except Exception:
         app.logger.exception(
             "Personal Hub result sync failed"
         )
         flash(
-            "Result sync failed. No bets were changed.",
+            "Result sync failed. No tickets were settled.",
             "error"
         )
 

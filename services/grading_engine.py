@@ -12,7 +12,7 @@ def money(value):
     )
 
 
-def grade_bet(bet_id, result, user_id):
+def grade_bet(bet_id, result, user_id, update_legs=True):
     result = str(result or "").strip().lower()
 
     if result not in VALID_RESULTS:
@@ -207,17 +207,18 @@ def grade_bet(bet_id, result, user_id):
                 # leg-by-leg without changing the bankroll engine.
                 # --------------------------------------------------
 
-                cur.execute("""
-                    UPDATE user_bet_legs
-                    SET
-                        status = %s,
-                        result = %s
-                    WHERE user_bet_id = %s
-                """, (
-                    result,
-                    result,
-                    bet_id
-                ))
+                if update_legs:
+                    cur.execute("""
+                        UPDATE user_bet_legs
+                        SET
+                            status = %s,
+                            result = %s
+                        WHERE user_bet_id = %s
+                    """, (
+                        result,
+                        result,
+                        bet_id
+                    ))
 
                 # --------------------------------------------------
                 # UPDATE BANKROLL
