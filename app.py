@@ -271,6 +271,55 @@ def clean_text(value):
     return "" if value is None else str(value).strip()
 
 
+def generate_ticket_title(legs):
+    """Generate a readable title when the user leaves the title blank."""
+    if not legs:
+        return "Manual Bet"
+
+    def name_for(leg):
+        return clean_text(
+            leg.get("selection_name")
+            or leg.get("player_name")
+            or leg.get("team_name")
+            or "Selection"
+        )
+
+    def format_line(value):
+        if value in (None, ""):
+            return ""
+        try:
+            number = float(value)
+            return str(int(number)) if number.is_integer() else f"{number:g}"
+        except (TypeError, ValueError):
+            return clean_text(value)
+
+    if len(legs) == 1:
+        leg = legs[0]
+        name = name_for(leg)
+        side = clean_text(leg.get("ou")).title()
+        line = format_line(
+            leg.get("user_line")
+            if leg.get("user_line") is not None
+            else leg.get("line")
+        )
+        prop = clean_text(leg.get("prop") or leg.get("selection_type"))
+
+        return " ".join(
+            part for part in (name, side, line, prop) if part
+        ) or "Manual Bet"
+
+    short_names = []
+    for leg in legs:
+        full_name = name_for(leg)
+        parts = full_name.split()
+        short_names.append(parts[-1] if parts else "Selection")
+
+    if len(short_names) <= 3:
+        return " + ".join(short_names)
+
+    return f"{' + '.join(short_names[:3])} + {len(short_names) - 3} More"
+
+
 def normalize_name(name):
     if not name:
         return ""
@@ -3933,6 +3982,10 @@ def my_bets_page():
 
             bet_id = int(bet["id"])
 
+            raw_title = bet.get("title")
+            if pd.isna(raw_title) or clean_text(raw_title).lower() == "nan":
+                bet["title"] = ""
+
             bet["legs"] = legs_by_bet.get(bet_id, [])
             bet["leg_count"] = len(bet["legs"])
 
@@ -4170,6 +4223,70 @@ def my_bets_page():
         2
     )
 
+
+    bankroll_chart_df = read_sql("""
+        SELECT
+            bt.created_at,
+            bt.balance_after,
+            ub.name AS bankroll_name
+        FROM bankroll_transactions bt
+        JOIN user_bankrolls ub
+          ON ub.id = bt.bankroll_id
+        WHERE bt.user_id = %s
+          AND ub.is_default = TRUE
+          AND bt.balance_after IS NOT NULL
+        ORDER BY bt.created_at ASC
+        LIMIT 500
+    """, (current_user.id,))
+
+    bankroll_chart = {
+        "bankroll_name": (
+            next(
+                (
+                    bankroll.get("name")
+                    for bankroll in bankrolls
+                    if bankroll.get("is_default")
+                ),
+                "Main Bankroll"
+            )
+        ),
+        "labels": [],
+        "values": []
+    }
+
+    if not bankroll_chart_df.empty:
+        for _, chart_row in bankroll_chart_df.iterrows():
+            created_at = chart_row["created_at"]
+
+            if hasattr(created_at, "strftime"):
+                label = created_at.strftime("%b %d")
+            else:
+                label = str(created_at)
+
+            bankroll_chart["labels"].append(label)
+            bankroll_chart["values"].append(
+                round(float(chart_row["balance_after"] or 0), 2)
+            )
+
+    if not bankroll_chart["values"]:
+        default_bankroll = next(
+            (
+                bankroll
+                for bankroll in bankrolls
+                if bankroll.get("is_default")
+            ),
+            bankrolls[0] if bankrolls else None
+        )
+
+        if default_bankroll:
+            bankroll_chart["labels"] = ["Current"]
+            bankroll_chart["values"] = [
+                round(
+                    float(default_bankroll.get("current_balance") or 0),
+                    2
+                )
+            ]
+
     sports_df = read_sql("""
         SELECT DISTINCT sport
         FROM user_bets
@@ -4195,6 +4312,7 @@ def my_bets_page():
         bets=bets,
         summary=summary,
         dashboard_summary=dashboard_summary,
+        bankroll_chart=bankroll_chart,
         bankrolls=bankrolls,
         sports=sports,
         status_filter=status_filter,
@@ -4459,6 +4577,9 @@ def edit_personal_bet(bet_id):
             "odds": odds,
             "event_start": event_start
         })
+
+    if not title or title.lower() == "nan":
+        title = generate_ticket_title(legs)
 
     combined_odds = (
         round((combined_decimal - 1) * 100)
@@ -4938,6 +5059,9 @@ def add_manual_bet():
             "odds": odds,
             "event_start": event_start
         })
+
+    if not title or title.lower() == "nan":
+        title = generate_ticket_title(legs)
 
     combined_odds = (
         round((combined_decimal - 1) * 100)

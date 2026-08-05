@@ -129,6 +129,34 @@
         </div>
     </section>
 
+    <section class="panel hub-bankroll-chart-panel">
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">Bankroll History</div>
+                <div class="hub-panel-note">
+                    {{ bankroll_chart.bankroll_name }} balance after settled bets
+                </div>
+            </div>
+
+            <div class="hub-chart-current">
+                <span>Current</span>
+                <strong>${{ "%.2f"|format(dashboard_summary.current_bankroll) }}</strong>
+            </div>
+        </div>
+
+        <div class="hub-chart-body">
+            <canvas
+                id="bankrollChart"
+                height="280"
+                aria-label="Bankroll history chart"
+            ></canvas>
+
+            <div class="hub-chart-empty" id="bankrollChartEmpty">
+                Settle more bets to build your bankroll history.
+            </div>
+        </div>
+    </section>
+
     <section class="panel hub-v2-activity">
         <div class="panel-header">
             <div>
@@ -1300,5 +1328,164 @@ document.getElementById("manualBetForm")?.addEventListener("submit", function(ev
         alert("Add at least one leg.");
     }
 });
+
+const bankrollChartData = {{ bankroll_chart|tojson }};
+
+function drawBankrollChart() {
+    const canvas = document.getElementById("bankrollChart");
+    const empty = document.getElementById("bankrollChartEmpty");
+
+    if (!canvas || !bankrollChartData) return;
+
+    const values = (bankrollChartData.values || []).map(Number);
+    const labels = bankrollChartData.labels || [];
+
+    if (values.length < 2) {
+        canvas.style.display = "none";
+        if (empty) empty.style.display = "grid";
+        return;
+    }
+
+    canvas.style.display = "block";
+    if (empty) empty.style.display = "none";
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(rect.width, 320);
+    const height = 280;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+
+    const padding = {
+        top: 22,
+        right: 22,
+        bottom: 42,
+        left: 72
+    };
+
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const range = Math.max(maxValue - minValue, 1);
+    const buffer = range * 0.12;
+
+    const yMin = minValue - buffer;
+    const yMax = maxValue + buffer;
+
+    const xFor = index => (
+        padding.left
+        + (index / (values.length - 1)) * chartWidth
+    );
+
+    const yFor = value => (
+        padding.top
+        + ((yMax - value) / (yMax - yMin)) * chartHeight
+    );
+
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.font = "12px Arial";
+    ctx.textBaseline = "middle";
+
+    for (let i = 0; i <= 4; i += 1) {
+        const ratio = i / 4;
+        const y = padding.top + ratio * chartHeight;
+        const value = yMax - ratio * (yMax - yMin);
+
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.strokeStyle = "rgba(120, 160, 205, 0.13)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = "#7890ad";
+        ctx.textAlign = "right";
+        ctx.fillText(
+            "$" + value.toFixed(0),
+            padding.left - 12,
+            y
+        );
+    }
+
+    const gradient = ctx.createLinearGradient(
+        0,
+        padding.top,
+        0,
+        height - padding.bottom
+    );
+
+    gradient.addColorStop(0, "rgba(47, 140, 255, 0.32)");
+    gradient.addColorStop(1, "rgba(47, 140, 255, 0)");
+
+    ctx.beginPath();
+
+    values.forEach((value, index) => {
+        const x = xFor(index);
+        const y = yFor(value);
+
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+
+    ctx.lineTo(xFor(values.length - 1), height - padding.bottom);
+    ctx.lineTo(xFor(0), height - padding.bottom);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    ctx.beginPath();
+
+    values.forEach((value, index) => {
+        const x = xFor(index);
+        const y = yFor(value);
+
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+
+    ctx.strokeStyle = "#3898ff";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    const lastIndex = values.length - 1;
+    const lastX = xFor(lastIndex);
+    const lastY = yFor(values[lastIndex]);
+
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#7fc1ff";
+    ctx.fill();
+
+    const labelIndexes = [...new Set([
+        0,
+        Math.floor((values.length - 1) / 2),
+        values.length - 1
+    ])];
+
+    ctx.fillStyle = "#7890ad";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+
+    labelIndexes.forEach(index => {
+        ctx.fillText(
+            labels[index] || "",
+            xFor(index),
+            height - padding.bottom + 14
+        );
+    });
+}
+
+window.addEventListener("load", drawBankrollChart);
+window.addEventListener("resize", drawBankrollChart);
+
 </script>
 {% endblock %}
