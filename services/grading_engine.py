@@ -12,7 +12,13 @@ def money(value):
     )
 
 
-def grade_bet(bet_id, result, user_id, update_legs=True):
+def grade_bet(
+    bet_id,
+    result,
+    user_id,
+    update_legs=True,
+    odds_override=None
+):
     result = str(result or "").strip().lower()
 
     if result not in VALID_RESULTS:
@@ -101,7 +107,9 @@ def grade_bet(bet_id, result, user_id, update_legs=True):
                 # Prefer user's actual parlay odds, then combined,
                 # then straight-bet odds.
                 odds = (
-                    user_combined_odds
+                    odds_override
+                    if odds_override is not None
+                    else user_combined_odds
                     if user_combined_odds is not None
                     else combined_odds
                     if combined_odds is not None
@@ -278,7 +286,14 @@ def grade_bet(bet_id, result, user_id, update_legs=True):
                     balance_before,
                     balance_after,
                     units,
-                    f"Bet #{bet_id} graded {result}"
+                    (
+                        f"Bet #{bet_id} graded {result}"
+                        + (
+                            f" at adjusted odds {odds_override:+d}"
+                            if odds_override is not None
+                            else ""
+                        )
+                    )
                 ))
 
                 return {

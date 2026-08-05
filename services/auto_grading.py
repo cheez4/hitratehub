@@ -288,46 +288,134 @@ def grade_pending_mlb_bets(user_id):
                     SELECT
                         ub.id,
                         ub.bet_type,
-                        ARRAY_AGG(
-                            LOWER(COALESCE(ubl.status, 'pending'))
-                            ORDER BY COALESCE(ubl.sort_order, ubl.id)
-                        ) AS leg_statuses
+                        ubl.id,
+                        LOWER(COALESCE(ubl.status, 'pending')) AS leg_status,
+                        COALESCE(ubl.user_odds, ubl.odds) AS leg_odds,
+                        COALESCE(ubl.sort_order, ubl.id) AS leg_order
                     FROM user_bets ub
                     JOIN user_bet_legs ubl
                         ON ubl.user_bet_id = ub.id
                     WHERE ub.user_id = %s
                       AND LOWER(COALESCE(ub.status, 'pending')) = 'pending'
                       AND UPPER(COALESCE(ub.sport, '')) = 'MLB'
-                    GROUP BY ub.id, ub.bet_type
-                    ORDER BY ub.id
+                    ORDER BY
+                        ub.id,
+                        COALESCE(ubl.sort_order, ubl.id)
                 """, (user_id,))
 
-                for bet_id, bet_type, leg_statuses in ticket_cur.fetchall():
+                ticket_map = {}
+
+                for (
+                    bet_id,
+                    bet_type,
+                    leg_id,
+                    leg_status,
+                    leg_odds,
+                    leg_order
+                ) in ticket_cur.fetchall():
+                    ticket = ticket_map.setdefault(
+                        int(bet_id),
+                        {
+                            "bet_type": bet_type or "straight",
+                            "legs": []
+                        }
+                    )
+
+                    ticket["legs"].append({
+                        "leg_id": int(leg_id),
+                        "status": str(
+                            leg_status or "pending"
+                        ).lower(),
+                        "odds": (
+                            int(leg_odds)
+                            if leg_odds is not None
+                            else None
+                        ),
+                        "sort_order": leg_order
+                    })
+
+                for bet_id, ticket in ticket_map.items():
+                    legs = ticket["legs"]
                     statuses = [
-                        str(value or "pending").lower()
-                        for value in (leg_statuses or [])
+                        leg["status"]
+                        for leg in legs
                     ]
+
+                    ticket_result = "pending"
+                    adjusted_odds = None
+                    removed_leg_ids = []
 
                     if "lost" in statuses:
                         ticket_result = "lost"
+
                     elif "pending" in statuses:
                         ticket_result = "pending"
-                    elif statuses and all(value == "won" for value in statuses):
-                        ticket_result = "won"
+
+                    elif statuses and all(
+                        value in {"push", "void"}
+                        for value in statuses
+                    ):
+                        # Every leg was removed, so return the stake.
+                        ticket_result = "push"
+
                     elif statuses and all(
                         value in {"won", "push", "void"}
                         for value in statuses
                     ):
-                        ticket_result = "push"
-                    else:
-                        ticket_result = "pending"
+                        active_winning_legs = [
+                            leg
+                            for leg in legs
+                            if leg["status"] == "won"
+                        ]
+
+                        removed_leg_ids = [
+                            leg["leg_id"]
+                            for leg in legs
+                            if leg["status"] in {"push", "void"}
+                        ]
+
+                        # Missing odds means we cannot safely settle
+                        # a reduced parlay.
+                        if any(
+                            leg["odds"] in (None, 0)
+                            for leg in active_winning_legs
+                        ):
+                            ticket_result = "pending"
+
+                        elif active_winning_legs:
+                            combined_decimal = 1.0
+
+                            for leg in active_winning_legs:
+                                odds = int(leg["odds"])
+
+                                if odds > 0:
+                                    decimal_odds = 1 + odds / 100
+                                else:
+                                    decimal_odds = (
+                                        1 + 100 / abs(odds)
+                                    )
+
+                                combined_decimal *= decimal_odds
+
+                            if combined_decimal >= 2:
+                                adjusted_odds = round(
+                                    (combined_decimal - 1) * 100
+                                )
+                            else:
+                                adjusted_odds = round(
+                                    -100 / (combined_decimal - 1)
+                                )
+
+                            ticket_result = "won"
 
                     if ticket_result != "pending":
                         ready_tickets.append({
-                            "bet_id": int(bet_id),
-                            "bet_type": bet_type or "straight",
+                            "bet_id": bet_id,
+                            "bet_type": ticket["bet_type"],
                             "result": ticket_result,
-                            "leg_statuses": statuses
+                            "leg_statuses": statuses,
+                            "adjusted_odds": adjusted_odds,
+                            "removed_leg_ids": removed_leg_ids
                         })
 
         return {

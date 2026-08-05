@@ -5322,7 +5322,9 @@ def sync_personal_bet_results():
                 bet_id=ticket["bet_id"],
                 result=ticket["result"],
                 user_id=current_user.id,
-                update_legs=False
+                update_legs=False,
+                odds_override=ticket.get("adjusted_odds")
+
             )
 
             if response.get("success"):
