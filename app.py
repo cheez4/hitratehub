@@ -2675,9 +2675,8 @@ def safe_float(value, default=None):
     except Exception:
         return default
 
+@cache.memoize(timeout=300)
 def load_team_weather():
-
-    conn = get_conn()
 
     query = """
     SELECT *
@@ -2689,15 +2688,18 @@ def load_team_weather():
     """
 
     try:
-        df = pd.read_sql(query, conn)
-    finally:
-        conn.close()
+        df = read_sql(query)
+    except Exception as exc:
+        print("Weather lookup error:", exc)
+        return {}
 
     weather_lookup = {}
 
     for _, row in df.iterrows():
-        team_code = str(row["team_code"]).strip()
-        weather_lookup[team_code] = row.to_dict()
+        team_code = str(row.get("team_code") or "").strip()
+
+        if team_code:
+            weather_lookup[team_code] = row.to_dict()
 
     print("Weather teams loaded:", list(weather_lookup.keys()))
 
