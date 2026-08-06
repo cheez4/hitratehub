@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="shell admin-provider-shell">
+
+    <section class="admin-provider-hero">
+        <div>
+            <div class="admin-provider-kicker">Administration</div>
+            <h1>Provider Status</h1>
+            <p>
+                Prop-Line ingestion, scheduler health, current coverage,
+                and permanent OPEN/CLOSE history.
+            </p>
+        </div>
+
+        <div class="admin-provider-state admin-state-{{ scheduler_state }}">
+            <span class="admin-state-dot"></span>
+            <div>
+                <small>Scheduler</small>
+                <strong>
+                    {% if scheduler_state == "online" %}
+                        Online
+                    {% elif scheduler_state == "partial" %}
+                        Partial
+                    {% elif scheduler_state == "failed" %}
+                        Failed
+                    {% elif scheduler_state == "stale" %}
+                        Stale
+                    {% else %}
+                        Unknown
+                    {% endif %}
+                </strong>
+            </div>
+        </div>
+    </section>
+
+    {% if latest_sync %}
+        <section class="admin-provider-summary-grid">
+            <article class="admin-stat-card">
+                <span>Last Sync</span>
+                <strong>
+                    {% if latest_sync.finished_at %}
+                        {{ latest_sync.finished_at.astimezone().strftime("%b %d · %I:%M %p") }}
+                    {% else %}
+                        Running
+                    {% endif %}
+                </strong>
+                <small>{{ latest_sync.status|title }}</small>
+            </article>
+
+            <article class="admin-stat-card">
+                <span>Duration</span>
+                <strong>
+                    {{ "%.1f"|format(latest_sync.duration_seconds or 0) }}s
+                </strong>
+                <small>{{ latest_sync.odds_events or 0 }} odds events</small>
+            </article>
+
+            <article class="admin-stat-card">
+                <span>Markets Processed</span>
+                <strong>{{ "{:,}".format(latest_sync.market_rows or 0) }}</strong>
+                <small>
+                    {{ "{:,}".format(latest_sync.summary_rows or 0) }} summaries
+                </small>
+            </article>
+
+            <article class="admin-stat-card">
+                <span>Results Processed</span>
+                <strong>{{ "{:,}".format(latest_sync.result_rows or 0) }}</strong>
+                <small>{{ "{:,}".format(latest_sync.stat_rows or 0) }} stats</small>
+            </article>
+
+            <article class="admin-stat-card">
+                <span>Errors</span>
+                <strong class="{% if latest_sync.error_count %}admin-negative{% else %}admin-positive{% endif %}">
+                    {{ latest_sync.error_count or 0 }}
+                </strong>
+                <small>{{ latest_sync.status|title }}</small>
+            </article>
+        </section>
+
+        {% if latest_sync.error_message %}
+            <div class="admin-error-banner">
+                <strong>Latest error</strong>
+                <span>{{ latest_sync.error_message }}</span>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="admin-error-banner">
+            No scheduler runs have been recorded yet.
+        </div>
+    {% endif %}
+
+    <section class="admin-provider-grid">
+        <article class="admin-panel">
+            <header>
+                <div>
+                    <h2>Provider Storage</h2>
+                    <p>Current database totals</p>
+                </div>
+                <span class="admin-database-size">{{ database_size }}</span>
+            </header>
+
+            <div class="admin-storage-grid">
+                <div><span>Events</span><strong>{{ "{:,}".format(table_counts.events) }}</strong></div>
+                <div><span>Current Markets</span><strong>{{ "{:,}".format(table_counts.current_markets) }}</strong></div>
+                <div><span>Market Summary</span><strong>{{ "{:,}".format(table_counts.market_summary) }}</strong></div>
+                <div><span>Market History</span><strong>{{ "{:,}".format(table_counts.market_history) }}</strong></div>
+                <div><span>Results</span><strong>{{ "{:,}".format(table_counts.results) }}</strong></div>
+                <div><span>Stats</span><strong>{{ "{:,}".format(table_counts.stats) }}</strong></div>
+            </div>
+        </article>
+
+        <article class="admin-panel">
+            <header>
+                <div>
+                    <h2>Historical Checkpoints</h2>
+                    <p>Permanent price history</p>
+                </div>
+            </header>
+
+            <div class="admin-history-boxes">
+                <div>
+                    <span>OPEN</span>
+                    <strong>{{ "{:,}".format(history_counts.get("open", 0)) }}</strong>
+                    <small>First captured prices</small>
+                </div>
+
+                <div>
+                    <span>CLOSE</span>
+                    <strong>{{ "{:,}".format(history_counts.get("close", 0)) }}</strong>
+                    <small>Final pregame prices</small>
+                </div>
+            </div>
+
+            <div class="admin-info-note">
+                Current odds are overwritten. OPEN and CLOSE rows remain
+                permanently for line movement and CLV.
+            </div>
+        </article>
+
+        <article class="admin-panel">
+            <header>
+                <div>
+                    <h2>Upcoming Coverage</h2>
+                    <p>Next 72 hours</p>
+                </div>
+            </header>
+
+            {% set upcoming = coverage.upcoming_events or 0 %}
+            {% set covered = coverage.upcoming_with_markets or 0 %}
+            {% set coverage_pct = ((covered / upcoming) * 100) if upcoming else 0 %}
+
+            <div class="admin-coverage-number">
+                {{ covered }} / {{ upcoming }}
+            </div>
+
+            <div class="admin-progress">
+                <span style="width: {{ coverage_pct }}%"></span>
+            </div>
+
+            <small>{{ "%.1f"|format(coverage_pct) }}% have current markets</small>
+        </article>
+    </section>
+
+    <section class="admin-panel admin-wide-panel">
+        <header>
+            <div>
+                <h2>Event Coverage</h2>
+                <p>Recent and upcoming provider events</p>
+            </div>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Game</th>
+                        <th>Start</th>
+                        <th>Status</th>
+                        <th>Last Odds Sync</th>
+                        <th>Markets</th>
+                        <th>Summary</th>
+                        <th>Open</th>
+                        <th>Close</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in provider_events %}
+                        <tr>
+                            <td>
+                                <strong>{{ event.away_team }} @ {{ event.home_team }}</strong>
+                                <small>{{ event.provider_event_id }}</small>
+                            </td>
+                            <td>
+                                {% if event.commence_time %}
+                                    {{ event.commence_time.astimezone().strftime("%b %d · %I:%M %p") }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="admin-status-chip admin-status-{{ (event.status or 'upcoming')|lower }}">
+                                    {{ event.status or "upcoming" }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if event.last_odds_sync_at %}
+                                    {{ event.last_odds_sync_at.astimezone().strftime("%I:%M %p") }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td>
+                            <td>{{ "{:,}".format(event.current_market_rows or 0) }}</td>
+                            <td>{{ "{:,}".format(event.summary_rows or 0) }}</td>
+                            <td>{{ "{:,}".format(event.open_rows or 0) }}</td>
+                            <td>{{ "{:,}".format(event.close_rows or 0) }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="8">No provider events found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="admin-provider-grid admin-bottom-grid">
+        <article class="admin-panel">
+            <header>
+                <div>
+                    <h2>Recent Sync Runs</h2>
+                    <p>Latest 25 scheduler cycles</p>
+                </div>
+            </header>
+
+            <div class="admin-sync-list">
+                {% for run in recent_syncs %}
+                    <div class="admin-sync-row">
+                        <span class="admin-run-state admin-run-{{ run.status }}"></span>
+
+                        <div class="admin-sync-main">
+                            <strong>
+                                {% if run.started_at %}
+                                    {{ run.started_at.astimezone().strftime("%b %d · %I:%M %p") }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+
+                            <small>
+                                {{ run.odds_events or 0 }} odds ·
+                                {{ "{:,}".format(run.market_rows or 0) }} markets ·
+                                {{ run.error_count or 0 }} errors
+                            </small>
+                        </div>
+
+                        <span>
+                            {{ "%.1f"|format(run.duration_seconds or 0) }}s
+                        </span>
+                    </div>
+                {% else %}
+                    <div class="admin-empty">No sync logs yet.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="admin-panel">
+            <header>
+                <div>
+                    <h2>Provider Table Sizes</h2>
+                    <p>PostgreSQL storage including indexes</p>
+                </div>
+            </header>
+
+            <div class="admin-size-list">
+                {% for table in provider_table_sizes %}
+                    <div>
+                        <span>{{ table.table_name }}</span>
+                        <strong>{{ table.total_size }}</strong>
+                    </div>
+                {% else %}
+                    <div class="admin-empty">No table-size data.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="admin-panel">
+            <header>
+                <div>
+                    <h2>Needs Attention</h2>
+                    <p>Upcoming events without a recent odds refresh</p>
+                </div>
+            </header>
+
+            <div class="admin-attention-list">
+                {% for event in stale_events %}
+                    <div>
+                        <strong>{{ event.away_team }} @ {{ event.home_team }}</strong>
+                        <span>
+                            {% if event.last_odds_sync_at %}
+                                {{ "%.0f"|format(event.minutes_since_sync or 0) }}
+                                minutes ago
+                            {% else %}
+                                Never synced
+                            {% endif %}
+                        </span>
+                    </div>
+                {% else %}
+                    <div class="admin-good-state">
+                        ✓ No stale upcoming events detected
+                    </div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+</div>
+
+<style>
+.admin-provider-shell {
+    padding-bottom: 50px;
+}
+
+.admin-provider-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    padding: 28px;
+    border-radius: 20px;
+    margin: 22px 0 18px;
+    background:
+        radial-gradient(circle at top right, rgba(59,130,246,.22), transparent 42%),
+        linear-gradient(145deg, rgba(15,23,42,.96), rgba(2,6,23,.96));
+    border: 1px solid rgba(148,163,184,.16);
+}
+
+.admin-provider-kicker {
+    color: #60a5fa;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    font-size: .73rem;
+    font-weight: 800;
+}
+
+.admin-provider-hero h1 {
+    margin: 7px 0 5px;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.admin-provider-hero p,
+.admin-panel header p {
+    color: #94a3b8;
+    margin: 0;
+}
+
+.admin-provider-state {
+    min-width: 150px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 13px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(148,163,184,.16);
+    background: rgba(15,23,42,.7);
+}
+
+.admin-provider-state small,
+.admin-provider-state strong {
+    display: block;
+}
+
+.admin-state-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #94a3b8;
+    box-shadow: 0 0 0 5px rgba(148,163,184,.12);
+}
+
+.admin-state-online .admin-state-dot {
+    background: #22c55e;
+    box-shadow: 0 0 0 5px rgba(34,197,94,.12);
+}
+
+.admin-state-partial .admin-state-dot,
+.admin-state-stale .admin-state-dot {
+    background: #f59e0b;
+    box-shadow: 0 0 0 5px rgba(245,158,11,.12);
+}
+
+.admin-state-failed .admin-state-dot {
+    background: #ef4444;
+    box-shadow: 0 0 0 5px rgba(239,68,68,.12);
+}
+
+.admin-provider-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.admin-stat-card,
+.admin-panel {
+    border: 1px solid rgba(148,163,184,.15);
+    background: rgba(15,23,42,.72);
+    border-radius: 16px;
+}
+
+.admin-stat-card {
+    padding: 16px;
+}
+
+.admin-stat-card span,
+.admin-stat-card small {
+    display: block;
+    color: #94a3b8;
+}
+
+.admin-stat-card strong {
+    display: block;
+    font-size: 1.35rem;
+    margin: 6px 0;
+}
+
+.admin-positive { color: #4ade80; }
+.admin-negative { color: #f87171; }
+
+.admin-provider-grid {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr .8fr;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.admin-panel {
+    padding: 18px;
+}
+
+.admin-panel header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.admin-panel h2 {
+    margin: 0 0 3px;
+    font-size: 1.05rem;
+}
+
+.admin-database-size {
+    font-weight: 800;
+    color: #93c5fd;
+}
+
+.admin-storage-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 9px;
+}
+
+.admin-storage-grid div,
+.admin-history-boxes div {
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(2,6,23,.42);
+}
+
+.admin-storage-grid span,
+.admin-storage-grid strong,
+.admin-history-boxes span,
+.admin-history-boxes strong,
+.admin-history-boxes small {
+    display: block;
+}
+
+.admin-storage-grid span,
+.admin-history-boxes small {
+    color: #94a3b8;
+    font-size: .78rem;
+}
+
+.admin-storage-grid strong,
+.admin-history-boxes strong {
+    margin-top: 4px;
+    font-size: 1.25rem;
+}
+
+.admin-history-boxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.admin-info-note {
+    margin-top: 11px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: #93c5fd;
+    background: rgba(30,64,175,.12);
+    font-size: .79rem;
+}
+
+.admin-coverage-number {
+    font-size: 2.2rem;
+    font-weight: 850;
+}
+
+.admin-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(148,163,184,.15);
+    overflow: hidden;
+    margin: 13px 0 8px;
+}
+
+.admin-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #3b82f6, #22c55e);
+}
+
+.admin-wide-panel {
+    margin-bottom: 18px;
+}
+
+.admin-table-wrap {
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+}
+
+.admin-table th,
+.admin-table td {
+    text-align: left;
+    padding: 11px 10px;
+    border-bottom: 1px solid rgba(148,163,184,.11);
+    vertical-align: middle;
+}
+
+.admin-table th {
+    color: #94a3b8;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.admin-table td {
+    font-size: .86rem;
+}
+
+.admin-table td strong,
+.admin-table td small {
+    display: block;
+}
+
+.admin-table td small {
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.admin-status-chip {
+    display: inline-flex;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: .7rem;
+    text-transform: capitalize;
+    background: rgba(59,130,246,.12);
+    color: #93c5fd;
+}
+
+.admin-status-final,
+.admin-status-completed,
+.admin-status-complete {
+    background: rgba(34,197,94,.12);
+    color: #86efac;
+}
+
+.admin-bottom-grid {
+    grid-template-columns: 1.2fr .8fr 1fr;
+}
+
+.admin-sync-list,
+.admin-size-list,
+.admin-attention-list {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-sync-row,
+.admin-size-list > div,
+.admin-attention-list > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(2,6,23,.38);
+}
+
+.admin-sync-main {
+    flex: 1;
+}
+
+.admin-sync-main strong,
+.admin-sync-main small {
+    display: block;
+}
+
+.admin-sync-main small,
+.admin-attention-list span {
+    color: #94a3b8;
+    font-size: .76rem;
+}
+
+.admin-run-state {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94a3b8;
+}
+
+.admin-run-success { background: #22c55e; }
+.admin-run-partial { background: #f59e0b; }
+.admin-run-failed { background: #ef4444; }
+.admin-run-running { background: #60a5fa; }
+
+.admin-good-state {
+    color: #86efac;
+    justify-content: flex-start !important;
+}
+
+.admin-error-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 16px;
+    padding: 13px 15px;
+    border: 1px solid rgba(248,113,113,.25);
+    background: rgba(127,29,29,.15);
+    border-radius: 12px;
+    color: #fecaca;
+}
+
+@media (max-width: 1050px) {
+    .admin-provider-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .admin-provider-grid,
+    .admin-bottom-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 650px) {
+    .admin-provider-hero {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-provider-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-storage-grid,
+    .admin-history-boxes {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

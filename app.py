@@ -7308,5 +7308,324 @@ def strategy_finder():
         results=results
     )
 
+
+# ============================================================
+# ADMIN — PROVIDER STATUS
+# ============================================================
+
+def _admin_scalar(query, params=None, default=0):
+    """Return the first column of the first database row."""
+    df = read_sql(query, params or ())
+
+    if df.empty:
+        return default
+
+    value = df.iloc[0, 0]
+
+    if value is None or (
+        isinstance(value, float)
+        and pd.isna(value)
+    ):
+        return default
+
+    return value
+
+
+def _admin_safe_records(df):
+    """Convert a DataFrame into JSON/template-safe records."""
+    if df is None or df.empty:
+        return []
+
+    records = []
+
+    for item in df.to_dict("records"):
+        clean = {}
+
+        for key, value in item.items():
+            if value is None:
+                clean[key] = None
+            elif isinstance(value, float) and pd.isna(value):
+                clean[key] = None
+            elif hasattr(value, "isoformat"):
+                clean[key] = value
+            else:
+                clean[key] = value
+
+        records.append(clean)
+
+    return records
+
+
+@app.route("/admin/provider")
+@login_required
+@admin_required
+def admin_provider_status():
+    latest_sync_df = read_sql("""
+        SELECT
+            id,
+            status,
+            started_at,
+            finished_at,
+            duration_seconds,
+            events_cached,
+            odds_events,
+            market_rows,
+            summary_rows,
+            open_rows,
+            close_rows,
+            final_events,
+            result_rows,
+            stat_rows,
+            error_count,
+            error_message
+        FROM provider_sync_log
+        ORDER BY started_at DESC
+        LIMIT 1
+    """)
+
+    recent_syncs_df = read_sql("""
+        SELECT
+            id,
+            status,
+            started_at,
+            finished_at,
+            duration_seconds,
+            events_cached,
+            odds_events,
+            market_rows,
+            summary_rows,
+            open_rows,
+            close_rows,
+            final_events,
+            result_rows,
+            stat_rows,
+            error_count,
+            error_message
+        FROM provider_sync_log
+        ORDER BY started_at DESC
+        LIMIT 25
+    """)
+
+    event_rows_df = read_sql("""
+        SELECT
+            pe.provider_event_id,
+            pe.sport_key,
+            pe.away_team,
+            pe.home_team,
+            pe.commence_time,
+            pe.status,
+            pe.live,
+            pe.last_odds_sync_at,
+            COUNT(DISTINCT pm.id) AS current_market_rows,
+            COUNT(DISTINCT pms.id) AS summary_rows,
+            COUNT(DISTINCT CASE
+                WHEN pmh.checkpoint = 'open' THEN pmh.id
+            END) AS open_rows,
+            COUNT(DISTINCT CASE
+                WHEN pmh.checkpoint = 'close' THEN pmh.id
+            END) AS close_rows
+        FROM provider_events pe
+        LEFT JOIN provider_markets pm
+          ON pm.provider = pe.provider
+         AND pm.provider_event_id = pe.provider_event_id
+        LEFT JOIN provider_market_summary pms
+          ON pms.provider = pe.provider
+         AND pms.provider_event_id = pe.provider_event_id
+        LEFT JOIN provider_market_history pmh
+          ON pmh.provider = pe.provider
+         AND pmh.provider_event_id = pe.provider_event_id
+        WHERE pe.provider = 'prop_line'
+          AND pe.commence_time >= NOW() - INTERVAL '12 hours'
+          AND pe.commence_time <= NOW() + INTERVAL '3 days'
+        GROUP BY
+            pe.provider_event_id,
+            pe.sport_key,
+            pe.away_team,
+            pe.home_team,
+            pe.commence_time,
+            pe.status,
+            pe.live,
+            pe.last_odds_sync_at
+        ORDER BY pe.commence_time ASC
+        LIMIT 75
+    """)
+
+    coverage_df = read_sql("""
+        SELECT
+            COUNT(*) FILTER (
+                WHERE commence_time > NOW()
+                  AND commence_time <= NOW() + INTERVAL '3 days'
+            ) AS upcoming_events,
+
+            COUNT(*) FILTER (
+                WHERE commence_time > NOW()
+                  AND commence_time <= NOW() + INTERVAL '3 days'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM provider_markets pm
+                      WHERE pm.provider = provider_events.provider
+                        AND pm.provider_event_id =
+                            provider_events.provider_event_id
+                  )
+            ) AS upcoming_with_markets,
+
+            COUNT(*) FILTER (
+                WHERE LOWER(COALESCE(status, '')) IN (
+                    'final', 'completed', 'complete'
+                )
+            ) AS final_events
+        FROM provider_events
+        WHERE provider = 'prop_line'
+    """)
+
+    history_df = read_sql("""
+        SELECT
+            checkpoint,
+            COUNT(*) AS row_count,
+            COUNT(DISTINCT provider_event_id) AS event_count
+        FROM provider_market_history
+        WHERE provider = 'prop_line'
+        GROUP BY checkpoint
+        ORDER BY checkpoint
+    """)
+
+    table_counts = {
+        "events": int(_admin_scalar(
+            "SELECT COUNT(*) FROM provider_events "
+            "WHERE provider = 'prop_line'"
+        )),
+        "current_markets": int(_admin_scalar(
+            "SELECT COUNT(*) FROM provider_markets "
+            "WHERE provider = 'prop_line'"
+        )),
+        "market_summary": int(_admin_scalar(
+            "SELECT COUNT(*) FROM provider_market_summary "
+            "WHERE provider = 'prop_line'"
+        )),
+        "market_history": int(_admin_scalar(
+            "SELECT COUNT(*) FROM provider_market_history "
+            "WHERE provider = 'prop_line'"
+        )),
+        "results": int(_admin_scalar(
+            "SELECT COUNT(*) FROM provider_results "
+            "WHERE provider = 'prop_line'"
+        )),
+        "stats": int(_admin_scalar(
+            "SELECT COUNT(*) FROM provider_stats "
+            "WHERE provider = 'prop_line'"
+        )),
+    }
+
+    database_size = _admin_scalar("""
+        SELECT pg_size_pretty(
+            pg_database_size(current_database())
+        )
+    """, default="—")
+
+    provider_table_sizes_df = read_sql("""
+        SELECT
+            relname AS table_name,
+            pg_size_pretty(
+                pg_total_relation_size(relid)
+            ) AS total_size,
+            pg_total_relation_size(relid) AS total_bytes
+        FROM pg_catalog.pg_statio_user_tables
+        WHERE relname LIKE 'provider_%'
+        ORDER BY total_bytes DESC
+    """)
+
+    stale_events_df = read_sql("""
+        SELECT
+            provider_event_id,
+            away_team,
+            home_team,
+            commence_time,
+            last_odds_sync_at,
+            EXTRACT(
+                EPOCH FROM (
+                    NOW() - last_odds_sync_at
+                )
+            ) / 60.0 AS minutes_since_sync
+        FROM provider_events
+        WHERE provider = 'prop_line'
+          AND commence_time > NOW()
+          AND commence_time <= NOW() + INTERVAL '24 hours'
+          AND (
+              last_odds_sync_at IS NULL
+              OR last_odds_sync_at < NOW() - INTERVAL '65 minutes'
+          )
+        ORDER BY commence_time ASC
+        LIMIT 25
+    """)
+
+    latest_sync = (
+        _admin_safe_records(latest_sync_df)[0]
+        if not latest_sync_df.empty
+        else None
+    )
+
+    coverage = (
+        _admin_safe_records(coverage_df)[0]
+        if not coverage_df.empty
+        else {
+            "upcoming_events": 0,
+            "upcoming_with_markets": 0,
+            "final_events": 0,
+        }
+    )
+
+    history_counts = {
+        str(row["checkpoint"]): int(row["row_count"])
+        for row in _admin_safe_records(history_df)
+    }
+
+    scheduler_state = "unknown"
+
+    if latest_sync:
+        latest_status = str(
+            latest_sync.get("status") or ""
+        ).lower()
+
+        finished_at = latest_sync.get("finished_at")
+
+        if latest_status == "failed":
+            scheduler_state = "failed"
+        elif latest_status == "partial":
+            scheduler_state = "partial"
+        elif finished_at:
+            age_seconds = (
+                datetime.now(
+                    ZoneInfo("America/Toronto")
+                ).astimezone()
+                - finished_at.astimezone()
+            ).total_seconds()
+
+            scheduler_state = (
+                "online"
+                if age_seconds <= 20 * 60
+                else "stale"
+            )
+
+    return render_template(
+        "admin_provider.html",
+        active_page="admin_provider",
+        latest_sync=latest_sync,
+        recent_syncs=_admin_safe_records(recent_syncs_df),
+        provider_events=_admin_safe_records(event_rows_df),
+        stale_events=_admin_safe_records(stale_events_df),
+        table_counts=table_counts,
+        database_size=database_size,
+        provider_table_sizes=_admin_safe_records(
+            provider_table_sizes_df
+        ),
+        coverage=coverage,
+        history_counts=history_counts,
+        scheduler_state=scheduler_state,
+        now_toronto=datetime.now(
+            ZoneInfo("America/Toronto")
+        ),
+    )
+
+
 if __name__ == "__main__":
     app.run(debug=True)
