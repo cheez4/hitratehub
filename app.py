@@ -3968,7 +3968,7 @@ def create_personal_bankroll():
 
     if starting_balance is None or starting_balance < 0:
         flash("Starting balance must be zero or greater.", "error")
-        return redirect(url_for("personal_bets"))
+        return redirect(url_for("my_bets_page"))
 
     limit = bankroll_limit_for_user(current_user)
     current_count = user_bankroll_count(current_user.id)
@@ -3979,7 +3979,7 @@ def create_personal_bankroll():
             f"{'' if limit == 1 else 's'}.",
             "error"
         )
-        return redirect(url_for("personal_bets"))
+        return redirect(url_for("my_bets_page"))
 
     conn = get_conn()
 
@@ -4053,7 +4053,7 @@ def create_personal_bankroll():
     finally:
         conn.close()
 
-    return redirect(url_for("personal_bets"))
+    return redirect(url_for("my_bets_page"))
 
 
 @app.route(
@@ -4090,7 +4090,7 @@ def update_personal_bankroll(bankroll_id):
 
         if not cur.fetchone():
             flash("Bankroll not found.", "error")
-            return redirect(url_for("personal_bets"))
+            return redirect(url_for("my_bets_page"))
 
         cur.execute("""
             UPDATE user_bankrolls
@@ -4128,7 +4128,7 @@ def update_personal_bankroll(bankroll_id):
     finally:
         conn.close()
 
-    return redirect(url_for("personal_bets"))
+    return redirect(url_for("my_bets_page"))
 
 
 @app.route(
@@ -4160,7 +4160,7 @@ def delete_personal_bankroll(bankroll_id):
 
         if not row:
             flash("Bankroll not found.", "error")
-            return redirect(url_for("personal_bets"))
+            return redirect(url_for("my_bets_page"))
 
         _, was_default, bet_count = row
 
@@ -4169,7 +4169,7 @@ def delete_personal_bankroll(bankroll_id):
                 "This bankroll has tracked bets and cannot be deleted.",
                 "error"
             )
-            return redirect(url_for("personal_bets"))
+            return redirect(url_for("my_bets_page"))
 
         cur.execute("""
             DELETE FROM user_bankrolls
@@ -4202,7 +4202,7 @@ def delete_personal_bankroll(bankroll_id):
     finally:
         conn.close()
 
-    return redirect(url_for("personal_bets"))
+    return redirect(url_for("my_bets_page"))
 
 
 @app.route("/my-hub/bets")
