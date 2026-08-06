@@ -3856,6 +3856,355 @@ def system_ticket_page(system_code):
         unit_percentage=unit_percentage,
         auto_resize=auto_resize
     )
+
+def bankroll_limit_for_user(user):
+    """
+    Return the maximum number of bankrolls this user may own.
+
+    None means unlimited.
+    """
+    if getattr(user, "is_admin", False):
+        return None
+
+    if (
+        getattr(user, "is_beta_tester", False)
+        or getattr(user, "is_premium_plus", False)
+        or getattr(user, "has_capper_access", False)
+    ):
+        return 10
+
+    if getattr(user, "is_premium", False):
+        return 3
+
+    return 1
+
+
+def user_bankroll_count(user_id):
+    df = read_sql("""
+        SELECT COUNT(*) AS bankroll_count
+        FROM user_bankrolls
+        WHERE user_id = %s
+    """, (user_id,))
+
+    if df.empty:
+        return 0
+
+    return int(df.iloc[0]["bankroll_count"] or 0)
+
+
+def normalize_unit_percentage(value, default=0.01):
+    try:
+        percentage = float(value)
+    except (TypeError, ValueError):
+        return default
+
+    # UI accepts a percentage such as 1.0 for 1%.
+    if percentage > 0.25:
+        percentage = percentage / 100.0
+
+    return min(max(percentage, 0.001), 0.25)
+
+
+@app.route("/my-hub/bankrolls", methods=["GET"])
+@login_required
+def personal_bankrolls_api():
+    bankrolls_df = read_sql("""
+        SELECT
+            id,
+            name,
+            starting_balance,
+            current_balance,
+            unit_percentage,
+            auto_resize,
+            is_default,
+            created_at,
+            updated_at
+        FROM user_bankrolls
+        WHERE user_id = %s
+        ORDER BY is_default DESC, created_at ASC
+    """, (current_user.id,))
+
+    bankrolls = []
+
+    if not bankrolls_df.empty:
+        for row in bankrolls_df.to_dict("records"):
+            bankrolls.append({
+                "id": int(row["id"]),
+                "name": row.get("name") or "Bankroll",
+                "starting_balance": float(row.get("starting_balance") or 0),
+                "current_balance": float(row.get("current_balance") or 0),
+                "unit_percentage": float(row.get("unit_percentage") or 0.01),
+                "auto_resize": bool(row.get("auto_resize")),
+                "is_default": bool(row.get("is_default")),
+            })
+
+    limit = bankroll_limit_for_user(current_user)
+
+    return jsonify({
+        "bankrolls": bankrolls,
+        "count": len(bankrolls),
+        "limit": limit,
+        "unlimited": limit is None,
+        "can_create": limit is None or len(bankrolls) < limit,
+    })
+
+
+@app.route("/my-hub/bankrolls/create", methods=["POST"])
+@login_required
+def create_personal_bankroll():
+    name = clean_text(request.form.get("name")) or "Main Bankroll"
+    starting_balance = safe_float(
+        request.form.get("starting_balance"),
+        0
+    )
+    unit_percentage = normalize_unit_percentage(
+        request.form.get("unit_percentage"),
+        0.01
+    )
+    auto_resize = (
+        clean_text(request.form.get("auto_resize")).lower()
+        in {"1", "true", "yes", "on"}
+    )
+
+    if starting_balance is None or starting_balance < 0:
+        flash("Starting balance must be zero or greater.", "error")
+        return redirect(url_for("personal_bets"))
+
+    limit = bankroll_limit_for_user(current_user)
+    current_count = user_bankroll_count(current_user.id)
+
+    if limit is not None and current_count >= limit:
+        flash(
+            f"Your membership allows up to {limit} bankroll"
+            f"{'' if limit == 1 else 's'}.",
+            "error"
+        )
+        return redirect(url_for("personal_bets"))
+
+    conn = get_conn()
+
+    try:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM user_bankrolls
+            WHERE user_id = %s
+        """, (current_user.id,))
+
+        is_first = int(cur.fetchone()[0] or 0) == 0
+
+        cur.execute("""
+            INSERT INTO user_bankrolls (
+                user_id,
+                name,
+                starting_balance,
+                current_balance,
+                unit_percentage,
+                auto_resize,
+                is_default,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+            )
+            RETURNING id
+        """, (
+            current_user.id,
+            name[:100],
+            starting_balance,
+            starting_balance,
+            unit_percentage,
+            auto_resize,
+            is_first,
+        ))
+
+        bankroll_id = int(cur.fetchone()[0])
+
+        if not is_first and (
+            clean_text(request.form.get("make_default")).lower()
+            in {"1", "true", "yes", "on"}
+        ):
+            cur.execute("""
+                UPDATE user_bankrolls
+                SET is_default = FALSE,
+                    updated_at = NOW()
+                WHERE user_id = %s
+                  AND id <> %s
+            """, (current_user.id, bankroll_id))
+
+            cur.execute("""
+                UPDATE user_bankrolls
+                SET is_default = TRUE,
+                    updated_at = NOW()
+                WHERE user_id = %s
+                  AND id = %s
+            """, (current_user.id, bankroll_id))
+
+        conn.commit()
+        flash("Bankroll created.", "success")
+
+    except Exception as exc:
+        conn.rollback()
+        print("Create bankroll error:", exc)
+        flash("Unable to create bankroll.", "error")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("personal_bets"))
+
+
+@app.route(
+    "/my-hub/bankrolls/<int:bankroll_id>/update",
+    methods=["POST"]
+)
+@login_required
+def update_personal_bankroll(bankroll_id):
+    name = clean_text(request.form.get("name")) or "Bankroll"
+    unit_percentage = normalize_unit_percentage(
+        request.form.get("unit_percentage"),
+        0.01
+    )
+    auto_resize = (
+        clean_text(request.form.get("auto_resize")).lower()
+        in {"1", "true", "yes", "on"}
+    )
+    make_default = (
+        clean_text(request.form.get("make_default")).lower()
+        in {"1", "true", "yes", "on"}
+    )
+
+    conn = get_conn()
+
+    try:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id
+            FROM user_bankrolls
+            WHERE id = %s
+              AND user_id = %s
+        """, (bankroll_id, current_user.id))
+
+        if not cur.fetchone():
+            flash("Bankroll not found.", "error")
+            return redirect(url_for("personal_bets"))
+
+        cur.execute("""
+            UPDATE user_bankrolls
+            SET
+                name = %s,
+                unit_percentage = %s,
+                auto_resize = %s,
+                updated_at = NOW()
+            WHERE id = %s
+              AND user_id = %s
+        """, (
+            name[:100],
+            unit_percentage,
+            auto_resize,
+            bankroll_id,
+            current_user.id,
+        ))
+
+        if make_default:
+            cur.execute("""
+                UPDATE user_bankrolls
+                SET is_default = (id = %s),
+                    updated_at = NOW()
+                WHERE user_id = %s
+            """, (bankroll_id, current_user.id))
+
+        conn.commit()
+        flash("Bankroll updated.", "success")
+
+    except Exception as exc:
+        conn.rollback()
+        print("Update bankroll error:", exc)
+        flash("Unable to update bankroll.", "error")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("personal_bets"))
+
+
+@app.route(
+    "/my-hub/bankrolls/<int:bankroll_id>/delete",
+    methods=["POST"]
+)
+@login_required
+def delete_personal_bankroll(bankroll_id):
+    conn = get_conn()
+
+    try:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                id,
+                is_default,
+                (
+                    SELECT COUNT(*)
+                    FROM user_bets
+                    WHERE bankroll_id = user_bankrolls.id
+                ) AS bet_count
+            FROM user_bankrolls
+            WHERE id = %s
+              AND user_id = %s
+        """, (bankroll_id, current_user.id))
+
+        row = cur.fetchone()
+
+        if not row:
+            flash("Bankroll not found.", "error")
+            return redirect(url_for("personal_bets"))
+
+        _, was_default, bet_count = row
+
+        if int(bet_count or 0) > 0:
+            flash(
+                "This bankroll has tracked bets and cannot be deleted.",
+                "error"
+            )
+            return redirect(url_for("personal_bets"))
+
+        cur.execute("""
+            DELETE FROM user_bankrolls
+            WHERE id = %s
+              AND user_id = %s
+        """, (bankroll_id, current_user.id))
+
+        if was_default:
+            cur.execute("""
+                UPDATE user_bankrolls
+                SET is_default = TRUE,
+                    updated_at = NOW()
+                WHERE id = (
+                    SELECT id
+                    FROM user_bankrolls
+                    WHERE user_id = %s
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                )
+            """, (current_user.id,))
+
+        conn.commit()
+        flash("Bankroll deleted.", "success")
+
+    except Exception as exc:
+        conn.rollback()
+        print("Delete bankroll error:", exc)
+        flash("Unable to delete bankroll.", "error")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("personal_bets"))
+
+
 @app.route("/my-hub/bets")
 @login_required
 def my_bets_page():

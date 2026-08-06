@@ -68,10 +68,14 @@
                     <strong>Bet History</strong>
                 </a>
 
-                <a class="hub-v2-action" href="#bet-filters">
+                <button
+                    class="hub-v2-action"
+                    type="button"
+                    onclick="openBankrollSettingsModal()"
+                >
                     <span>⚙</span>
-                    <strong>Filters</strong>
-                </a>
+                    <strong>Settings</strong>
+                </button>
             </div>
         </div>
     </section>
@@ -857,6 +861,137 @@
     </div>
 </div>
 
+
+<div class="modal-backdrop" id="bankrollSettingsModal" aria-hidden="true">
+    <div
+        class="modal hub-manual-modal hub-ticket-modal hub-bankroll-settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bankrollSettingsTitle"
+    >
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="bankrollSettingsTitle">
+                    Bankroll Settings
+                </div>
+                <div class="hub-panel-note" id="bankrollLimitNote">
+                    Manage the bankrolls used by your Personal Hub.
+                </div>
+            </div>
+
+            <button
+                class="modal-close"
+                type="button"
+                onclick="closeBankrollSettingsModal()"
+                aria-label="Close"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="modal-body hub-ticket-modal-body">
+            <section class="hub-bankroll-settings-section">
+                <div class="hub-bankroll-settings-heading">
+                    <div>
+                        <strong>Your Bankrolls</strong>
+                        <span id="bankrollUsageText">Loading...</span>
+                    </div>
+                </div>
+
+                <div id="bankrollSettingsList" class="hub-bankroll-settings-list">
+                    <div class="hub-provider-loading">
+                        Loading bankrolls...
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="hub-bankroll-settings-section"
+                id="createBankrollSection"
+            >
+                <div class="hub-bankroll-settings-heading">
+                    <div>
+                        <strong>Add Bankroll</strong>
+                        <span>Create another tracking bankroll.</span>
+                    </div>
+                </div>
+
+                <form
+                    method="post"
+                    action="{{ url_for('create_personal_bankroll') }}"
+                    class="hub-bankroll-create-grid"
+                >
+                    <div class="field">
+                        <label for="new_bankroll_name">Name</label>
+                        <input
+                            id="new_bankroll_name"
+                            name="name"
+                            type="text"
+                            maxlength="100"
+                            placeholder="Main Bankroll"
+                            required
+                        >
+                    </div>
+
+                    <div class="field">
+                        <label for="new_bankroll_balance">Starting Balance</label>
+                        <input
+                            id="new_bankroll_balance"
+                            name="starting_balance"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="1000.00"
+                            required
+                        >
+                    </div>
+
+                    <div class="field">
+                        <label for="new_bankroll_unit">Unit Size (%)</label>
+                        <input
+                            id="new_bankroll_unit"
+                            name="unit_percentage"
+                            type="number"
+                            min="0.1"
+                            max="25"
+                            step="0.1"
+                            value="1"
+                            required
+                        >
+                    </div>
+
+                    <label class="hub-bankroll-check">
+                        <input
+                            type="checkbox"
+                            name="auto_resize"
+                            value="1"
+                            checked
+                        >
+                        <span>Auto-resize unit value with bankroll</span>
+                    </label>
+
+                    <label class="hub-bankroll-check">
+                        <input
+                            type="checkbox"
+                            name="make_default"
+                            value="1"
+                        >
+                        <span>Make this the default bankroll</span>
+                    </label>
+
+                    <button class="run-btn" type="submit">
+                        Add Bankroll
+                    </button>
+                </form>
+            </section>
+
+            <div class="hub-bankroll-upgrade-note" id="bankrollUpgradeNote" hidden>
+                Upgrade your membership to create additional bankrolls.
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal-backdrop" id="manualBetModal" aria-hidden="true">
     <div class="modal hub-manual-modal hub-ticket-modal" role="dialog" aria-modal="true" aria-labelledby="manualBetTitle">
         <div class="modal-head">
@@ -1080,6 +1215,305 @@
         </form>
     </div>
 </div>
+
+<style>
+.hub-bankroll-settings-modal {
+    width: min(980px, calc(100vw - 30px));
+}
+
+.hub-bankroll-settings-section {
+    padding: 18px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.42);
+    margin-bottom: 18px;
+}
+
+.hub-bankroll-settings-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.hub-bankroll-settings-heading div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.hub-bankroll-settings-heading span,
+.hub-bankroll-card-meta {
+    color: var(--muted, #94a3b8);
+    font-size: 0.84rem;
+}
+
+.hub-bankroll-settings-list {
+    display: grid;
+    gap: 12px;
+}
+
+.hub-bankroll-setting-card {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.45);
+}
+
+.hub-bankroll-setting-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.hub-bankroll-balance {
+    font-weight: 800;
+    font-size: 1.1rem;
+}
+
+.hub-bankroll-default-badge {
+    display: inline-flex;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    background: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+}
+
+.hub-bankroll-edit-grid,
+.hub-bankroll-create-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+}
+
+.hub-bankroll-check {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 42px;
+    color: var(--text, #e2e8f0);
+    font-size: 0.86rem;
+}
+
+.hub-bankroll-card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.hub-bankroll-delete-btn {
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: #fca5a5;
+    background: rgba(127, 29, 29, 0.15);
+}
+
+.hub-bankroll-upgrade-note {
+    border: 1px solid rgba(250, 204, 21, 0.28);
+    background: rgba(113, 63, 18, 0.18);
+    color: #fde68a;
+    padding: 13px 15px;
+    border-radius: 12px;
+}
+
+@media (max-width: 760px) {
+    .hub-bankroll-edit-grid,
+    .hub-bankroll-create-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+
+<script>
+function bankrollMoney(value) {
+    const number = Number(value || 0);
+    return number.toLocaleString(undefined, {
+        style: "currency",
+        currency: "USD"
+    });
+}
+
+function bankrollPercent(value) {
+    return (Number(value || 0) * 100).toFixed(1);
+}
+
+function escapeBankrollText(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+async function openBankrollSettingsModal() {
+    const modal = document.getElementById("bankrollSettingsModal");
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+
+    await loadBankrollSettings();
+}
+
+function closeBankrollSettingsModal() {
+    const modal = document.getElementById("bankrollSettingsModal");
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+}
+
+async function loadBankrollSettings() {
+    const list = document.getElementById("bankrollSettingsList");
+    const usage = document.getElementById("bankrollUsageText");
+    const limitNote = document.getElementById("bankrollLimitNote");
+    const createSection = document.getElementById("createBankrollSection");
+    const upgradeNote = document.getElementById("bankrollUpgradeNote");
+
+    list.innerHTML = '<div class="hub-provider-loading">Loading bankrolls...</div>';
+
+    try {
+        const response = await fetch("{{ url_for('personal_bankrolls_api') }}");
+        const payload = await response.json();
+
+        if (!response.ok) {
+            throw new Error(payload.error || "Unable to load bankrolls.");
+        }
+
+        const limitText = payload.unlimited
+            ? "Unlimited"
+            : String(payload.limit);
+
+        usage.textContent = `${payload.count} of ${limitText} used`;
+        limitNote.textContent = payload.unlimited
+            ? "Your account can create unlimited bankrolls."
+            : `Your membership allows ${payload.limit} bankroll${payload.limit === 1 ? "" : "s"}.`;
+
+        createSection.hidden = !payload.can_create;
+        upgradeNote.hidden = payload.can_create || payload.unlimited;
+
+        if (!payload.bankrolls.length) {
+            list.innerHTML = `
+                <div class="hub-provider-empty">
+                    No bankroll yet. Create your first bankroll below.
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = payload.bankrolls.map(bankroll => `
+            <article class="hub-bankroll-setting-card">
+                <div class="hub-bankroll-setting-top">
+                    <div>
+                        <div class="hub-bankroll-balance">
+                            ${bankrollMoney(bankroll.current_balance)}
+                        </div>
+                        <div class="hub-bankroll-card-meta">
+                            Started at ${bankrollMoney(bankroll.starting_balance)}
+                        </div>
+                    </div>
+
+                    ${bankroll.is_default
+                        ? '<span class="hub-bankroll-default-badge">Default</span>'
+                        : ''
+                    }
+                </div>
+
+                <form
+                    method="post"
+                    action="/my-hub/bankrolls/${bankroll.id}/update"
+                >
+                    <div class="hub-bankroll-edit-grid">
+                        <div class="field">
+                            <label>Name</label>
+                            <input
+                                name="name"
+                                type="text"
+                                maxlength="100"
+                                value="${escapeBankrollText(bankroll.name)}"
+                                required
+                            >
+                        </div>
+
+                        <div class="field">
+                            <label>Unit Size (%)</label>
+                            <input
+                                name="unit_percentage"
+                                type="number"
+                                min="0.1"
+                                max="25"
+                                step="0.1"
+                                value="${bankrollPercent(bankroll.unit_percentage)}"
+                                required
+                            >
+                        </div>
+
+                        <label class="hub-bankroll-check">
+                            <input
+                                type="checkbox"
+                                name="auto_resize"
+                                value="1"
+                                ${bankroll.auto_resize ? "checked" : ""}
+                            >
+                            <span>Auto-resize units</span>
+                        </label>
+
+                        <label class="hub-bankroll-check">
+                            <input
+                                type="checkbox"
+                                name="make_default"
+                                value="1"
+                                ${bankroll.is_default ? "checked" : ""}
+                            >
+                            <span>Default bankroll</span>
+                        </label>
+                    </div>
+
+                    <div class="hub-bankroll-card-actions">
+                        <button class="run-btn" type="submit">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+
+                <form
+                    method="post"
+                    action="/my-hub/bankrolls/${bankroll.id}/delete"
+                    onsubmit="return confirm('Delete this unused bankroll?');"
+                >
+                    <button
+                        class="hub-grade-btn hub-bankroll-delete-btn"
+                        type="submit"
+                    >
+                        Delete
+                    </button>
+                </form>
+            </article>
+        `).join("");
+
+    } catch (error) {
+        list.innerHTML = `
+            <div class="hub-provider-empty">
+                ${escapeBankrollText(error.message)}
+            </div>
+        `;
+    }
+}
+
+document.addEventListener("click", function(event) {
+    const modal = document.getElementById("bankrollSettingsModal");
+
+    if (event.target === modal) {
+        closeBankrollSettingsModal();
+    }
+});
+</script>
+
 {% endblock %}
 
 {% block scripts %}
