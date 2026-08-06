@@ -5384,6 +5384,30 @@ def provider_market_label(market_key):
     )
 
 
+def provider_value_or_none(value):
+    """Convert pandas NaN/NaT values into JSON-safe None."""
+    if value is None:
+        return None
+
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+
+    return value
+
+
+def provider_int_or_none(value):
+    value = provider_value_or_none(value)
+    return int(value) if value is not None else None
+
+
+def provider_float_or_none(value):
+    value = provider_value_or_none(value)
+    return float(value) if value is not None else None
+
+
 def provider_sport_display(sport_key):
     mapping = {
         "baseball_mlb": ("MLB", "MLB"),
@@ -5504,22 +5528,26 @@ def provider_selections_api():
 
     selections = []
     for row in rows.to_dict("records") if not rows.empty else []:
-        line = row.get("line")
-        line_text = "" if line is None else f" {float(line):g}"
+        line = provider_float_or_none(row.get("line"))
+        line_text = "" if line is None else f" {line:g}"
         market_label = provider_market_label(row.get("market_key"))
         outcome = clean_text(row.get("outcome_name")).title()
 
         selections.append({
             "summary_id": int(row["summary_id"]),
-            "market_key": row.get("market_key"),
+            "market_key": clean_text(row.get("market_key")),
             "market_label": market_label,
-            "outcome_name": row.get("outcome_name"),
-            "line": float(line) if line is not None else None,
-            "books_available": int(row.get("books_available") or 0),
-            "best_odds": int(row["best_odds"]) if row.get("best_odds") is not None else None,
-            "best_bookmaker_title": row.get("best_bookmaker_title"),
-            "worst_odds": int(row["worst_odds"]) if row.get("worst_odds") is not None else None,
-            "average_odds": int(row["average_odds"]) if row.get("average_odds") is not None else None,
+            "outcome_name": clean_text(row.get("outcome_name")),
+            "line": line,
+            "books_available": int(
+                provider_value_or_none(row.get("books_available")) or 0
+            ),
+            "best_odds": provider_int_or_none(row.get("best_odds")),
+            "best_bookmaker_title": provider_value_or_none(
+                row.get("best_bookmaker_title")
+            ),
+            "worst_odds": provider_int_or_none(row.get("worst_odds")),
+            "average_odds": provider_int_or_none(row.get("average_odds")),
             "label": f"{market_label} · {outcome}{line_text}"
         })
 
@@ -5560,6 +5588,7 @@ def provider_books_api():
         return jsonify({"books": [], "summary": None}), 404
 
     summary = summary_df.iloc[0].to_dict()
+    summary_line = provider_float_or_none(summary.get("line"))
 
     books_df = read_sql("""
         SELECT
@@ -5585,26 +5614,34 @@ def provider_books_api():
         summary.get("period") or "",
         summary.get("player_name") or "",
         summary.get("outcome_name"),
-        summary.get("line")
+        summary_line
     ))
 
     books = []
     for row in books_df.to_dict("records") if not books_df.empty else []:
+        odds = provider_int_or_none(row.get("odds"))
+        if odds is None:
+            continue
+
         books.append({
             "provider_market_id": int(row["provider_market_id"]),
-            "bookmaker_key": row.get("bookmaker_key"),
-            "bookmaker_title": row.get("bookmaker_title"),
-            "odds": int(row["odds"]),
+            "bookmaker_key": clean_text(row.get("bookmaker_key")),
+            "bookmaker_title": clean_text(row.get("bookmaker_title")),
+            "odds": odds,
         })
 
     return jsonify({
         "summary": {
             "summary_id": int(summary["id"]),
-            "books_available": int(summary.get("books_available") or 0),
-            "best_odds": int(summary["best_odds"]) if summary.get("best_odds") is not None else None,
-            "best_bookmaker_title": summary.get("best_bookmaker_title"),
-            "worst_odds": int(summary["worst_odds"]) if summary.get("worst_odds") is not None else None,
-            "average_odds": int(summary["average_odds"]) if summary.get("average_odds") is not None else None,
+            "books_available": int(
+                provider_value_or_none(summary.get("books_available")) or 0
+            ),
+            "best_odds": provider_int_or_none(summary.get("best_odds")),
+            "best_bookmaker_title": provider_value_or_none(
+                summary.get("best_bookmaker_title")
+            ),
+            "worst_odds": provider_int_or_none(summary.get("worst_odds")),
+            "average_odds": provider_int_or_none(summary.get("average_odds")),
         },
         "books": books
     })
