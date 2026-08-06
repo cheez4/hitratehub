@@ -7407,6 +7407,38 @@ def admin_provider_status():
     """)
 
     event_rows_df = read_sql("""
+        WITH market_counts AS (
+            SELECT
+                provider,
+                provider_event_id,
+                COUNT(*) AS current_market_rows
+            FROM provider_markets
+            WHERE provider = 'prop_line'
+            GROUP BY provider, provider_event_id
+        ),
+        summary_counts AS (
+            SELECT
+                provider,
+                provider_event_id,
+                COUNT(*) AS summary_rows
+            FROM provider_market_summary
+            WHERE provider = 'prop_line'
+            GROUP BY provider, provider_event_id
+        ),
+        history_counts AS (
+            SELECT
+                provider,
+                provider_event_id,
+                COUNT(*) FILTER (
+                    WHERE checkpoint = 'open'
+                ) AS open_rows,
+                COUNT(*) FILTER (
+                    WHERE checkpoint = 'close'
+                ) AS close_rows
+            FROM provider_market_history
+            WHERE provider = 'prop_line'
+            GROUP BY provider, provider_event_id
+        )
         SELECT
             pe.provider_event_id,
             pe.sport_key,
@@ -7416,36 +7448,23 @@ def admin_provider_status():
             pe.status,
             pe.live,
             pe.last_odds_sync_at,
-            COUNT(DISTINCT pm.id) AS current_market_rows,
-            COUNT(DISTINCT pms.id) AS summary_rows,
-            COUNT(DISTINCT CASE
-                WHEN pmh.checkpoint = 'open' THEN pmh.id
-            END) AS open_rows,
-            COUNT(DISTINCT CASE
-                WHEN pmh.checkpoint = 'close' THEN pmh.id
-            END) AS close_rows
+            COALESCE(mc.current_market_rows, 0) AS current_market_rows,
+            COALESCE(sc.summary_rows, 0) AS summary_rows,
+            COALESCE(hc.open_rows, 0) AS open_rows,
+            COALESCE(hc.close_rows, 0) AS close_rows
         FROM provider_events pe
-        LEFT JOIN provider_markets pm
-          ON pm.provider = pe.provider
-         AND pm.provider_event_id = pe.provider_event_id
-        LEFT JOIN provider_market_summary pms
-          ON pms.provider = pe.provider
-         AND pms.provider_event_id = pe.provider_event_id
-        LEFT JOIN provider_market_history pmh
-          ON pmh.provider = pe.provider
-         AND pmh.provider_event_id = pe.provider_event_id
+        LEFT JOIN market_counts mc
+          ON mc.provider = pe.provider
+         AND mc.provider_event_id = pe.provider_event_id
+        LEFT JOIN summary_counts sc
+          ON sc.provider = pe.provider
+         AND sc.provider_event_id = pe.provider_event_id
+        LEFT JOIN history_counts hc
+          ON hc.provider = pe.provider
+         AND hc.provider_event_id = pe.provider_event_id
         WHERE pe.provider = 'prop_line'
           AND pe.commence_time >= NOW() - INTERVAL '12 hours'
           AND pe.commence_time <= NOW() + INTERVAL '3 days'
-        GROUP BY
-            pe.provider_event_id,
-            pe.sport_key,
-            pe.away_team,
-            pe.home_team,
-            pe.commence_time,
-            pe.status,
-            pe.live,
-            pe.last_odds_sync_at
         ORDER BY pe.commence_time ASC
         LIMIT 75
     """)
