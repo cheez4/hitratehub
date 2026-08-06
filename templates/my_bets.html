@@ -46,9 +46,14 @@
             </div>
 
             <div class="hub-v2-actions-grid">
-                <button class="hub-v2-action hub-v2-action-primary" type="button" onclick="openManualBetModal()">
+                <button class="hub-v2-action hub-v2-action-primary" type="button" onclick="openVerifiedBetModal()">
+                    <span>✓</span>
+                    <strong>Verified Bet</strong>
+                </button>
+
+                <button class="hub-v2-action" type="button" onclick="openManualBetModal()">
                     <span>＋</span>
-                    <strong>Add Bet</strong>
+                    <strong>Manual Bet</strong>
                 </button>
 
                 <form method="post" action="{{ url_for('sync_personal_bet_results') }}">
@@ -394,6 +399,14 @@
                                         {{ (bet.bet_type or "straight")|title }}
                                     </span>
 
+                                    {% if bet.verification_type == "verified" %}
+                                        <span class="hub-chip hub-chip-verified">✓ Verified</span>
+                                    {% elif bet.verification_type == "market" %}
+                                        <span class="hub-chip hub-chip-market">📊 Average Market</span>
+                                    {% elif bet.is_manual %}
+                                        <span class="hub-chip hub-chip-muted">Manual</span>
+                                    {% endif %}
+
                                     {% if bet.source %}
                                         <span class="hub-chip hub-chip-muted">
                                             {{ bet.source }}
@@ -690,6 +703,120 @@
                 <p>Your System Watch tickets and future manual bets will appear here.</p>
             </div>
         {% endif %}
+    </div>
+</div>
+
+
+<style>
+.hub-chip-verified { background: rgba(34,197,94,.14); color: #86efac; border: 1px solid rgba(34,197,94,.35); }
+.hub-chip-market { background: rgba(59,130,246,.14); color: #93c5fd; border: 1px solid rgba(59,130,246,.35); }
+.hub-verified-modal { width: min(760px, calc(100vw - 28px)); }
+.verified-market-card { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:16px 0; }
+.verified-market-card > div { padding:12px; border:1px solid rgba(148,163,184,.18); border-radius:12px; background:rgba(15,23,42,.55); }
+.verified-market-card span { display:block; font-size:.76rem; color:#94a3b8; margin-bottom:5px; }
+.verified-market-card strong { display:block; font-size:.95rem; }
+@media (max-width:650px) { .verified-market-card { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+</style>
+
+
+<div class="modal-backdrop" id="verifiedBetModal" aria-hidden="true">
+    <div class="modal hub-manual-modal hub-verified-modal" role="dialog" aria-modal="true" aria-labelledby="verifiedBetTitle">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="verifiedBetTitle">Add Verified Bet</div>
+                <div class="hub-panel-note">Choose a live provider market or track the average market price.</div>
+            </div>
+            <button class="modal-close" type="button" onclick="closeVerifiedBetModal()" aria-label="Close">×</button>
+        </div>
+
+        <form method="post" action="{{ url_for('add_verified_bet') }}" id="verifiedBetForm">
+            <div class="modal-body">
+                <input type="hidden" id="verified_provider_summary_id" name="provider_summary_id">
+                <input type="hidden" id="verified_provider_market_id" name="provider_market_id">
+                <input type="hidden" id="verified_selection_source" name="selection_source" value="book">
+
+                <div class="hub-manual-grid">
+                    <div class="field">
+                        <label for="verified_bankroll_id">Bankroll</label>
+                        <select id="verified_bankroll_id" name="bankroll_id" required>
+                            <option value="">Choose bankroll</option>
+                            {% for bankroll in bankrolls %}
+                                <option value="{{ bankroll.id }}" {% if bankroll.is_default %}selected{% endif %}>
+                                    {{ bankroll.name }} — ${{ "%.2f"|format(bankroll.current_balance) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="verified_sport">Sport</label>
+                        <select id="verified_sport" required>
+                            <option value="baseball_mlb">MLB</option>
+                        </select>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="verified_game">Game</label>
+                        <select id="verified_game" required disabled>
+                            <option value="">Loading games...</option>
+                        </select>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="verified_player">Player</label>
+                        <select id="verified_player" required disabled>
+                            <option value="">Choose a game first</option>
+                        </select>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="verified_selection">Market</label>
+                        <select id="verified_selection" required disabled>
+                            <option value="">Choose a player first</option>
+                        </select>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="verified_book">Sportsbook / Price</label>
+                        <select id="verified_book" required disabled>
+                            <option value="">Choose a market first</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="verified_stake">Stake ($)</label>
+                        <input id="verified_stake" name="stake" type="number" min="0.01" step="0.01" placeholder="25.00" required>
+                    </div>
+
+                    <div class="field">
+                        <label>Selected Odds</label>
+                        <input id="verified_odds_display" type="text" value="—" readonly>
+                    </div>
+
+                    <div class="field hub-span-2">
+                        <label for="verified_notes">Notes</label>
+                        <textarea id="verified_notes" name="notes" rows="3" maxlength="1000" placeholder="Optional notes"></textarea>
+                    </div>
+                </div>
+
+                <div class="verified-market-card" id="verifiedMarketCard" hidden>
+                    <div><span>Books</span><strong id="verifiedBooksCount">—</strong></div>
+                    <div><span>Best</span><strong id="verifiedBestOdds">—</strong></div>
+                    <div><span>Average</span><strong id="verifiedAverageOdds">—</strong></div>
+                    <div><span>Worst</span><strong id="verifiedWorstOdds">—</strong></div>
+                </div>
+
+                <div class="hub-manual-preview">
+                    <div><span>Potential profit</span><strong id="verifiedPotentialProfit">—</strong></div>
+                    <div><span>Potential return</span><strong id="verifiedPotentialReturn">—</strong></div>
+                </div>
+
+                <div class="hub-modal-actions">
+                    <button class="share-btn" type="button" onclick="closeVerifiedBetModal()">Cancel</button>
+                    <button class="run-btn" type="submit" id="verifiedSaveButton" disabled>Save Verified Bet</button>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1049,6 +1176,233 @@ function removeManualLeg(button) {
     calculateManualPayout();
 }
 
+
+
+function formatAmericanOdds(value) {
+    const odds = Number(value);
+    if (!Number.isFinite(odds)) return "—";
+    return odds > 0 ? `+${odds}` : `${odds}`;
+}
+
+function setVerifiedSelectState(id, placeholder, disabled = true) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    select.innerHTML = `<option value="">${placeholder}</option>`;
+    select.disabled = disabled;
+}
+
+async function fetchProviderJson(url) {
+    const response = await fetch(url, {
+        headers: {"Accept": "application/json"}
+    });
+    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+    return response.json();
+}
+
+async function openVerifiedBetModal() {
+    const modal = document.getElementById("verifiedBetModal");
+    if (!modal) return;
+
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+    resetVerifiedBetForm();
+
+    try {
+        const sport = document.getElementById("verified_sport").value;
+        const data = await fetchProviderJson(`/api/provider/games?sport=${encodeURIComponent(sport)}`);
+        const gameSelect = document.getElementById("verified_game");
+        gameSelect.innerHTML = '<option value="">Choose game</option>';
+
+        for (const game of data.games || []) {
+            const option = document.createElement("option");
+            option.value = game.event_id;
+            const start = game.commence_time ? new Date(game.commence_time).toLocaleString([], {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) : "";
+            option.textContent = `${game.label}${start ? ` · ${start}` : ""}`;
+            option.dataset.start = game.commence_time || "";
+            gameSelect.appendChild(option);
+        }
+
+        gameSelect.disabled = !(data.games || []).length;
+        if (!(data.games || []).length) gameSelect.innerHTML = '<option value="">No upcoming markets available</option>';
+    } catch (error) {
+        console.error(error);
+        setVerifiedSelectState("verified_game", "Could not load games", true);
+    }
+}
+
+function closeVerifiedBetModal() {
+    const modal = document.getElementById("verifiedBetModal");
+    if (!modal) return;
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+function resetVerifiedBetForm() {
+    const form = document.getElementById("verifiedBetForm");
+    if (form) form.reset();
+
+    document.getElementById("verified_selection_source").value = "book";
+    document.getElementById("verified_provider_market_id").value = "";
+    document.getElementById("verified_provider_summary_id").value = "";
+    document.getElementById("verified_odds_display").value = "—";
+    document.getElementById("verifiedSaveButton").disabled = true;
+    document.getElementById("verifiedMarketCard").hidden = true;
+    document.getElementById("verifiedPotentialProfit").textContent = "—";
+    document.getElementById("verifiedPotentialReturn").textContent = "—";
+
+    setVerifiedSelectState("verified_game", "Loading games...", true);
+    setVerifiedSelectState("verified_player", "Choose a game first", true);
+    setVerifiedSelectState("verified_selection", "Choose a player first", true);
+    setVerifiedSelectState("verified_book", "Choose a market first", true);
+}
+
+async function loadVerifiedPlayers() {
+    const eventId = document.getElementById("verified_game").value;
+    setVerifiedSelectState("verified_player", eventId ? "Loading players..." : "Choose a game first", true);
+    setVerifiedSelectState("verified_selection", "Choose a player first", true);
+    setVerifiedSelectState("verified_book", "Choose a market first", true);
+    clearVerifiedPrice();
+    if (!eventId) return;
+
+    try {
+        const data = await fetchProviderJson(`/api/provider/players?event_id=${encodeURIComponent(eventId)}`);
+        const select = document.getElementById("verified_player");
+        select.innerHTML = '<option value="">Choose player</option>';
+        for (const player of data.players || []) {
+            const option = document.createElement("option");
+            option.value = player;
+            option.textContent = player;
+            select.appendChild(option);
+        }
+        select.disabled = !(data.players || []).length;
+    } catch (error) {
+        console.error(error);
+        setVerifiedSelectState("verified_player", "Could not load players", true);
+    }
+}
+
+async function loadVerifiedSelections() {
+    const eventId = document.getElementById("verified_game").value;
+    const player = document.getElementById("verified_player").value;
+    setVerifiedSelectState("verified_selection", player ? "Loading markets..." : "Choose a player first", true);
+    setVerifiedSelectState("verified_book", "Choose a market first", true);
+    clearVerifiedPrice();
+    if (!eventId || !player) return;
+
+    try {
+        const data = await fetchProviderJson(`/api/provider/selections?event_id=${encodeURIComponent(eventId)}&player=${encodeURIComponent(player)}`);
+        const select = document.getElementById("verified_selection");
+        select.innerHTML = '<option value="">Choose market</option>';
+        for (const item of data.selections || []) {
+            const option = document.createElement("option");
+            option.value = item.summary_id;
+            option.textContent = `${item.label} · Avg ${formatAmericanOdds(item.average_odds)} · ${item.books_available} books`;
+            select.appendChild(option);
+        }
+        select.disabled = !(data.selections || []).length;
+    } catch (error) {
+        console.error(error);
+        setVerifiedSelectState("verified_selection", "Could not load markets", true);
+    }
+}
+
+async function loadVerifiedBooks() {
+    const summaryId = document.getElementById("verified_selection").value;
+    setVerifiedSelectState("verified_book", summaryId ? "Loading prices..." : "Choose a market first", true);
+    clearVerifiedPrice();
+    if (!summaryId) return;
+
+    try {
+        const data = await fetchProviderJson(`/api/provider/books?summary_id=${encodeURIComponent(summaryId)}`);
+        const select = document.getElementById("verified_book");
+        select.innerHTML = '<option value="">Choose sportsbook or Average Market</option>';
+
+        if (data.summary?.average_odds != null) {
+            const avg = document.createElement("option");
+            avg.value = `average:${summaryId}:${data.summary.average_odds}`;
+            avg.textContent = `📊 Average Market ${formatAmericanOdds(data.summary.average_odds)}`;
+            select.appendChild(avg);
+        }
+
+        for (const book of data.books || []) {
+            const option = document.createElement("option");
+            option.value = `book:${book.provider_market_id}:${book.odds}`;
+            option.textContent = `${book.bookmaker_title || book.bookmaker_key} ${formatAmericanOdds(book.odds)}`;
+            select.appendChild(option);
+        }
+
+        select.disabled = select.options.length <= 1;
+        document.getElementById("verified_provider_summary_id").value = summaryId;
+        document.getElementById("verifiedBooksCount").textContent = data.summary?.books_available ?? "—";
+        document.getElementById("verifiedBestOdds").textContent = `${formatAmericanOdds(data.summary?.best_odds)}${data.summary?.best_bookmaker_title ? ` (${data.summary.best_bookmaker_title})` : ""}`;
+        document.getElementById("verifiedAverageOdds").textContent = formatAmericanOdds(data.summary?.average_odds);
+        document.getElementById("verifiedWorstOdds").textContent = formatAmericanOdds(data.summary?.worst_odds);
+        document.getElementById("verifiedMarketCard").hidden = false;
+    } catch (error) {
+        console.error(error);
+        setVerifiedSelectState("verified_book", "Could not load prices", true);
+    }
+}
+
+function chooseVerifiedPrice() {
+    const value = document.getElementById("verified_book").value;
+    const marketInput = document.getElementById("verified_provider_market_id");
+    const sourceInput = document.getElementById("verified_selection_source");
+    const oddsDisplay = document.getElementById("verified_odds_display");
+    const saveButton = document.getElementById("verifiedSaveButton");
+
+    marketInput.value = "";
+    saveButton.disabled = true;
+    oddsDisplay.value = "—";
+
+    if (!value) return;
+    const [kind, id, odds] = value.split(":");
+    sourceInput.value = kind;
+    if (kind === "book") marketInput.value = id;
+    oddsDisplay.value = formatAmericanOdds(odds);
+    oddsDisplay.dataset.odds = odds;
+    saveButton.disabled = false;
+    calculateVerifiedPayout();
+}
+
+function clearVerifiedPrice() {
+    document.getElementById("verified_provider_market_id").value = "";
+    document.getElementById("verified_provider_summary_id").value = "";
+    document.getElementById("verified_odds_display").value = "—";
+    document.getElementById("verified_odds_display").dataset.odds = "";
+    document.getElementById("verifiedSaveButton").disabled = true;
+    document.getElementById("verifiedMarketCard").hidden = true;
+    calculateVerifiedPayout();
+}
+
+function calculateVerifiedPayout() {
+    const stake = Number(document.getElementById("verified_stake")?.value);
+    const odds = Number(document.getElementById("verified_odds_display")?.dataset.odds);
+    const profitEl = document.getElementById("verifiedPotentialProfit");
+    const returnEl = document.getElementById("verifiedPotentialReturn");
+
+    if (!stake || stake <= 0 || !odds) {
+        profitEl.textContent = "—";
+        returnEl.textContent = "—";
+        return;
+    }
+
+    const decimalOdds = odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+    const profit = stake * (decimalOdds - 1);
+    profitEl.textContent = `$${profit.toFixed(2)}`;
+    returnEl.textContent = `$${(stake + profit).toFixed(2)}`;
+}
+
+document.getElementById("verified_game")?.addEventListener("change", loadVerifiedPlayers);
+document.getElementById("verified_player")?.addEventListener("change", loadVerifiedSelections);
+document.getElementById("verified_selection")?.addEventListener("change", loadVerifiedBooks);
+document.getElementById("verified_book")?.addEventListener("change", chooseVerifiedPrice);
+document.getElementById("verified_stake")?.addEventListener("input", calculateVerifiedPayout);
+document.getElementById("verifiedBetModal")?.addEventListener("click", function(event) {
+    if (event.target === this) closeVerifiedBetModal();
+});
+
+
 function openManualBetModal() {
     const modal = document.getElementById("manualBetModal");
     if (!modal) return;
@@ -1134,6 +1488,7 @@ document.getElementById("manualBetModal")?.addEventListener("click", function(ev
 
 document.addEventListener("keydown", function(event) {
     if (event.key === "Escape") {
+        closeVerifiedBetModal();
         closeManualBetModal();
         closeEditBetModal();
     }

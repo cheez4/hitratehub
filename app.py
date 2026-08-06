@@ -3943,6 +3943,7 @@ def my_bets_page():
             ub.settled_at,
             ub.notes,
             ub.is_manual,
+            ub.verification_type,
             bk.name AS bankroll_name,
             s.name AS system_name,
             s.system_code
@@ -5359,6 +5360,583 @@ def delete_personal_bet(bet_id):
         conn.close()
 
     return redirect(url_for("my_bets_page"))
+
+
+
+# ================= VERIFIED PROVIDER BETS =================
+
+PROVIDER_MARKET_LABELS = {
+    "batter_hits": "Hits",
+    "batter_home_runs": "Home Runs",
+    "batter_total_bases": "Total Bases",
+    "batter_rbis": "RBI",
+    "batter_runs": "Runs",
+    "pitcher_strikeouts": "Pitcher Strikeouts",
+    "pitcher_outs": "Pitcher Outs",
+}
+
+
+def provider_market_label(market_key):
+    key = clean_text(market_key)
+    return PROVIDER_MARKET_LABELS.get(
+        key,
+        key.replace("_", " ").title()
+    )
+
+
+def provider_sport_display(sport_key):
+    mapping = {
+        "baseball_mlb": ("MLB", "MLB"),
+        "basketball_nba": ("NBA", "NBA"),
+        "basketball_wnba": ("WNBA", "WNBA"),
+        "americanfootball_nfl": ("NFL", "NFL"),
+        "icehockey_nhl": ("NHL", "NHL"),
+    }
+    return mapping.get(sport_key, (sport_key.upper(), sport_key.upper()))
+
+
+@app.route("/api/provider/games")
+@login_required
+def provider_games_api():
+    sport_key = clean_text(
+        request.args.get("sport", "baseball_mlb")
+    ) or "baseball_mlb"
+
+    rows = read_sql("""
+        SELECT
+            provider_event_id,
+            sport_key,
+            home_team,
+            away_team,
+            commence_time,
+            status,
+            live
+        FROM provider_events
+        WHERE provider = 'prop_line'
+          AND sport_key = %s
+          AND commence_time > NOW()
+          AND commence_time <= NOW() + INTERVAL '4 days'
+          AND COALESCE(live, FALSE) = FALSE
+          AND LOWER(COALESCE(status, 'upcoming')) NOT IN (
+              'final', 'completed', 'complete', 'cancelled', 'canceled'
+          )
+          AND EXISTS (
+              SELECT 1
+              FROM provider_market_summary pms
+              WHERE pms.provider = provider_events.provider
+                AND pms.provider_event_id = provider_events.provider_event_id
+          )
+        ORDER BY commence_time ASC
+    """, (sport_key,))
+
+    games = []
+    for row in rows.to_dict("records") if not rows.empty else []:
+        start = row.get("commence_time")
+        games.append({
+            "event_id": str(row.get("provider_event_id")),
+            "sport_key": row.get("sport_key"),
+            "home_team": row.get("home_team"),
+            "away_team": row.get("away_team"),
+            "commence_time": start.isoformat() if start else None,
+            "label": f"{row.get('away_team')} @ {row.get('home_team')}"
+        })
+
+    return jsonify({"games": games})
+
+
+@app.route("/api/provider/players")
+@login_required
+def provider_players_api():
+    event_id = clean_text(request.args.get("event_id"))
+
+    if not event_id:
+        return jsonify({"players": []})
+
+    rows = read_sql("""
+        SELECT DISTINCT player_name
+        FROM provider_market_summary
+        WHERE provider = 'prop_line'
+          AND provider_event_id = %s
+          AND player_name <> ''
+        ORDER BY player_name
+    """, (event_id,))
+
+    players = (
+        rows["player_name"].dropna().astype(str).tolist()
+        if not rows.empty
+        else []
+    )
+
+    return jsonify({"players": players})
+
+
+@app.route("/api/provider/selections")
+@login_required
+def provider_selections_api():
+    event_id = clean_text(request.args.get("event_id"))
+    player_name = clean_text(request.args.get("player"))
+
+    if not event_id or not player_name:
+        return jsonify({"selections": []})
+
+    rows = read_sql("""
+        SELECT
+            id AS summary_id,
+            market_key,
+            period,
+            player_name,
+            outcome_name,
+            line,
+            books_available,
+            best_odds,
+            best_bookmaker_title,
+            worst_odds,
+            average_odds
+        FROM provider_market_summary
+        WHERE provider = 'prop_line'
+          AND provider_event_id = %s
+          AND player_name = %s
+        ORDER BY
+            market_key,
+            line,
+            outcome_name
+    """, (event_id, player_name))
+
+    selections = []
+    for row in rows.to_dict("records") if not rows.empty else []:
+        line = row.get("line")
+        line_text = "" if line is None else f" {float(line):g}"
+        market_label = provider_market_label(row.get("market_key"))
+        outcome = clean_text(row.get("outcome_name")).title()
+
+        selections.append({
+            "summary_id": int(row["summary_id"]),
+            "market_key": row.get("market_key"),
+            "market_label": market_label,
+            "outcome_name": row.get("outcome_name"),
+            "line": float(line) if line is not None else None,
+            "books_available": int(row.get("books_available") or 0),
+            "best_odds": int(row["best_odds"]) if row.get("best_odds") is not None else None,
+            "best_bookmaker_title": row.get("best_bookmaker_title"),
+            "worst_odds": int(row["worst_odds"]) if row.get("worst_odds") is not None else None,
+            "average_odds": int(row["average_odds"]) if row.get("average_odds") is not None else None,
+            "label": f"{market_label} · {outcome}{line_text}"
+        })
+
+    return jsonify({"selections": selections})
+
+
+@app.route("/api/provider/books")
+@login_required
+def provider_books_api():
+    summary_id = request.args.get("summary_id", type=int)
+
+    if not summary_id:
+        return jsonify({"books": [], "summary": None})
+
+    summary_df = read_sql("""
+        SELECT
+            id,
+            provider_event_id,
+            sport_key,
+            market_key,
+            period,
+            player_name,
+            outcome_name,
+            line,
+            books_available,
+            best_odds,
+            best_bookmaker_key,
+            best_bookmaker_title,
+            worst_odds,
+            average_odds
+        FROM provider_market_summary
+        WHERE id = %s
+          AND provider = 'prop_line'
+        LIMIT 1
+    """, (summary_id,))
+
+    if summary_df.empty:
+        return jsonify({"books": [], "summary": None}), 404
+
+    summary = summary_df.iloc[0].to_dict()
+
+    books_df = read_sql("""
+        SELECT
+            id AS provider_market_id,
+            bookmaker_key,
+            bookmaker_title,
+            odds,
+            last_change_at,
+            source_last_update
+        FROM provider_markets
+        WHERE provider = 'prop_line'
+          AND provider_event_id = %s
+          AND market_key = %s
+          AND period = %s
+          AND player_name = %s
+          AND outcome_name = %s
+          AND line_key = COALESCE(%s::numeric, -999999999)
+          AND odds IS NOT NULL
+        ORDER BY odds DESC, bookmaker_title
+    """, (
+        summary.get("provider_event_id"),
+        summary.get("market_key"),
+        summary.get("period") or "",
+        summary.get("player_name") or "",
+        summary.get("outcome_name"),
+        summary.get("line")
+    ))
+
+    books = []
+    for row in books_df.to_dict("records") if not books_df.empty else []:
+        books.append({
+            "provider_market_id": int(row["provider_market_id"]),
+            "bookmaker_key": row.get("bookmaker_key"),
+            "bookmaker_title": row.get("bookmaker_title"),
+            "odds": int(row["odds"]),
+        })
+
+    return jsonify({
+        "summary": {
+            "summary_id": int(summary["id"]),
+            "books_available": int(summary.get("books_available") or 0),
+            "best_odds": int(summary["best_odds"]) if summary.get("best_odds") is not None else None,
+            "best_bookmaker_title": summary.get("best_bookmaker_title"),
+            "worst_odds": int(summary["worst_odds"]) if summary.get("worst_odds") is not None else None,
+            "average_odds": int(summary["average_odds"]) if summary.get("average_odds") is not None else None,
+        },
+        "books": books
+    })
+
+
+@app.route("/my-hub/bets/add-verified", methods=["POST"])
+@login_required
+def add_verified_bet():
+    bankroll_id = request.form.get("bankroll_id", type=int)
+    summary_id = request.form.get("provider_summary_id", type=int)
+    provider_market_id = request.form.get("provider_market_id", type=int)
+    selection_source = clean_text(
+        request.form.get("selection_source", "book")
+    ).lower()
+    notes = clean_text(request.form.get("notes"))
+
+    try:
+        stake = float(request.form.get("stake"))
+    except (TypeError, ValueError):
+        flash("Enter a valid stake.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if not bankroll_id or not summary_id:
+        flash("Complete the verified bet selection.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if stake <= 0:
+        flash("Stake must be greater than zero.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    if selection_source not in {"book", "average"}:
+        flash("Choose a sportsbook or Average Market.", "error")
+        return redirect(url_for("my_bets_page"))
+
+    conn = get_conn()
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        pms.id,
+                        pms.provider_event_id,
+                        pms.sport_key,
+                        pms.market_key,
+                        pms.player_name,
+                        pms.outcome_name,
+                        pms.line,
+                        pms.average_odds,
+                        pe.home_team,
+                        pe.away_team,
+                        pe.commence_time,
+                        pe.live,
+                        pe.status
+                    FROM provider_market_summary pms
+                    JOIN provider_events pe
+                      ON pe.provider = pms.provider
+                     AND pe.provider_event_id = pms.provider_event_id
+                    WHERE pms.id = %s
+                      AND pms.provider = 'prop_line'
+                    LIMIT 1
+                """, (summary_id,))
+
+                summary = cur.fetchone()
+
+                if not summary:
+                    flash("That provider selection is no longer available.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                (
+                    _, provider_event_id, sport_key, market_key,
+                    player_name, outcome_name, line, average_odds,
+                    home_team, away_team, commence_time, live, event_status
+                ) = summary
+
+                now_utc = datetime.now(ZoneInfo("UTC"))
+                event_start = commence_time
+                if event_start and event_start.tzinfo is None:
+                    event_start = event_start.replace(tzinfo=ZoneInfo("UTC"))
+
+                if (
+                    live
+                    or not event_start
+                    or event_start <= now_utc
+                    or clean_text(event_status).lower() in {
+                        "final", "complete", "completed", "cancelled", "canceled"
+                    }
+                ):
+                    flash("That market is locked because the event has started.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                if selection_source == "average":
+                    if average_odds is None:
+                        flash("Average Market odds are not available.", "error")
+                        return redirect(url_for("my_bets_page"))
+
+                    odds = int(average_odds)
+                    sportsbook = "Average Market"
+                    verification_type = "market"
+                    selected_market_id = None
+
+                else:
+                    if not provider_market_id:
+                        flash("Choose a sportsbook.", "error")
+                        return redirect(url_for("my_bets_page"))
+
+                    cur.execute("""
+                        SELECT
+                            id,
+                            bookmaker_title,
+                            odds
+                        FROM provider_markets
+                        WHERE id = %s
+                          AND provider = 'prop_line'
+                          AND provider_event_id = %s
+                          AND market_key = %s
+                          AND player_name = %s
+                          AND outcome_name = %s
+                          AND line_key = COALESCE(%s::numeric, -999999999)
+                        LIMIT 1
+                    """, (
+                        provider_market_id,
+                        provider_event_id,
+                        market_key,
+                        player_name,
+                        outcome_name,
+                        line
+                    ))
+
+                    market = cur.fetchone()
+
+                    if not market:
+                        flash("That sportsbook price is no longer available.", "error")
+                        return redirect(url_for("my_bets_page"))
+
+                    selected_market_id, sportsbook, odds = market
+                    odds = int(odds)
+                    verification_type = "verified"
+
+                if odds == 0:
+                    flash("The selected odds are invalid.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                cur.execute("""
+                    SELECT
+                        id,
+                        current_balance,
+                        unit_percentage
+                    FROM user_bankrolls
+                    WHERE id = %s
+                      AND user_id = %s
+                    FOR UPDATE
+                """, (bankroll_id, current_user.id))
+
+                bankroll = cur.fetchone()
+
+                if not bankroll:
+                    flash("That bankroll could not be found.", "error")
+                    return redirect(url_for("my_bets_page"))
+
+                current_balance = float(bankroll[1] or 0)
+                unit_percentage = float(bankroll[2] or 0.01)
+                unit_value = current_balance * unit_percentage
+                units = stake / unit_value if unit_value > 0 else None
+
+                decimal_odds = (
+                    1 + odds / 100
+                    if odds > 0
+                    else 1 + 100 / abs(odds)
+                )
+
+                potential_profit = round(stake * (decimal_odds - 1), 2)
+                potential_return = round(stake + potential_profit, 2)
+                ticket_id = uuid.uuid4()
+                sport, league = provider_sport_display(sport_key)
+                market_label = provider_market_label(market_key)
+                side = clean_text(outcome_name).lower()
+                line_float = float(line) if line is not None else None
+                line_text = f" {line_float:g}" if line_float is not None else ""
+                title = f"{player_name} {side.title()}{line_text} {market_label}"
+
+                cur.execute("""
+                    INSERT INTO user_bets (
+                        user_system_id,
+                        live_result_id,
+                        sportsbook,
+                        odds_taken,
+                        line_taken,
+                        stake,
+                        units,
+                        result,
+                        profit,
+                        bet_time,
+                        ticket_id,
+                        bet_type,
+                        combined_odds,
+                        potential_profit,
+                        potential_return,
+                        status,
+                        user_id,
+                        unit_value,
+                        bankroll_id,
+                        official_combined_odds,
+                        user_combined_odds,
+                        bankroll_balance_at_bet,
+                        unit_percentage,
+                        sport,
+                        league,
+                        source,
+                        title,
+                        notes,
+                        settled_at,
+                        is_manual,
+                        verification_type
+                    )
+                    VALUES (
+                        NULL, NULL, %s, %s, %s, %s, %s,
+                        NULL, NULL, NOW(), %s, 'straight', %s,
+                        %s, %s, 'pending', %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s,
+                        'Prop-Line', %s, %s, NULL, FALSE, %s
+                    )
+                    RETURNING id
+                """, (
+                    sportsbook,
+                    odds,
+                    line_float,
+                    stake,
+                    units,
+                    str(ticket_id),
+                    odds,
+                    potential_profit,
+                    potential_return,
+                    current_user.id,
+                    unit_value,
+                    bankroll_id,
+                    odds,
+                    odds,
+                    current_balance,
+                    unit_percentage,
+                    sport,
+                    league,
+                    title,
+                    notes or None,
+                    verification_type
+                ))
+
+                user_bet_id = cur.fetchone()[0]
+
+                cur.execute("""
+                    INSERT INTO user_bet_legs (
+                        ticket_id,
+                        user_bet_id,
+                        player_name,
+                        prop,
+                        ou,
+                        line,
+                        odds,
+                        sportsbook,
+                        start_time,
+                        status,
+                        created_at,
+                        official_sportsbook,
+                        official_odds,
+                        user_sportsbook,
+                        user_odds,
+                        official_line,
+                        user_line,
+                        sport,
+                        league,
+                        selection_type,
+                        selection_name,
+                        team_name,
+                        opponent,
+                        result,
+                        sort_order,
+                        provider_market_id,
+                        provider_summary_id,
+                        provider_event_id,
+                        provider_market_key,
+                        verification_type
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, 'pending', NOW(), %s, %s, %s, %s,
+                        %s, %s, %s, %s, 'Player Prop', %s,
+                        NULL, %s, NULL, 1, %s, %s, %s, %s, %s
+                    )
+                """, (
+                    str(ticket_id),
+                    user_bet_id,
+                    player_name,
+                    market_key,
+                    side,
+                    line_float,
+                    odds,
+                    sportsbook,
+                    event_start,
+                    sportsbook,
+                    odds,
+                    sportsbook,
+                    odds,
+                    line_float,
+                    line_float,
+                    sport,
+                    league,
+                    player_name,
+                    f"{away_team} @ {home_team}",
+                    selected_market_id,
+                    summary_id,
+                    provider_event_id,
+                    market_key,
+                    verification_type
+                ))
+
+        flash(
+            "Verified bet added."
+            if verification_type == "verified"
+            else "Average Market bet added.",
+            "success"
+        )
+
+    except Exception as exc:
+        print("Verified bet save error:", exc)
+        flash("The verified bet could not be saved.", "error")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("my_bets_page"))
+
+# ================= END VERIFIED PROVIDER BETS =================
 
 @app.route("/my-hub/bets/add", methods=["POST"])
 @login_required
