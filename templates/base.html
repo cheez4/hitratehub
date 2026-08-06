@@ -134,15 +134,6 @@
     🏠 My Hub
 </a>
 
-            {% if current_user.is_admin %}
-                <a
-                    href="{{ url_for('admin_provider_status') }}"
-                    class="dropdown-link"
-                >
-                    🛠 Admin · Provider Status
-                </a>
-            {% endif %}
-
             <a href="#" class="dropdown-link disabled" onclick="return false;">
                 ⭐ Premium Status — Coming Soon
             </a>
