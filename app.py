@@ -2675,8 +2675,9 @@ def safe_float(value, default=None):
     except Exception:
         return default
 
-@cache.memoize(timeout=300)
 def load_team_weather():
+
+    conn = get_conn()
 
     query = """
     SELECT *
@@ -2688,18 +2689,15 @@ def load_team_weather():
     """
 
     try:
-        df = read_sql(query)
-    except Exception as exc:
-        print("Weather lookup error:", exc)
-        return {}
+        df = pd.read_sql(query, conn)
+    finally:
+        conn.close()
 
     weather_lookup = {}
 
     for _, row in df.iterrows():
-        team_code = str(row.get("team_code") or "").strip()
-
-        if team_code:
-            weather_lookup[team_code] = row.to_dict()
+        team_code = str(row["team_code"]).strip()
+        weather_lookup[team_code] = row.to_dict()
 
     print("Weather teams loaded:", list(weather_lookup.keys()))
 
@@ -5386,6 +5384,47 @@ def provider_market_label(market_key):
     )
 
 
+PROVIDER_PLAYER_SUFFIXES = (
+    "strikeouts thrown",
+    "pitching strikeouts",
+    "pitcher strikeouts",
+    "outs recorded",
+    "pitcher outs",
+    "hits allowed",
+    "walks allowed",
+    "earned runs allowed",
+    "runs allowed",
+    "home runs allowed",
+    "total bases",
+    "home runs",
+    "runs batted in",
+    "rbis",
+    "hits",
+    "runs",
+)
+
+
+def normalize_provider_player_name(value):
+    """Collapse provider aliases into one clean display player name."""
+    name = clean_text(value)
+    if not name:
+        return ""
+
+    # Team suffixes such as "Dylan Cease (SD)" or "Dylan Cease (TOR)".
+    name = re.sub(r"\s*\([A-Z0-9]{2,4}\)\s*$", "", name).strip()
+
+    # Provider variants such as "Dylan Cease Strikeouts Thrown".
+    lowered = name.lower()
+    for suffix in PROVIDER_PLAYER_SUFFIXES:
+        marker = " " + suffix
+        if lowered.endswith(marker):
+            name = name[: -len(marker)].strip()
+            lowered = name.lower()
+            break
+
+    return re.sub(r"\s+", " ", name).strip()
+
+
 def provider_value_or_none(value):
     """Convert pandas NaN/NaT values into JSON-safe None."""
     if value is None:
@@ -5479,18 +5518,42 @@ def provider_players_api():
         return jsonify({"players": []})
 
     rows = read_sql("""
-        SELECT DISTINCT player_name
+        SELECT
+            player_name,
+            COUNT(*) AS selection_count
         FROM provider_market_summary
         WHERE provider = 'prop_line'
           AND provider_event_id = %s
           AND player_name <> ''
+        GROUP BY player_name
         ORDER BY player_name
     """, (event_id,))
 
-    players = (
-        rows["player_name"].dropna().astype(str).tolist()
-        if not rows.empty
-        else []
+    grouped = {}
+
+    for row in rows.to_dict("records") if not rows.empty else []:
+        raw_name = clean_text(row.get("player_name"))
+        clean_name = normalize_provider_player_name(raw_name)
+
+        if not clean_name:
+            continue
+
+        item = grouped.setdefault(clean_name, {
+            "name": clean_name,
+            "aliases": [],
+            "selection_count": 0,
+        })
+
+        if raw_name and raw_name not in item["aliases"]:
+            item["aliases"].append(raw_name)
+
+        item["selection_count"] += int(
+            provider_value_or_none(row.get("selection_count")) or 0
+        )
+
+    players = sorted(
+        grouped.values(),
+        key=lambda item: item["name"].lower()
     )
 
     return jsonify({"players": players})
@@ -5500,10 +5563,12 @@ def provider_players_api():
 @login_required
 def provider_selections_api():
     event_id = clean_text(request.args.get("event_id"))
-    player_name = clean_text(request.args.get("player"))
+    requested_player = normalize_provider_player_name(
+        request.args.get("player")
+    )
 
-    if not event_id or not player_name:
-        return jsonify({"selections": []})
+    if not event_id or not requested_player:
+        return jsonify({"selections": [], "markets": []})
 
     rows = read_sql("""
         SELECT
@@ -5521,24 +5586,30 @@ def provider_selections_api():
         FROM provider_market_summary
         WHERE provider = 'prop_line'
           AND provider_event_id = %s
-          AND player_name = %s
-        ORDER BY
-            market_key,
-            line,
-            outcome_name
-    """, (event_id, player_name))
+          AND player_name <> ''
+        ORDER BY market_key, outcome_name, line
+    """, (event_id,))
 
-    selections = []
+    deduped = {}
+
     for row in rows.to_dict("records") if not rows.empty else []:
-        line = provider_float_or_none(row.get("line"))
-        line_text = "" if line is None else f" {line:g}"
-        market_label = provider_market_label(row.get("market_key"))
-        outcome = clean_text(row.get("outcome_name")).title()
+        raw_player = clean_text(row.get("player_name"))
 
-        selections.append({
+        if normalize_provider_player_name(raw_player) != requested_player:
+            continue
+
+        line = provider_float_or_none(row.get("line"))
+        key = (
+            clean_text(row.get("market_key")),
+            clean_text(row.get("outcome_name")).lower(),
+            line,
+            clean_text(row.get("period")),
+        )
+
+        candidate = {
             "summary_id": int(row["summary_id"]),
             "market_key": clean_text(row.get("market_key")),
-            "market_label": market_label,
+            "market_label": provider_market_label(row.get("market_key")),
             "outcome_name": clean_text(row.get("outcome_name")),
             "line": line,
             "books_available": int(
@@ -5550,10 +5621,64 @@ def provider_selections_api():
             ),
             "worst_odds": provider_int_or_none(row.get("worst_odds")),
             "average_odds": provider_int_or_none(row.get("average_odds")),
-            "label": f"{market_label} · {outcome}{line_text}"
+            "raw_player_name": raw_player,
+        }
+
+        existing = deduped.get(key)
+        if existing is None or candidate["books_available"] > existing["books_available"]:
+            deduped[key] = candidate
+
+    selections = list(deduped.values())
+
+    # Main line = broadest sportsbook coverage for each market and side.
+    main_keys = set()
+    by_market_side = {}
+    for item in selections:
+        group_key = (item["market_key"], item["outcome_name"].lower())
+        by_market_side.setdefault(group_key, []).append(item)
+
+    for group_items in by_market_side.values():
+        chosen = max(
+            group_items,
+            key=lambda item: (
+                item["books_available"],
+                -(abs(item["average_odds"] or 0)),
+            )
+        )
+        main_keys.add(chosen["summary_id"])
+
+    market_groups = {}
+    for item in selections:
+        item["is_main"] = item["summary_id"] in main_keys
+        line_text = "" if item["line"] is None else f" {item['line']:g}"
+        item["label"] = (
+            f"{clean_text(item['outcome_name']).title()}{line_text}"
+        )
+
+        market = market_groups.setdefault(item["market_key"], {
+            "market_key": item["market_key"],
+            "market_label": item["market_label"],
+            "main": [],
+            "alternates": [],
         })
 
-    return jsonify({"selections": selections})
+        target = "main" if item["is_main"] else "alternates"
+        market[target].append(item)
+
+    markets = sorted(
+        market_groups.values(),
+        key=lambda item: item["market_label"]
+    )
+
+    for market in markets:
+        market["main"].sort(key=lambda item: item["outcome_name"])
+        market["alternates"].sort(key=lambda item: (item["line"] is None, item["line"] or 0, item["outcome_name"]))
+
+    return jsonify({
+        "player": requested_player,
+        "selections": selections,
+        "markets": markets,
+    })
 
 
 @app.route("/api/provider/books")
