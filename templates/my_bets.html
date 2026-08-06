@@ -1354,18 +1354,16 @@ function escapeBankrollText(value) {
 
 async function openBankrollSettingsModal() {
     const modal = document.getElementById("bankrollSettingsModal");
-    modal.classList.add("is-open");
+    modal.classList.add("show");
     modal.setAttribute("aria-hidden", "false");
-    document.body.classList.add("modal-open");
 
     await loadBankrollSettings();
 }
 
 function closeBankrollSettingsModal() {
     const modal = document.getElementById("bankrollSettingsModal");
-    modal.classList.remove("is-open");
+    modal.classList.remove("show");
     modal.setAttribute("aria-hidden", "true");
-    document.body.classList.remove("modal-open");
 }
 
 async function loadBankrollSettings() {
