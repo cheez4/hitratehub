@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+import json
 from flask_caching import Cache
 from flask_login import (
     LoginManager,
@@ -6146,17 +6147,6 @@ def provider_books_api():
 @login_required
 def add_verified_bet():
     bankroll_id = request.form.get("bankroll_id", type=int)
-    summary_id = request.form.get(
-        "provider_summary_id",
-        type=int,
-    )
-    provider_market_id = request.form.get(
-        "provider_market_id",
-        type=int,
-    )
-    selection_source = clean_text(
-        request.form.get("selection_source", "book")
-    ).lower()
     notes = clean_text(request.form.get("notes"))
 
     try:
@@ -6165,25 +6155,23 @@ def add_verified_bet():
         flash("Enter a valid stake.", "error")
         return redirect(url_for("my_bets_page"))
 
-    if not bankroll_id or not summary_id:
-        flash(
-            "Complete the verified bet selection.",
-            "error"
+    try:
+        submitted_legs = json.loads(
+            clean_text(request.form.get("verified_legs_json")) or "[]"
         )
+    except Exception:
+        submitted_legs = []
+
+    if not bankroll_id:
+        flash("Choose a bankroll.", "error")
         return redirect(url_for("my_bets_page"))
 
     if stake <= 0:
-        flash(
-            "Stake must be greater than zero.",
-            "error"
-        )
+        flash("Stake must be greater than zero.", "error")
         return redirect(url_for("my_bets_page"))
 
-    if selection_source not in {"book", "average"}:
-        flash(
-            "Choose a sportsbook or Average Market.",
-            "error"
-        )
+    if not isinstance(submitted_legs, list) or not (1 <= len(submitted_legs) <= 20):
+        flash("Add between 1 and 20 verified legs.", "error")
         return redirect(url_for("my_bets_page"))
 
     conn = get_conn()
@@ -6192,316 +6180,243 @@ def add_verified_bet():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT
-                        pmc.summary_id,
-                        pmc.provider_event_id,
-                        pmc.sport_key,
-                        pmc.market_key,
-                        pmc.market_label,
-                        pmc.clean_player_name,
-                        pmc.outcome_name,
-                        pmc.line,
-                        pmc.average_odds,
-                        pmc.books,
-                        pmc.home_team,
-                        pmc.away_team,
-                        pmc.commence_time,
-                        pe.live,
-                        pe.status
-                    FROM provider_market_cache pmc
-                    JOIN provider_events pe
-                      ON pe.provider = pmc.provider
-                     AND pe.provider_event_id =
-                         pmc.provider_event_id
-                    WHERE pmc.provider = 'prop_line'
-                      AND pmc.summary_id = %s
-                    LIMIT 1
-                """, (summary_id,))
-
-                cached = cur.fetchone()
-
-                if not cached:
-                    flash(
-                        "That provider selection is no longer available.",
-                        "error"
-                    )
-                    return redirect(url_for("my_bets_page"))
-
-                (
-                    _,
-                    provider_event_id,
-                    sport_key,
-                    market_key,
-                    market_label,
-                    player_name,
-                    outcome_name,
-                    line,
-                    average_odds,
-                    books,
-                    home_team,
-                    away_team,
-                    commence_time,
-                    live,
-                    event_status,
-                ) = cached
-
-                now_utc = datetime.now(ZoneInfo("UTC"))
-                event_start = commence_time
-
-                if (
-                    event_start
-                    and event_start.tzinfo is None
-                ):
-                    event_start = event_start.replace(
-                        tzinfo=ZoneInfo("UTC")
-                    )
-
-                if (
-                    live
-                    or not event_start
-                    or event_start <= now_utc
-                    or clean_text(event_status).lower() in {
-                        "final",
-                        "complete",
-                        "completed",
-                        "cancelled",
-                        "canceled",
-                    }
-                ):
-                    flash(
-                        "That market is locked because "
-                        "the event has started.",
-                        "error"
-                    )
-                    return redirect(url_for("my_bets_page"))
-
-                selected_market_id = None
-
-                if selection_source == "average":
-                    if average_odds is None:
-                        flash(
-                            "Average Market odds are not available.",
-                            "error"
-                        )
-                        return redirect(
-                            url_for("my_bets_page")
-                        )
-
-                    odds = int(average_odds)
-                    sportsbook = "Average Market"
-                    verification_type = "market"
-
-                else:
-                    if not provider_market_id:
-                        flash(
-                            "Choose a sportsbook.",
-                            "error"
-                        )
-                        return redirect(
-                            url_for("my_bets_page")
-                        )
-
-                    cache_books = (
-                        books
-                        if isinstance(books, list)
-                        else []
-                    )
-
-                    selected_book = next(
-                        (
-                            book
-                            for book in cache_books
-                            if provider_int_or_none(
-                                book.get(
-                                    "provider_market_id"
-                                )
-                            ) == provider_market_id
-                        ),
-                        None,
-                    )
-
-                    if not selected_book:
-                        flash(
-                            "That sportsbook price is "
-                            "no longer available.",
-                            "error"
-                        )
-                        return redirect(
-                            url_for("my_bets_page")
-                        )
-
-                    selected_market_id = (
-                        provider_market_id
-                    )
-                    sportsbook = clean_text(
-                        selected_book.get(
-                            "bookmaker_title"
-                        )
-                        or selected_book.get(
-                            "bookmaker_key"
-                        )
-                    )
-                    odds = provider_int_or_none(
-                        selected_book.get("odds")
-                    )
-
-                    if odds is None:
-                        flash(
-                            "That sportsbook price is invalid.",
-                            "error"
-                        )
-                        return redirect(
-                            url_for("my_bets_page")
-                        )
-
-                    verification_type = "verified"
-
-                if odds == 0:
-                    flash(
-                        "The selected odds are invalid.",
-                        "error"
-                    )
-                    return redirect(url_for("my_bets_page"))
-
-                cur.execute("""
-                    SELECT
-                        id,
-                        current_balance,
-                        unit_percentage
+                    SELECT id, current_balance, unit_percentage
                     FROM user_bankrolls
-                    WHERE id = %s
-                      AND user_id = %s
+                    WHERE id = %s AND user_id = %s
                     FOR UPDATE
-                """, (
-                    bankroll_id,
-                    current_user.id,
-                ))
+                """, (bankroll_id, current_user.id))
 
                 bankroll = cur.fetchone()
-
                 if not bankroll:
-                    flash(
-                        "That bankroll could not be found.",
-                        "error"
+                    raise ValueError("That bankroll could not be found.")
+
+                current_balance = float(bankroll[1] or 0)
+                unit_percentage = float(bankroll[2] or 0.01)
+                unit_value = current_balance * unit_percentage
+                units = stake / unit_value if unit_value > 0 else None
+
+                legs = []
+                combined_decimal = 1.0
+
+                for index, submitted in enumerate(submitted_legs, start=1):
+                    summary_id = provider_int_or_none(submitted.get("summary_id"))
+                    provider_market_id = provider_int_or_none(
+                        submitted.get("provider_market_id")
                     )
-                    return redirect(url_for("my_bets_page"))
+                    selection_source = clean_text(
+                        submitted.get("selection_source")
+                    ).lower()
 
-                current_balance = float(
-                    bankroll[1] or 0
-                )
-                unit_percentage = float(
-                    bankroll[2] or 0.01
-                )
-                unit_value = (
-                    current_balance * unit_percentage
-                )
-                units = (
-                    stake / unit_value
-                    if unit_value > 0
-                    else None
+                    if not summary_id or selection_source not in {"book", "average"}:
+                        raise ValueError(f"Leg {index} is incomplete.")
+
+                    cur.execute("""
+                        SELECT
+                            pmc.provider_event_id,
+                            pmc.sport_key,
+                            pmc.market_key,
+                            pmc.market_label,
+                            pmc.clean_player_name,
+                            pmc.outcome_name,
+                            pmc.line,
+                            pmc.average_odds,
+                            pmc.books,
+                            pmc.home_team,
+                            pmc.away_team,
+                            pmc.commence_time,
+                            pe.live,
+                            pe.status
+                        FROM provider_market_cache pmc
+                        JOIN provider_events pe
+                          ON pe.provider = pmc.provider
+                         AND pe.provider_event_id = pmc.provider_event_id
+                        WHERE pmc.provider = 'prop_line'
+                          AND pmc.summary_id = %s
+                        LIMIT 1
+                    """, (summary_id,))
+
+                    cached = cur.fetchone()
+                    if not cached:
+                        raise ValueError(f"Leg {index} is no longer available.")
+
+                    (
+                        provider_event_id,
+                        sport_key,
+                        market_key,
+                        market_label,
+                        player_name,
+                        outcome_name,
+                        line,
+                        average_odds,
+                        books,
+                        home_team,
+                        away_team,
+                        event_start,
+                        live,
+                        event_status,
+                    ) = cached
+
+                    now_utc = datetime.now(ZoneInfo("UTC"))
+                    if event_start and event_start.tzinfo is None:
+                        event_start = event_start.replace(tzinfo=ZoneInfo("UTC"))
+
+                    if (
+                        live
+                        or not event_start
+                        or event_start <= now_utc
+                        or clean_text(event_status).lower() in {
+                            "final", "complete", "completed", "cancelled", "canceled"
+                        }
+                    ):
+                        raise ValueError(f"Leg {index} is locked because the event started.")
+
+                    selected_market_id = None
+
+                    if selection_source == "average":
+                        odds = provider_int_or_none(average_odds)
+                        if odds is None:
+                            raise ValueError(
+                                f"Average Market is unavailable for leg {index}."
+                            )
+                        sportsbook = "Average Market"
+                        verification_type = "market"
+                    else:
+                        cache_books = books if isinstance(books, list) else []
+                        selected_book = next(
+                            (
+                                book for book in cache_books
+                                if provider_int_or_none(
+                                    book.get("provider_market_id")
+                                ) == provider_market_id
+                            ),
+                            None,
+                        )
+
+                        if not selected_book:
+                            raise ValueError(
+                                f"The sportsbook price for leg {index} is no longer available."
+                            )
+
+                        odds = provider_int_or_none(selected_book.get("odds"))
+                        if odds is None or odds == 0:
+                            raise ValueError(f"Invalid odds for leg {index}.")
+
+                        sportsbook = clean_text(
+                            selected_book.get("bookmaker_title")
+                            or selected_book.get("bookmaker_key")
+                        )
+                        selected_market_id = provider_market_id
+                        verification_type = "verified"
+
+                    decimal_odds = (
+                        1 + odds / 100
+                        if odds > 0
+                        else 1 + 100 / abs(odds)
+                    )
+                    combined_decimal *= decimal_odds
+
+                    sport, league = provider_sport_display(sport_key)
+                    line_float = float(line) if line is not None else None
+                    side = clean_text(outcome_name).lower()
+                    line_text = (
+                        f" {line_float:g}" if line_float is not None else ""
+                    )
+
+                    legs.append({
+                        "summary_id": summary_id,
+                        "provider_market_id": selected_market_id,
+                        "provider_event_id": str(provider_event_id),
+                        "market_key": market_key,
+                        "market_label": market_label,
+                        "player_name": player_name,
+                        "side": side,
+                        "line": line_float,
+                        "odds": odds,
+                        "sportsbook": sportsbook,
+                        "event_start": event_start,
+                        "sport": sport,
+                        "league": league,
+                        "opponent": f"{away_team} @ {home_team}",
+                        "verification_type": verification_type,
+                        "display": (
+                            f"{player_name} {side.title()}"
+                            f"{line_text} {market_label}"
+                        ),
+                    })
+
+                combined_odds = (
+                    int(round((combined_decimal - 1) * 100))
+                    if combined_decimal >= 2
+                    else int(round(-100 / (combined_decimal - 1)))
                 )
 
-                decimal_odds = (
-                    1 + odds / 100
-                    if odds > 0
-                    else 1 + 100 / abs(odds)
-                )
-
-                potential_profit = round(
-                    stake * (decimal_odds - 1),
-                    2,
-                )
-                potential_return = round(
-                    stake + potential_profit,
-                    2,
-                )
-
+                potential_profit = round(stake * (combined_decimal - 1), 2)
+                potential_return = round(stake + potential_profit, 2)
                 ticket_id = uuid.uuid4()
-                sport, league = provider_sport_display(
-                    sport_key
-                )
+                leg_count = len(legs)
 
-                side = clean_text(
-                    outcome_name
-                ).lower()
-                line_float = (
-                    float(line)
-                    if line is not None
-                    else None
-                )
-                line_text = (
-                    f" {line_float:g}"
-                    if line_float is not None
-                    else ""
-                )
+                books = list(dict.fromkeys(leg["sportsbook"] for leg in legs))
+                ticket_sportsbook = books[0] if len(books) == 1 else "Mixed Verified"
+
+                sports = list(dict.fromkeys(leg["sport"] for leg in legs))
+                ticket_sport = sports[0] if len(sports) == 1 else "MULTI"
+
+                leagues = list(dict.fromkeys(leg["league"] for leg in legs))
+                ticket_league = leagues[0] if len(leagues) == 1 else "MULTI"
 
                 title = (
-                    f"{player_name} "
-                    f"{side.title()}{line_text} "
-                    f"{market_label}"
+                    legs[0]["display"]
+                    if leg_count == 1
+                    else f"Verified {leg_count}-Leg Parlay"
+                )
+                line_taken = legs[0]["line"] if leg_count == 1 else None
+                bet_type = "straight" if leg_count == 1 else "parlay"
+                verification_type = (
+                    "verified"
+                    if all(leg["verification_type"] == "verified" for leg in legs)
+                    else "market"
                 )
 
                 cur.execute("""
                     INSERT INTO user_bets (
-                        user_system_id,
-                        live_result_id,
-                        sportsbook,
-                        odds_taken,
-                        line_taken,
-                        stake,
-                        units,
-                        result,
-                        profit,
-                        bet_time,
-                        ticket_id,
-                        bet_type,
-                        combined_odds,
-                        potential_profit,
-                        potential_return,
-                        status,
-                        user_id,
-                        unit_value,
-                        bankroll_id,
-                        official_combined_odds,
-                        user_combined_odds,
-                        bankroll_balance_at_bet,
-                        unit_percentage,
-                        sport,
-                        league,
-                        source,
-                        title,
-                        notes,
-                        settled_at,
-                        is_manual,
-                        verification_type
+                        user_system_id, live_result_id, sportsbook,
+                        odds_taken, line_taken, stake, units,
+                        result, profit, bet_time, ticket_id, bet_type,
+                        combined_odds, potential_profit, potential_return,
+                        status, user_id, unit_value, bankroll_id,
+                        official_combined_odds, user_combined_odds,
+                        bankroll_balance_at_bet, unit_percentage,
+                        sport, league, source, title, notes,
+                        settled_at, is_manual, verification_type
                     )
                     VALUES (
                         NULL, NULL, %s, %s, %s, %s, %s,
-                        NULL, NULL, NOW(), %s, 'straight', %s,
-                        %s, %s, 'pending', %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s,
-                        'Prop-Line', %s, %s, NULL, FALSE, %s
+                        NULL, NULL, NOW(), %s, %s, %s, %s, %s,
+                        'pending', %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, 'Prop-Line', %s, %s,
+                        NULL, FALSE, %s
                     )
                     RETURNING id
                 """, (
-                    sportsbook,
-                    odds,
-                    line_float,
+                    ticket_sportsbook,
+                    combined_odds,
+                    line_taken,
                     stake,
                     units,
                     str(ticket_id),
-                    odds,
+                    bet_type,
+                    combined_odds,
                     potential_profit,
                     potential_return,
                     current_user.id,
                     unit_value,
                     bankroll_id,
-                    odds,
-                    odds,
+                    combined_odds,
+                    combined_odds,
                     current_balance,
                     unit_percentage,
-                    sport,
-                    league,
+                    ticket_sport,
+                    ticket_league,
                     title,
                     notes or None,
                     verification_type,
@@ -6509,88 +6424,67 @@ def add_verified_bet():
 
                 user_bet_id = cur.fetchone()[0]
 
-                cur.execute("""
-                    INSERT INTO user_bet_legs (
-                        ticket_id,
+                for sort_order, leg in enumerate(legs, start=1):
+                    cur.execute("""
+                        INSERT INTO user_bet_legs (
+                            ticket_id, user_bet_id, player_name,
+                            prop, ou, line, odds, sportsbook,
+                            start_time, status, created_at,
+                            official_sportsbook, official_odds,
+                            user_sportsbook, user_odds,
+                            official_line, user_line, sport, league,
+                            selection_type, selection_name, team_name,
+                            opponent, result, sort_order,
+                            provider_market_id, provider_summary_id,
+                            provider_event_id, provider_market_key,
+                            verification_type
+                        )
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, 'pending', NOW(), %s, %s, %s, %s,
+                            %s, %s, %s, %s, 'Player Prop', %s,
+                            NULL, %s, NULL, %s, %s, %s, %s, %s, %s
+                        )
+                    """, (
+                        str(ticket_id),
                         user_bet_id,
-                        player_name,
-                        prop,
-                        ou,
-                        line,
-                        odds,
-                        sportsbook,
-                        start_time,
-                        status,
-                        created_at,
-                        official_sportsbook,
-                        official_odds,
-                        user_sportsbook,
-                        user_odds,
-                        official_line,
-                        user_line,
-                        sport,
-                        league,
-                        selection_type,
-                        selection_name,
-                        team_name,
-                        opponent,
-                        result,
+                        leg["player_name"],
+                        leg["market_key"],
+                        leg["side"],
+                        leg["line"],
+                        leg["odds"],
+                        leg["sportsbook"],
+                        leg["event_start"],
+                        leg["sportsbook"],
+                        leg["odds"],
+                        leg["sportsbook"],
+                        leg["odds"],
+                        leg["line"],
+                        leg["line"],
+                        leg["sport"],
+                        leg["league"],
+                        leg["player_name"],
+                        leg["opponent"],
                         sort_order,
-                        provider_market_id,
-                        provider_summary_id,
-                        provider_event_id,
-                        provider_market_key,
-                        verification_type
-                    )
-                    VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, 'pending', NOW(), %s, %s, %s, %s,
-                        %s, %s, %s, %s, 'Player Prop', %s,
-                        NULL, %s, NULL, 1, %s, %s, %s, %s, %s
-                    )
-                """, (
-                    str(ticket_id),
-                    user_bet_id,
-                    player_name,
-                    market_key,
-                    side,
-                    line_float,
-                    odds,
-                    sportsbook,
-                    event_start,
-                    sportsbook,
-                    odds,
-                    sportsbook,
-                    odds,
-                    line_float,
-                    line_float,
-                    sport,
-                    league,
-                    player_name,
-                    f"{away_team} @ {home_team}",
-                    selected_market_id,
-                    summary_id,
-                    provider_event_id,
-                    market_key,
-                    verification_type,
-                ))
+                        leg["provider_market_id"],
+                        leg["summary_id"],
+                        leg["provider_event_id"],
+                        leg["market_key"],
+                        leg["verification_type"],
+                    ))
 
         flash(
-            (
-                "Verified bet added."
-                if verification_type == "verified"
-                else "Average Market bet added."
-            ),
-            "success",
+            "Verified bet added."
+            if len(legs) == 1
+            else f"Verified {len(legs)}-leg ticket added.",
+            "success"
         )
 
+    except ValueError as exc:
+        flash(str(exc), "error")
     except Exception as exc:
         print("Verified bet save error:", exc)
-        flash(
-            "The verified bet could not be saved.",
-            "error"
-        )
-
+        flash("The verified ticket could not be saved.", "error")
     finally:
         conn.close()
 
