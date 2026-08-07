@@ -857,7 +857,7 @@
                 <div class="hub-leg-builder-head verified-ticket-head">
                     <div>
                         <strong>Verified Ticket</strong>
-                        <div class="hub-panel-note">Select a price, then add it as a leg. Up to 20 legs.</div>
+                        <div class="hub-panel-note">Straight bet: choose a price and save. Parlay: click + Add Leg, then choose another selection.</div>
                     </div>
                     <button class="share-btn" type="button" id="verifiedAddLegButton" onclick="addVerifiedLeg()" disabled>
                         + Add Leg
@@ -2155,8 +2155,10 @@ function chooseVerifiedPrice(price, button) {
         title: price.title
     };
 
-    document.getElementById("verifiedAddLegButton").disabled =
-        !verifiedPendingSelection || !verifiedPendingPrice;
+    const ready = !!verifiedPendingSelection && !!verifiedPendingPrice;
+    document.getElementById("verifiedAddLegButton").disabled = !ready;
+    document.getElementById("verifiedSaveButton").disabled =
+        !(ready || verifiedTicketLegs.length);
 
     calculateVerifiedPayout();
 }
@@ -2254,10 +2256,9 @@ function renderVerifiedTicket() {
     if (!box || !saveButton) return;
 
     if (!verifiedTicketLegs.length) {
-        box.innerHTML =
-            '<div class="verified-empty">No legs added yet.</div>';
-        saveButton.disabled = true;
-        document.getElementById("verifiedCombinedOdds").textContent = "—";
+        box.innerHTML = '<div class="verified-empty">No parlay legs added. Your selected market can still be saved as a straight bet.</div>';
+        const readyStraight = !!verifiedPendingSelection && !!verifiedPendingPrice;
+        saveButton.disabled = !readyStraight;
         return;
     }
 
@@ -2265,19 +2266,10 @@ function renderVerifiedTicket() {
         <div class="verified-ticket-leg">
             <div class="verified-ticket-leg-number">${index + 1}</div>
             <div class="verified-ticket-leg-copy">
-                <strong>
-                    ${escapeVerifiedHtml(leg.player)}
-                    · ${escapeVerifiedHtml(leg.market_label)}
-                </strong>
-                <span>
-                    ${escapeVerifiedHtml(String(leg.outcome_name || ""))}
-                    ${leg.line == null ? "" : escapeVerifiedHtml(` ${Number(leg.line)}`)}
-                    · ${escapeVerifiedHtml(leg.sportsbook)}
-                    · ${formatAmericanOdds(leg.odds)}
-                </span>
+                <strong>${escapeVerifiedHtml(leg.player)} · ${escapeVerifiedHtml(leg.market_label)}</strong>
+                <span>${escapeVerifiedHtml(String(leg.outcome_name || ""))}${leg.line == null ? "" : escapeVerifiedHtml(` ${Number(leg.line)}`)} · ${escapeVerifiedHtml(leg.sportsbook)} · ${formatAmericanOdds(leg.odds)}</span>
             </div>
-            <button type="button" class="hub-remove-leg"
-                onclick="removeVerifiedLeg(${index})">Remove</button>
+            <button type="button" class="hub-remove-leg" onclick="removeVerifiedLeg(${index})">Remove</button>
         </div>
     `).join("");
 
@@ -2285,14 +2277,18 @@ function renderVerifiedTicket() {
 }
 
 function calculateVerifiedPayout() {
-    const stake = Number(
-        document.getElementById("verified_stake")?.value
-    );
+    const stake = Number(document.getElementById("verified_stake")?.value);
     const combinedEl = document.getElementById("verifiedCombinedOdds");
     const profitEl = document.getElementById("verifiedPotentialProfit");
     const returnEl = document.getElementById("verifiedPotentialReturn");
 
-    if (!verifiedTicketLegs.length) {
+    let workingLegs = verifiedTicketLegs;
+
+    if (!workingLegs.length && verifiedPendingSelection && verifiedPendingPrice) {
+        workingLegs = [{ odds: Number(verifiedPendingPrice.odds) }];
+    }
+
+    if (!workingLegs.length) {
         combinedEl.textContent = "—";
         profitEl.textContent = "—";
         returnEl.textContent = "—";
@@ -2300,17 +2296,13 @@ function calculateVerifiedPayout() {
     }
 
     let combinedDecimal = 1;
-
-    for (const leg of verifiedTicketLegs) {
+    for (const leg of workingLegs) {
         const decimal = americanToDecimalVerified(leg.odds);
         if (!decimal) return;
         combinedDecimal *= decimal;
     }
 
-    combinedEl.textContent =
-        formatAmericanOdds(
-            decimalToAmericanVerified(combinedDecimal)
-        );
+    combinedEl.textContent = formatAmericanOdds(decimalToAmericanVerified(combinedDecimal));
 
     if (!stake || stake <= 0) {
         profitEl.textContent = "—";
@@ -3067,14 +3059,29 @@ window.addEventListener("load", renderProfitCalendar);
 
 
 document.getElementById("verifiedBetForm")?.addEventListener("submit", function(event) {
-    if (!verifiedTicketLegs.length) {
+    let legsToSave = [...verifiedTicketLegs];
+
+    if (!legsToSave.length && verifiedPendingSelection && verifiedPendingPrice) {
+        legsToSave = [{
+            summary_id: Number(verifiedPendingSelection.summary_id),
+            provider_market_id: verifiedPendingPrice.kind === "book" ? Number(verifiedPendingPrice.id) : null,
+            selection_source: verifiedPendingPrice.kind,
+            player: verifiedSelectedPlayer,
+            market_label: verifiedPendingSelection.market_label,
+            outcome_name: verifiedPendingSelection.outcome_name,
+            line: verifiedPendingSelection.line,
+            odds: Number(verifiedPendingPrice.odds),
+            sportsbook: verifiedPendingPrice.title
+        }];
+    }
+
+    if (!legsToSave.length) {
         event.preventDefault();
-        alert("Add at least one verified leg before saving.");
+        alert("Choose a market and price before saving.");
         return;
     }
 
-    document.getElementById("verified_legs_json").value =
-        JSON.stringify(verifiedTicketLegs);
+    document.getElementById("verified_legs_json").value = JSON.stringify(legsToSave);
 });
 
 </script>
