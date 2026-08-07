@@ -5809,6 +5809,7 @@ def provider_sport_display(sport_key):
     return mapping.get(sport_key, (sport_key.upper(), sport_key.upper()))
 
 
+
 @app.route("/api/provider/games")
 @login_required
 def provider_games_api():
@@ -5818,41 +5819,58 @@ def provider_games_api():
 
     rows = read_sql("""
         SELECT
-            provider_event_id,
-            sport_key,
-            home_team,
-            away_team,
-            commence_time,
-            status,
-            live
-        FROM provider_events
-        WHERE provider = 'prop_line'
-          AND sport_key = %s
-          AND commence_time > NOW()
-          AND commence_time <= NOW() + INTERVAL '4 days'
-          AND COALESCE(live, FALSE) = FALSE
-          AND LOWER(COALESCE(status, 'upcoming')) NOT IN (
+            pe.provider_event_id,
+            pe.sport_key,
+            pe.home_team,
+            pe.away_team,
+            pe.commence_time,
+            pe.status,
+            pe.live,
+            COUNT(pmc.id) AS cached_selections,
+            COUNT(DISTINCT pmc.clean_player_name) AS player_count
+        FROM provider_events pe
+        JOIN provider_market_cache pmc
+          ON pmc.provider = pe.provider
+         AND pmc.provider_event_id = pe.provider_event_id
+        WHERE pe.provider = 'prop_line'
+          AND pe.sport_key = %s
+          AND pe.commence_time > NOW()
+          AND pe.commence_time <= NOW() + INTERVAL '4 days'
+          AND COALESCE(pe.live, FALSE) = FALSE
+          AND LOWER(COALESCE(pe.status, 'upcoming')) NOT IN (
               'final', 'completed', 'complete', 'cancelled', 'canceled'
           )
-          AND EXISTS (
-              SELECT 1
-              FROM provider_market_summary pms
-              WHERE pms.provider = provider_events.provider
-                AND pms.provider_event_id = provider_events.provider_event_id
-          )
-        ORDER BY commence_time ASC
+        GROUP BY
+            pe.provider_event_id,
+            pe.sport_key,
+            pe.home_team,
+            pe.away_team,
+            pe.commence_time,
+            pe.status,
+            pe.live
+        ORDER BY pe.commence_time ASC
     """, (sport_key,))
 
     games = []
+
     for row in rows.to_dict("records") if not rows.empty else []:
         start = row.get("commence_time")
+
         games.append({
             "event_id": str(row.get("provider_event_id")),
             "sport_key": row.get("sport_key"),
             "home_team": row.get("home_team"),
             "away_team": row.get("away_team"),
             "commence_time": start.isoformat() if start else None,
-            "label": f"{row.get('away_team')} @ {row.get('home_team')}"
+            "player_count": int(
+                provider_value_or_none(row.get("player_count")) or 0
+            ),
+            "cached_selections": int(
+                provider_value_or_none(row.get("cached_selections")) or 0
+            ),
+            "label": (
+                f"{row.get('away_team')} @ {row.get('home_team')}"
+            ),
         })
 
     return jsonify({"games": games})
@@ -5868,42 +5886,33 @@ def provider_players_api():
 
     rows = read_sql("""
         SELECT
-            player_name,
-            COUNT(*) AS selection_count
-        FROM provider_market_summary
+            clean_player_name AS name,
+            COUNT(*) AS selection_count,
+            COUNT(DISTINCT market_key) AS market_count
+        FROM provider_market_cache
         WHERE provider = 'prop_line'
           AND provider_event_id = %s
-          AND player_name <> ''
-        GROUP BY player_name
-        ORDER BY player_name
+          AND clean_player_name <> ''
+        GROUP BY clean_player_name
+        ORDER BY clean_player_name
     """, (event_id,))
 
-    grouped = {}
+    players = []
 
     for row in rows.to_dict("records") if not rows.empty else []:
-        raw_name = clean_text(row.get("player_name"))
-        clean_name = normalize_provider_player_name(raw_name)
-
-        if not clean_name:
-            continue
-
-        item = grouped.setdefault(clean_name, {
-            "name": clean_name,
-            "aliases": [],
-            "selection_count": 0,
+        players.append({
+            "name": clean_text(row.get("name")),
+            "selection_count": int(
+                provider_value_or_none(
+                    row.get("selection_count")
+                ) or 0
+            ),
+            "market_count": int(
+                provider_value_or_none(
+                    row.get("market_count")
+                ) or 0
+            ),
         })
-
-        if raw_name and raw_name not in item["aliases"]:
-            item["aliases"].append(raw_name)
-
-        item["selection_count"] += int(
-            provider_value_or_none(row.get("selection_count")) or 0
-        )
-
-    players = sorted(
-        grouped.values(),
-        key=lambda item: item["name"].lower()
-    )
 
     return jsonify({"players": players})
 
@@ -5912,116 +5921,137 @@ def provider_players_api():
 @login_required
 def provider_selections_api():
     event_id = clean_text(request.args.get("event_id"))
-    requested_player = normalize_provider_player_name(
-        request.args.get("player")
-    )
+    requested_player = clean_text(request.args.get("player"))
 
     if not event_id or not requested_player:
-        return jsonify({"selections": [], "markets": []})
+        return jsonify({
+            "player": requested_player,
+            "selections": [],
+            "markets": [],
+        })
 
     rows = read_sql("""
         SELECT
-            id AS summary_id,
+            summary_id,
             market_key,
+            market_label,
             period,
-            player_name,
+            clean_player_name,
+            raw_player_name,
             outcome_name,
             line,
             books_available,
             best_odds,
             best_bookmaker_title,
             worst_odds,
-            average_odds
-        FROM provider_market_summary
+            average_odds,
+            is_main
+        FROM provider_market_cache
         WHERE provider = 'prop_line'
           AND provider_event_id = %s
-          AND player_name <> ''
-        ORDER BY market_key, outcome_name, line
-    """, (event_id,))
+          AND LOWER(clean_player_name) = LOWER(%s)
+        ORDER BY
+            market_label,
+            is_main DESC,
+            outcome_name,
+            line
+    """, (
+        event_id,
+        requested_player,
+    ))
 
-    deduped = {}
+    selections = []
 
     for row in rows.to_dict("records") if not rows.empty else []:
-        raw_player = clean_text(row.get("player_name"))
+        summary_id = provider_int_or_none(row.get("summary_id"))
 
-        if normalize_provider_player_name(raw_player) != requested_player:
+        # A provider summary id is required to save a verified bet.
+        if summary_id is None:
             continue
 
         line = provider_float_or_none(row.get("line"))
-        key = (
-            clean_text(row.get("market_key")),
-            clean_text(row.get("outcome_name")).lower(),
-            line,
-            clean_text(row.get("period")),
-        )
 
-        candidate = {
-            "summary_id": int(row["summary_id"]),
+        item = {
+            "summary_id": summary_id,
             "market_key": clean_text(row.get("market_key")),
-            "market_label": provider_market_label(row.get("market_key")),
+            "market_label": clean_text(row.get("market_label")),
             "outcome_name": clean_text(row.get("outcome_name")),
             "line": line,
             "books_available": int(
-                provider_value_or_none(row.get("books_available")) or 0
+                provider_value_or_none(
+                    row.get("books_available")
+                ) or 0
             ),
-            "best_odds": provider_int_or_none(row.get("best_odds")),
-            "best_bookmaker_title": provider_value_or_none(
-                row.get("best_bookmaker_title")
+            "best_odds": provider_int_or_none(
+                row.get("best_odds")
             ),
-            "worst_odds": provider_int_or_none(row.get("worst_odds")),
-            "average_odds": provider_int_or_none(row.get("average_odds")),
-            "raw_player_name": raw_player,
+            "best_bookmaker_title":
+                provider_value_or_none(
+                    row.get("best_bookmaker_title")
+                ),
+            "worst_odds": provider_int_or_none(
+                row.get("worst_odds")
+            ),
+            "average_odds": provider_int_or_none(
+                row.get("average_odds")
+            ),
+            "raw_player_name": clean_text(
+                row.get("raw_player_name")
+            ),
+            "is_main": bool(row.get("is_main")),
         }
 
-        existing = deduped.get(key)
-        if existing is None or candidate["books_available"] > existing["books_available"]:
-            deduped[key] = candidate
-
-    selections = list(deduped.values())
-
-    # Main line = broadest sportsbook coverage for each market and side.
-    main_keys = set()
-    by_market_side = {}
-    for item in selections:
-        group_key = (item["market_key"], item["outcome_name"].lower())
-        by_market_side.setdefault(group_key, []).append(item)
-
-    for group_items in by_market_side.values():
-        chosen = max(
-            group_items,
-            key=lambda item: (
-                item["books_available"],
-                -(abs(item["average_odds"] or 0)),
-            )
+        line_text = (
+            ""
+            if line is None
+            else f" {line:g}"
         )
-        main_keys.add(chosen["summary_id"])
+
+        item["label"] = (
+            f"{clean_text(item['outcome_name']).title()}"
+            f"{line_text}"
+        )
+
+        selections.append(item)
 
     market_groups = {}
+
     for item in selections:
-        item["is_main"] = item["summary_id"] in main_keys
-        line_text = "" if item["line"] is None else f" {item['line']:g}"
-        item["label"] = (
-            f"{clean_text(item['outcome_name']).title()}{line_text}"
+        market = market_groups.setdefault(
+            item["market_key"],
+            {
+                "market_key": item["market_key"],
+                "market_label": item["market_label"],
+                "main": [],
+                "alternates": [],
+            },
         )
 
-        market = market_groups.setdefault(item["market_key"], {
-            "market_key": item["market_key"],
-            "market_label": item["market_label"],
-            "main": [],
-            "alternates": [],
-        })
-
-        target = "main" if item["is_main"] else "alternates"
-        market[target].append(item)
+        market[
+            "main" if item["is_main"] else "alternates"
+        ].append(item)
 
     markets = sorted(
         market_groups.values(),
-        key=lambda item: item["market_label"]
+        key=lambda item: item["market_label"].lower(),
     )
 
     for market in markets:
-        market["main"].sort(key=lambda item: item["outcome_name"])
-        market["alternates"].sort(key=lambda item: (item["line"] is None, item["line"] or 0, item["outcome_name"]))
+        market["main"].sort(
+            key=lambda item: (
+                item["outcome_name"].lower(),
+                item["line"] is None,
+                item["line"] or 0,
+            )
+        )
+
+        market["alternates"].sort(
+            key=lambda item: (
+                item["outcome_name"].lower(),
+                item["line"] is None,
+                item["line"] or 0,
+            )
+        )
 
     return jsonify({
         "player": requested_player,
@@ -6033,102 +6063,97 @@ def provider_selections_api():
 @app.route("/api/provider/books")
 @login_required
 def provider_books_api():
-    summary_id = request.args.get("summary_id", type=int)
+    summary_id = request.args.get(
+        "summary_id",
+        type=int,
+    )
 
     if not summary_id:
-        return jsonify({"books": [], "summary": None})
+        return jsonify({
+            "books": [],
+            "summary": None,
+        })
 
-    summary_df = read_sql("""
+    rows = read_sql("""
         SELECT
-            id,
-            provider_event_id,
-            sport_key,
-            market_key,
-            period,
-            player_name,
-            outcome_name,
-            line,
+            summary_id,
             books_available,
             best_odds,
             best_bookmaker_key,
             best_bookmaker_title,
             worst_odds,
-            average_odds
-        FROM provider_market_summary
-        WHERE id = %s
-          AND provider = 'prop_line'
+            average_odds,
+            books
+        FROM provider_market_cache
+        WHERE provider = 'prop_line'
+          AND summary_id = %s
         LIMIT 1
     """, (summary_id,))
 
-    if summary_df.empty:
-        return jsonify({"books": [], "summary": None}), 404
+    if rows.empty:
+        return jsonify({
+            "books": [],
+            "summary": None,
+        }), 404
 
-    summary = summary_df.iloc[0].to_dict()
-    summary_line = provider_float_or_none(summary.get("line"))
+    row = rows.iloc[0].to_dict()
+    books = row.get("books") or []
 
-    books_df = read_sql("""
-        SELECT
-            id AS provider_market_id,
-            bookmaker_key,
-            bookmaker_title,
-            odds,
-            last_change_at,
-            source_last_update
-        FROM provider_markets
-        WHERE provider = 'prop_line'
-          AND provider_event_id = %s
-          AND market_key = %s
-          AND period = %s
-          AND player_name = %s
-          AND outcome_name = %s
-          AND line_key = COALESCE(%s::numeric, -999999999)
-          AND odds IS NOT NULL
-        ORDER BY odds DESC, bookmaker_title
-    """, (
-        summary.get("provider_event_id"),
-        summary.get("market_key"),
-        summary.get("period") or "",
-        summary.get("player_name") or "",
-        summary.get("outcome_name"),
-        summary_line
-    ))
+    if not isinstance(books, list):
+        books = []
 
-    books = []
-    for row in books_df.to_dict("records") if not books_df.empty else []:
-        odds = provider_int_or_none(row.get("odds"))
-        if odds is None:
-            continue
-
-        books.append({
-            "provider_market_id": int(row["provider_market_id"]),
-            "bookmaker_key": clean_text(row.get("bookmaker_key")),
-            "bookmaker_title": clean_text(row.get("bookmaker_title")),
-            "odds": odds,
-        })
+    books = sorted(
+        books,
+        key=lambda book: (
+            int(book.get("display_order") or 100),
+            clean_text(
+                book.get("bookmaker_title")
+                or book.get("bookmaker_key")
+            ).lower(),
+        ),
+    )
 
     return jsonify({
         "summary": {
-            "summary_id": int(summary["id"]),
+            "summary_id": int(row["summary_id"]),
             "books_available": int(
-                provider_value_or_none(summary.get("books_available")) or 0
+                provider_value_or_none(
+                    row.get("books_available")
+                ) or len(books)
             ),
-            "best_odds": provider_int_or_none(summary.get("best_odds")),
-            "best_bookmaker_title": provider_value_or_none(
-                summary.get("best_bookmaker_title")
+            "best_odds": provider_int_or_none(
+                row.get("best_odds")
             ),
-            "worst_odds": provider_int_or_none(summary.get("worst_odds")),
-            "average_odds": provider_int_or_none(summary.get("average_odds")),
+            "best_bookmaker_key":
+                provider_value_or_none(
+                    row.get("best_bookmaker_key")
+                ),
+            "best_bookmaker_title":
+                provider_value_or_none(
+                    row.get("best_bookmaker_title")
+                ),
+            "worst_odds": provider_int_or_none(
+                row.get("worst_odds")
+            ),
+            "average_odds": provider_int_or_none(
+                row.get("average_odds")
+            ),
         },
-        "books": books
+        "books": books,
     })
-
 
 @app.route("/my-hub/bets/add-verified", methods=["POST"])
 @login_required
 def add_verified_bet():
     bankroll_id = request.form.get("bankroll_id", type=int)
-    summary_id = request.form.get("provider_summary_id", type=int)
-    provider_market_id = request.form.get("provider_market_id", type=int)
+    summary_id = request.form.get(
+        "provider_summary_id",
+        type=int,
+    )
+    provider_market_id = request.form.get(
+        "provider_market_id",
+        type=int,
+    )
     selection_source = clean_text(
         request.form.get("selection_source", "book")
     ).lower()
@@ -6141,15 +6166,24 @@ def add_verified_bet():
         return redirect(url_for("my_bets_page"))
 
     if not bankroll_id or not summary_id:
-        flash("Complete the verified bet selection.", "error")
+        flash(
+            "Complete the verified bet selection.",
+            "error"
+        )
         return redirect(url_for("my_bets_page"))
 
     if stake <= 0:
-        flash("Stake must be greater than zero.", "error")
+        flash(
+            "Stake must be greater than zero.",
+            "error"
+        )
         return redirect(url_for("my_bets_page"))
 
     if selection_source not in {"book", "average"}:
-        flash("Choose a sportsbook or Average Market.", "error")
+        flash(
+            "Choose a sportsbook or Average Market.",
+            "error"
+        )
         return redirect(url_for("my_bets_page"))
 
     conn = get_conn()
@@ -6159,106 +6193,174 @@ def add_verified_bet():
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT
-                        pms.id,
-                        pms.provider_event_id,
-                        pms.sport_key,
-                        pms.market_key,
-                        pms.player_name,
-                        pms.outcome_name,
-                        pms.line,
-                        pms.average_odds,
-                        pe.home_team,
-                        pe.away_team,
-                        pe.commence_time,
+                        pmc.summary_id,
+                        pmc.provider_event_id,
+                        pmc.sport_key,
+                        pmc.market_key,
+                        pmc.market_label,
+                        pmc.clean_player_name,
+                        pmc.outcome_name,
+                        pmc.line,
+                        pmc.average_odds,
+                        pmc.books,
+                        pmc.home_team,
+                        pmc.away_team,
+                        pmc.commence_time,
                         pe.live,
                         pe.status
-                    FROM provider_market_summary pms
+                    FROM provider_market_cache pmc
                     JOIN provider_events pe
-                      ON pe.provider = pms.provider
-                     AND pe.provider_event_id = pms.provider_event_id
-                    WHERE pms.id = %s
-                      AND pms.provider = 'prop_line'
+                      ON pe.provider = pmc.provider
+                     AND pe.provider_event_id =
+                         pmc.provider_event_id
+                    WHERE pmc.provider = 'prop_line'
+                      AND pmc.summary_id = %s
                     LIMIT 1
                 """, (summary_id,))
 
-                summary = cur.fetchone()
+                cached = cur.fetchone()
 
-                if not summary:
-                    flash("That provider selection is no longer available.", "error")
+                if not cached:
+                    flash(
+                        "That provider selection is no longer available.",
+                        "error"
+                    )
                     return redirect(url_for("my_bets_page"))
 
                 (
-                    _, provider_event_id, sport_key, market_key,
-                    player_name, outcome_name, line, average_odds,
-                    home_team, away_team, commence_time, live, event_status
-                ) = summary
+                    _,
+                    provider_event_id,
+                    sport_key,
+                    market_key,
+                    market_label,
+                    player_name,
+                    outcome_name,
+                    line,
+                    average_odds,
+                    books,
+                    home_team,
+                    away_team,
+                    commence_time,
+                    live,
+                    event_status,
+                ) = cached
 
                 now_utc = datetime.now(ZoneInfo("UTC"))
                 event_start = commence_time
-                if event_start and event_start.tzinfo is None:
-                    event_start = event_start.replace(tzinfo=ZoneInfo("UTC"))
+
+                if (
+                    event_start
+                    and event_start.tzinfo is None
+                ):
+                    event_start = event_start.replace(
+                        tzinfo=ZoneInfo("UTC")
+                    )
 
                 if (
                     live
                     or not event_start
                     or event_start <= now_utc
                     or clean_text(event_status).lower() in {
-                        "final", "complete", "completed", "cancelled", "canceled"
+                        "final",
+                        "complete",
+                        "completed",
+                        "cancelled",
+                        "canceled",
                     }
                 ):
-                    flash("That market is locked because the event has started.", "error")
+                    flash(
+                        "That market is locked because "
+                        "the event has started.",
+                        "error"
+                    )
                     return redirect(url_for("my_bets_page"))
+
+                selected_market_id = None
 
                 if selection_source == "average":
                     if average_odds is None:
-                        flash("Average Market odds are not available.", "error")
-                        return redirect(url_for("my_bets_page"))
+                        flash(
+                            "Average Market odds are not available.",
+                            "error"
+                        )
+                        return redirect(
+                            url_for("my_bets_page")
+                        )
 
                     odds = int(average_odds)
                     sportsbook = "Average Market"
                     verification_type = "market"
-                    selected_market_id = None
 
                 else:
                     if not provider_market_id:
-                        flash("Choose a sportsbook.", "error")
-                        return redirect(url_for("my_bets_page"))
+                        flash(
+                            "Choose a sportsbook.",
+                            "error"
+                        )
+                        return redirect(
+                            url_for("my_bets_page")
+                        )
 
-                    cur.execute("""
-                        SELECT
-                            id,
-                            bookmaker_title,
-                            odds
-                        FROM provider_markets
-                        WHERE id = %s
-                          AND provider = 'prop_line'
-                          AND provider_event_id = %s
-                          AND market_key = %s
-                          AND player_name = %s
-                          AND outcome_name = %s
-                          AND line_key = COALESCE(%s::numeric, -999999999)
-                        LIMIT 1
-                    """, (
-                        provider_market_id,
-                        provider_event_id,
-                        market_key,
-                        player_name,
-                        outcome_name,
-                        line
-                    ))
+                    cache_books = (
+                        books
+                        if isinstance(books, list)
+                        else []
+                    )
 
-                    market = cur.fetchone()
+                    selected_book = next(
+                        (
+                            book
+                            for book in cache_books
+                            if provider_int_or_none(
+                                book.get(
+                                    "provider_market_id"
+                                )
+                            ) == provider_market_id
+                        ),
+                        None,
+                    )
 
-                    if not market:
-                        flash("That sportsbook price is no longer available.", "error")
-                        return redirect(url_for("my_bets_page"))
+                    if not selected_book:
+                        flash(
+                            "That sportsbook price is "
+                            "no longer available.",
+                            "error"
+                        )
+                        return redirect(
+                            url_for("my_bets_page")
+                        )
 
-                    selected_market_id, sportsbook, odds = market
-                    odds = int(odds)
+                    selected_market_id = (
+                        provider_market_id
+                    )
+                    sportsbook = clean_text(
+                        selected_book.get(
+                            "bookmaker_title"
+                        )
+                        or selected_book.get(
+                            "bookmaker_key"
+                        )
+                    )
+                    odds = provider_int_or_none(
+                        selected_book.get("odds")
+                    )
+
+                    if odds is None:
+                        flash(
+                            "That sportsbook price is invalid.",
+                            "error"
+                        )
+                        return redirect(
+                            url_for("my_bets_page")
+                        )
+
                     verification_type = "verified"
 
                 if odds == 0:
-                    flash("The selected odds are invalid.", "error")
+                    flash(
+                        "The selected odds are invalid.",
+                        "error"
+                    )
                     return redirect(url_for("my_bets_page"))
 
                 cur.execute("""
@@ -6270,18 +6372,34 @@ def add_verified_bet():
                     WHERE id = %s
                       AND user_id = %s
                     FOR UPDATE
-                """, (bankroll_id, current_user.id))
+                """, (
+                    bankroll_id,
+                    current_user.id,
+                ))
 
                 bankroll = cur.fetchone()
 
                 if not bankroll:
-                    flash("That bankroll could not be found.", "error")
+                    flash(
+                        "That bankroll could not be found.",
+                        "error"
+                    )
                     return redirect(url_for("my_bets_page"))
 
-                current_balance = float(bankroll[1] or 0)
-                unit_percentage = float(bankroll[2] or 0.01)
-                unit_value = current_balance * unit_percentage
-                units = stake / unit_value if unit_value > 0 else None
+                current_balance = float(
+                    bankroll[1] or 0
+                )
+                unit_percentage = float(
+                    bankroll[2] or 0.01
+                )
+                unit_value = (
+                    current_balance * unit_percentage
+                )
+                units = (
+                    stake / unit_value
+                    if unit_value > 0
+                    else None
+                )
 
                 decimal_odds = (
                     1 + odds / 100
@@ -6289,15 +6407,39 @@ def add_verified_bet():
                     else 1 + 100 / abs(odds)
                 )
 
-                potential_profit = round(stake * (decimal_odds - 1), 2)
-                potential_return = round(stake + potential_profit, 2)
+                potential_profit = round(
+                    stake * (decimal_odds - 1),
+                    2,
+                )
+                potential_return = round(
+                    stake + potential_profit,
+                    2,
+                )
+
                 ticket_id = uuid.uuid4()
-                sport, league = provider_sport_display(sport_key)
-                market_label = provider_market_label(market_key)
-                side = clean_text(outcome_name).lower()
-                line_float = float(line) if line is not None else None
-                line_text = f" {line_float:g}" if line_float is not None else ""
-                title = f"{player_name} {side.title()}{line_text} {market_label}"
+                sport, league = provider_sport_display(
+                    sport_key
+                )
+
+                side = clean_text(
+                    outcome_name
+                ).lower()
+                line_float = (
+                    float(line)
+                    if line is not None
+                    else None
+                )
+                line_text = (
+                    f" {line_float:g}"
+                    if line_float is not None
+                    else ""
+                )
+
+                title = (
+                    f"{player_name} "
+                    f"{side.title()}{line_text} "
+                    f"{market_label}"
+                )
 
                 cur.execute("""
                     INSERT INTO user_bets (
@@ -6362,7 +6504,7 @@ def add_verified_bet():
                     league,
                     title,
                     notes or None,
-                    verification_type
+                    verification_type,
                 ))
 
                 user_bet_id = cur.fetchone()[0]
@@ -6430,26 +6572,31 @@ def add_verified_bet():
                     summary_id,
                     provider_event_id,
                     market_key,
-                    verification_type
+                    verification_type,
                 ))
 
         flash(
-            "Verified bet added."
-            if verification_type == "verified"
-            else "Average Market bet added.",
-            "success"
+            (
+                "Verified bet added."
+                if verification_type == "verified"
+                else "Average Market bet added."
+            ),
+            "success",
         )
 
     except Exception as exc:
         print("Verified bet save error:", exc)
-        flash("The verified bet could not be saved.", "error")
+        flash(
+            "The verified bet could not be saved.",
+            "error"
+        )
 
     finally:
         conn.close()
 
     return redirect(url_for("my_bets_page"))
 
-# ================= END VERIFIED PROVIDER BETS =================
+
 
 @app.route("/my-hub/bets/add", methods=["POST"])
 @login_required

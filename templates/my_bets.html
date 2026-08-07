@@ -791,10 +791,16 @@
                     </div>
 
                     <div class="field hub-span-2">
-                        <label for="verified_game">Game</label>
-                        <select id="verified_game" required disabled>
+                        <div class="verified-section-title">
+                            <strong>Choose Game</strong>
+                            <span id="verifiedGameCount">Loading...</span>
+                        </div>
+                        <select id="verified_game" required hidden disabled>
                             <option value="">Loading games...</option>
                         </select>
+                        <div class="verified-game-grid" id="verifiedGameGrid">
+                            <div class="verified-empty">Loading games...</div>
+                        </div>
                     </div>
 
                     <div class="field hub-span-2 verified-search-wrap">
@@ -1354,16 +1360,18 @@ function escapeBankrollText(value) {
 
 async function openBankrollSettingsModal() {
     const modal = document.getElementById("bankrollSettingsModal");
-    modal.classList.add("show");
+    modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
 
     await loadBankrollSettings();
 }
 
 function closeBankrollSettingsModal() {
     const modal = document.getElementById("bankrollSettingsModal");
-    modal.classList.remove("show");
+    modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
 }
 
 async function loadBankrollSettings() {
@@ -1511,6 +1519,100 @@ document.addEventListener("click", function(event) {
     }
 });
 </script>
+
+
+<style>
+.verified-game-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.verified-game-card {
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 14px;
+    background: rgba(2, 6, 23, .52);
+    color: inherit;
+    padding: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .14s ease, border-color .14s ease, background .14s ease;
+}
+
+.verified-game-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(96, 165, 250, .45);
+}
+
+.verified-game-card.selected {
+    border-color: rgba(59, 130, 246, .78);
+    background: rgba(30, 64, 175, .18);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, .10) inset;
+}
+
+.verified-game-matchup {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: .92rem;
+}
+
+.verified-game-matchup em {
+    color: #64748b;
+    font-style: normal;
+    font-size: .76rem;
+}
+
+.verified-game-meta {
+    display: block;
+    color: #94a3b8;
+    font-size: .76rem;
+    margin-top: 6px;
+}
+
+.verified-line-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.verified-line-market {
+    min-width: 68px;
+    text-align: right;
+}
+
+.verified-line-market span {
+    display: block;
+    font-size: .64rem;
+    letter-spacing: .08em;
+    color: #64748b;
+    font-weight: 800;
+}
+
+.verified-line-market strong {
+    font-size: 1rem;
+}
+
+.verified-price-btn.average {
+    border-color: rgba(59, 130, 246, .55);
+    background:
+        linear-gradient(
+            145deg,
+            rgba(30, 64, 175, .22),
+            rgba(15, 23, 42, .72)
+        );
+}
+
+.verified-main-badge {
+    letter-spacing: .08em;
+}
+
+@media (max-width: 700px) {
+    .verified-game-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
 
 {% endblock %}
 
@@ -1669,30 +1771,85 @@ async function fetchProviderJson(url) {
     return response.json();
 }
 
-async function openVerifiedBetModal() {
+async async function openVerifiedBetModal() {
     const modal = document.getElementById("verifiedBetModal");
     if (!modal) return;
+
     modal.classList.add("show");
     modal.setAttribute("aria-hidden", "false");
     resetVerifiedBetForm();
 
+    const gameGrid = document.getElementById("verifiedGameGrid");
+    const gameCount = document.getElementById("verifiedGameCount");
+
     try {
         const sport = document.getElementById("verified_sport").value;
-        const data = await fetchProviderJson(`/api/provider/games?sport=${encodeURIComponent(sport)}`);
+        const data = await fetchProviderJson(
+            `/api/provider/games?sport=${encodeURIComponent(sport)}`
+        );
+
+        const games = data.games || [];
         const gameSelect = document.getElementById("verified_game");
+
         gameSelect.innerHTML = '<option value="">Choose game</option>';
-        for (const game of data.games || []) {
+        gameSelect.disabled = !games.length;
+
+        gameGrid.innerHTML = "";
+        gameCount.textContent = `${games.length} game${games.length === 1 ? "" : "s"}`;
+
+        if (!games.length) {
+            gameGrid.innerHTML = '<div class="verified-empty">No upcoming cached markets available.</div>';
+            return;
+        }
+
+        for (const game of games) {
             const option = document.createElement("option");
             option.value = game.event_id;
-            const start = game.commence_time ? new Date(game.commence_time).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "";
-            option.textContent = `${game.label}${start ? ` · ${start}` : ""}`;
+            option.textContent = game.label;
             gameSelect.appendChild(option);
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "verified-game-card";
+
+            const start = game.commence_time
+                ? new Date(game.commence_time).toLocaleString([], {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit"
+                })
+                : "";
+
+            button.innerHTML = `
+                <span class="verified-game-matchup">
+                    <strong>${escapeVerifiedHtml(game.away_team)}</strong>
+                    <em>@</em>
+                    <strong>${escapeVerifiedHtml(game.home_team)}</strong>
+                </span>
+                <span class="verified-game-meta">
+                    ${escapeVerifiedHtml(start)}
+                    ${game.player_count ? ` · ${game.player_count} players` : ""}
+                </span>
+            `;
+
+            button.addEventListener("click", async () => {
+                document.querySelectorAll(".verified-game-card.selected")
+                    .forEach(el => el.classList.remove("selected"));
+
+                button.classList.add("selected");
+                gameSelect.value = game.event_id;
+
+                await loadVerifiedPlayers();
+            });
+
+            gameGrid.appendChild(button);
         }
-        gameSelect.disabled = !(data.games || []).length;
-        if (!(data.games || []).length) gameSelect.innerHTML = '<option value="">No upcoming markets available</option>';
+
     } catch (error) {
         console.error(error);
-        setVerifiedSelectState("verified_game", "Could not load games", true);
+        gameCount.textContent = "Unavailable";
+        gameGrid.innerHTML = '<div class="verified-empty">Could not load games.</div>';
     }
 }
 
@@ -1728,6 +1885,12 @@ function resetVerifiedBetForm() {
     document.getElementById("verifiedSelectedLine").textContent = "Choose a market";
     document.getElementById("verifiedPriceGrid").innerHTML = '<div class="verified-empty">Choose a market to view available prices.</div>';
     setVerifiedSelectState("verified_game", "Loading games...", true);
+    const gameGrid = document.getElementById("verifiedGameGrid");
+    const gameCount = document.getElementById("verifiedGameCount");
+    if (gameGrid) {
+        gameGrid.innerHTML = '<div class="verified-empty">Loading games...</div>';
+    }
+    if (gameCount) gameCount.textContent = "Loading...";
 }
 
 async function loadVerifiedPlayers() {
@@ -1840,7 +2003,19 @@ function buildVerifiedLineButton(item) {
     button.type = "button";
     button.className = "verified-line-btn";
     button.dataset.summaryId = item.summary_id;
-    button.innerHTML = `<div><strong>${escapeVerifiedHtml(item.label)}</strong><small>${item.books_available} books${item.best_bookmaker_title ? ` · Best ${escapeVerifiedHtml(item.best_bookmaker_title)}` : ""}</small></div><div class="verified-line-price">${formatAmericanOdds(item.average_odds)}</div>`;
+    button.innerHTML = `
+        <div class="verified-line-copy">
+            <strong>${escapeVerifiedHtml(item.label)}</strong>
+            <small>
+                ${item.books_available} enabled book${item.books_available === 1 ? "" : "s"}
+                ${item.best_bookmaker_title ? ` · Best ${escapeVerifiedHtml(item.best_bookmaker_title)} ${formatAmericanOdds(item.best_odds)}` : ""}
+            </small>
+        </div>
+        <div class="verified-line-market">
+            <span>AVG</span>
+            <strong>${formatAmericanOdds(item.average_odds)}</strong>
+        </div>
+    `;
     button.addEventListener("click", () => selectVerifiedLine(item, button));
     return button;
 }
@@ -1870,7 +2045,16 @@ function renderVerifiedPrices(data, item) {
         grid.appendChild(buildVerifiedPriceButton({kind:"average", id:item.summary_id, odds:data.summary.average_odds, title:"Average Market", subtitle:`${data.summary.books_available || 0} books`, average:true}));
     }
     for (const book of data.books || []) {
-        grid.appendChild(buildVerifiedPriceButton({kind:"book", id:book.provider_market_id, odds:book.odds, title:book.bookmaker_title || book.bookmaker_key, subtitle:book.odds === data.summary?.best_odds ? "Best available" : "Verified price"}));
+        const badges = [];
+        if (book.odds === data.summary?.best_odds) badges.push("Best available");
+        if (book.is_sharp) badges.push("Sharp");
+        grid.appendChild(buildVerifiedPriceButton({
+            kind: "book",
+            id: book.provider_market_id,
+            odds: book.odds,
+            title: book.bookmaker_title || book.bookmaker_key,
+            subtitle: badges.length ? badges.join(" · ") : "Verified price"
+        }));
     }
     document.getElementById("verifiedBooksCount").textContent = data.summary?.books_available ?? "—";
     document.getElementById("verifiedBestOdds").textContent = `${formatAmericanOdds(data.summary?.best_odds)}${data.summary?.best_bookmaker_title ? ` (${data.summary.best_bookmaker_title})` : ""}`;
