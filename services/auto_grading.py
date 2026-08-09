@@ -26,7 +26,7 @@ def normalize_side_and_line(side, line):
     if line is not None:
         return raw_side, line
 
-    match = re.match(r"^\s*(\d+)\+\b", raw_side)
+    match = re.match(r"^\s*(\d+)\+", raw_side)
 
     if match:
         threshold = int(match.group(1))
