@@ -151,9 +151,13 @@ def grade_pending_mlb_bets(user_id):
                         ub.bet_type,
                         ub.sport,
                         ubl.provider_event_id,
-                        ubl.provider_market_key
+                        ubl.provider_market_key,
+                        pe.commence_time
                     FROM user_bets ub
                     JOIN user_bet_legs ubl ON ubl.user_bet_id = ub.id
+                    LEFT JOIN provider_events pe
+                      ON pe.provider = 'prop_line'
+                     AND pe.provider_event_id = ubl.provider_event_id
                     WHERE ub.user_id = %s
                       AND LOWER(COALESCE(ub.status,'pending')) = 'pending'
                       AND UPPER(COALESCE(ub.sport,'')) = 'MLB'
@@ -166,6 +170,7 @@ def grade_pending_mlb_bets(user_id):
                     bet_id, leg_id = int(row[0]), int(row[1])
                     player_name, raw_prop, side, line, start_time = row[2], row[3], row[4], row[5], row[6]
                     provider_event_id, provider_market_key = row[9], row[10]
+                    provider_commence_time = row[11]
 
                     final, final_error = provider_event_is_final(cur, provider_event_id)
                     if not final:
@@ -177,7 +182,9 @@ def grade_pending_mlb_bets(user_id):
                         skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": "unsupported_market", "provider_market_key": provider_market_key, "prop": raw_prop})
                         continue
 
-                    event_date = local_event_date(start_time)
+                    event_date = local_event_date(
+                        provider_commence_time or start_time
+                    )
                     if not event_date:
                         skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": "missing_event_date"})
                         continue
