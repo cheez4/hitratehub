@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+import re
 from zoneinfo import ZoneInfo
 
 from database import get_conn
@@ -8,18 +9,57 @@ from services.market_registry import resolve_market
 TORONTO = ZoneInfo("America/Toronto")
 FINAL_EVENT_STATUSES = {"final", "completed", "complete"}
 
+
+def normalize_side_and_line(side, line):
+    """
+    Normalize sportsbook milestone selections into standard O/U grading.
+
+    Examples:
+        "1+ Home Runs", None -> "over", 0.5
+        "2+ Hits", None      -> "over", 1.5
+        "3+ Total Bases"     -> "over", 2.5
+
+    Existing Over/Under + numeric line selections pass through unchanged.
+    """
+    raw_side = str(side or "").strip().lower()
+
+    if line is not None:
+        return raw_side, line
+
+    match = re.match(r"^\s*(\d+)\+\b", raw_side)
+
+    if match:
+        threshold = int(match.group(1))
+        return "over", float(threshold) - 0.5
+
+    # Common yes/no anytime-style outcomes.
+    if raw_side == "yes":
+        return "over", 0.5
+
+    if raw_side == "no":
+        return "under", 0.5
+
+    return raw_side, line
+
+
 def compare_result(stat_value, side, line):
-    side = str(side or "").strip().lower()
+    side, line = normalize_side_and_line(side, line)
+
     if line is None:
         return None
+
     stat_value = float(stat_value)
     line = float(line)
+
     if stat_value == line:
         return "push"
-    if side in {"over", "yes"}:
+
+    if side == "over":
         return "won" if stat_value > line else "lost"
-    if side in {"under", "no"}:
+
+    if side == "under":
         return "won" if stat_value < line else "lost"
+
     return None
 
 def local_event_date(start_time):
