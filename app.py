@@ -7095,7 +7095,7 @@ def sync_personal_bet_results():
             user_id=current_user.id
         )
 
-        app.logger.info(
+        app.logger.warning(
             "AUTO GRADING SCAN user=%s graded=%s skipped=%s ready=%s",
             current_user.id,
             scan.get("graded_legs"),
