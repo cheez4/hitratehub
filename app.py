@@ -7095,6 +7095,14 @@ def sync_personal_bet_results():
             user_id=current_user.id
         )
 
+        app.logger.info(
+            "AUTO GRADING SCAN user=%s graded=%s skipped=%s ready=%s",
+            current_user.id,
+            scan.get("graded_legs"),
+            scan.get("skipped_legs"),
+            scan.get("ready_tickets"),
+        )
+
         settled = 0
         failed = 0
 
