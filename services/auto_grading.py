@@ -238,9 +238,23 @@ def grade_pending_mlb_bets(user_id):
                         skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": error, "market_key": market.key})
                         continue
 
-                    result = compare_result(stat_value, side, line)
+                    normalized_side, normalized_line = normalize_side_and_line(
+                        side,
+                        line
+                    )
+
+                    result = compare_result(
+                        stat_value,
+                        normalized_side,
+                        normalized_line
+                    )
+
                     if result is None:
-                        skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": "unsupported_side_or_line"})
+                        skipped.append({
+                            "bet_id": bet_id,
+                            "leg_id": leg_id,
+                            "reason": "unsupported_side_or_line"
+                        })
                         continue
 
                     cur.execute("""
@@ -254,7 +268,7 @@ def grade_pending_mlb_bets(user_id):
                         "leg_id": leg_id,
                         "result": result,
                         "stat_value": stat_value,
-                        "line": float(line),
+                        "line": float(normalized_line),
                         "player_name": player_name,
                         "market_key": market.key,
                         "market": market.display,
