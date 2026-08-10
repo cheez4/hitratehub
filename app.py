@@ -33,7 +33,7 @@ from datetime import date, timedelta, datetime
 import secrets
 from urllib.parse import urlencode
 from functools import wraps
-from services.grading_engine import grade_bet
+from services.grading_engine import grade_bet, regrade_bet
 from services.auto_grading import grade_pending_mlb_bets
 from zoneinfo import ZoneInfo
 
@@ -7091,6 +7091,9 @@ def clear_cache():
 @login_required
 def sync_personal_bet_results():
     try:
+        # ---------------------------------------------------------
+        # PASS 1: grade currently-pending verified bets
+        # ---------------------------------------------------------
         scan = grade_pending_mlb_bets(
             user_id=current_user.id
         )
@@ -7113,7 +7116,6 @@ def sync_personal_bet_results():
                 user_id=current_user.id,
                 update_legs=False,
                 odds_override=ticket.get("adjusted_odds")
-
             )
 
             if response.get("success"):
@@ -7121,23 +7123,245 @@ def sync_personal_bet_results():
             else:
                 failed += 1
 
+        # ---------------------------------------------------------
+        # PASS 2: reconcile already-settled VERIFIED straight bets
+        # against official provider_results
+        # ---------------------------------------------------------
+        corrected = 0
+        correction_failed = 0
+
+        conn = get_conn()
+
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        ub.id AS bet_id,
+                        LOWER(COALESCE(ub.result, ub.status, '')) AS bet_result,
+                        LOWER(COALESCE(ub.bet_type, 'straight')) AS bet_type,
+                        ubl.id AS leg_id,
+                        ubl.player_name,
+                        ubl.provider_event_id,
+                        ubl.provider_market_key,
+                        ubl.ou,
+                        COALESCE(ubl.user_line, ubl.line) AS line
+                    FROM user_bets ub
+                    JOIN user_bet_legs ubl
+                      ON ubl.user_bet_id = ub.id
+                    WHERE ub.user_id = %s
+                      AND UPPER(COALESCE(ub.sport, '')) = 'MLB'
+                      AND LOWER(COALESCE(ub.status, 'pending'))
+                            IN ('won', 'lost', 'push', 'void')
+                      AND ubl.provider_event_id IS NOT NULL
+                      AND ubl.provider_market_key IS NOT NULL
+                    ORDER BY ub.id, COALESCE(ubl.sort_order, ubl.id)
+                """, (current_user.id,))
+
+                rows = cur.fetchall()
+
+                bets = {}
+
+                for row in rows:
+                    (
+                        bet_id,
+                        bet_result,
+                        bet_type,
+                        leg_id,
+                        player_name,
+                        provider_event_id,
+                        provider_market_key,
+                        side,
+                        line
+                    ) = row
+
+                    item = bets.setdefault(
+                        int(bet_id),
+                        {
+                            "bet_result": str(
+                                bet_result or ""
+                            ).lower(),
+                            "bet_type": str(
+                                bet_type or "straight"
+                            ).lower(),
+                            "legs": []
+                        }
+                    )
+
+                    item["legs"].append({
+                        "leg_id": int(leg_id),
+                        "player_name": player_name,
+                        "provider_event_id": provider_event_id,
+                        "provider_market_key": provider_market_key,
+                        "side": side,
+                        "line": line,
+                    })
+
+                for bet_id, bet_data in bets.items():
+                    # First correction pass: settled straight bets only.
+                    # Parlays will be reconciled separately at ticket level.
+                    if (
+                        bet_data["bet_type"] != "straight"
+                        or len(bet_data["legs"]) != 1
+                    ):
+                        continue
+
+                    leg = bet_data["legs"][0]
+
+                    side = str(
+                        leg["side"] or ""
+                    ).strip()
+
+                    market_key = str(
+                        leg["provider_market_key"] or ""
+                    ).strip()
+
+                    if not side or not market_key:
+                        continue
+
+                    if leg["line"] is None:
+                        cur.execute("""
+                            SELECT
+                                LOWER(TRIM(resolution))
+                            FROM provider_results
+                            WHERE provider = 'prop_line'
+                              AND provider_event_id = %s
+                              AND market_key = %s
+                              AND LOWER(TRIM(player_name))
+                                    = LOWER(TRIM(%s))
+                              AND LOWER(TRIM(outcome_name))
+                                    = LOWER(TRIM(%s))
+                              AND line IS NULL
+                              AND resolution IS NOT NULL
+                              AND COALESCE(redacted, FALSE) = FALSE
+                            ORDER BY resolved_at DESC, id DESC
+                        """, (
+                            str(leg["provider_event_id"]),
+                            market_key,
+                            leg["player_name"],
+                            side,
+                        ))
+                    else:
+                        cur.execute("""
+                            SELECT
+                                LOWER(TRIM(resolution))
+                            FROM provider_results
+                            WHERE provider = 'prop_line'
+                              AND provider_event_id = %s
+                              AND market_key = %s
+                              AND LOWER(TRIM(player_name))
+                                    = LOWER(TRIM(%s))
+                              AND LOWER(TRIM(outcome_name))
+                                    = LOWER(TRIM(%s))
+                              AND line = %s
+                              AND resolution IS NOT NULL
+                              AND COALESCE(redacted, FALSE) = FALSE
+                            ORDER BY resolved_at DESC, id DESC
+                        """, (
+                            str(leg["provider_event_id"]),
+                            market_key,
+                            leg["player_name"],
+                            side,
+                            leg["line"],
+                        ))
+
+                    resolutions = {
+                        str(result_row[0] or "")
+                        .strip()
+                        .lower()
+                        for result_row in cur.fetchall()
+                        if str(result_row[0] or "")
+                        .strip()
+                        .lower()
+                        in {"won", "lost", "push", "void"}
+                    }
+
+                    # Do nothing if provider result is missing or conflicting.
+                    if len(resolutions) != 1:
+                        continue
+
+                    provider_result = next(iter(resolutions))
+                    stored_result = bet_data["bet_result"]
+
+                    if provider_result == stored_result:
+                        continue
+
+                    app.logger.warning(
+                        "BET RECONCILE user=%s bet=%s stored=%s provider=%s",
+                        current_user.id,
+                        bet_id,
+                        stored_result,
+                        provider_result,
+                    )
+
+                    correction = regrade_bet(
+                        bet_id=bet_id,
+                        result=provider_result,
+                        user_id=current_user.id,
+                        update_legs=True,
+                        reason=(
+                            "Official Prop-Line provider_results "
+                            "reconciliation"
+                        )
+                    )
+
+                    if correction.get("success"):
+                        corrected += 1
+                    else:
+                        correction_failed += 1
+
+                        app.logger.error(
+                            "BET RECONCILE FAILED "
+                            "user=%s bet=%s error=%s",
+                            current_user.id,
+                            bet_id,
+                            correction.get("error"),
+                        )
+
+        finally:
+            conn.close()
+
         graded_legs = len(scan["graded_legs"])
         skipped_legs = len(scan["skipped_legs"])
 
-        if settled:
+        if corrected or settled:
+            parts = []
+
+            if graded_legs:
+                parts.append(
+                    f"{graded_legs} leg"
+                    f"{'' if graded_legs == 1 else 's'} graded"
+                )
+
+            if settled:
+                parts.append(
+                    f"{settled} ticket"
+                    f"{'' if settled == 1 else 's'} settled"
+                )
+
+            if corrected:
+                parts.append(
+                    f"{corrected} ticket"
+                    f"{'' if corrected == 1 else 's'} corrected"
+                )
+
+            if skipped_legs:
+                parts.append(
+                    f"{skipped_legs} leg"
+                    f"{'' if skipped_legs == 1 else 's'} still pending"
+                )
+
             flash(
-                f"Results synced: {graded_legs} leg"
-                f"{'' if graded_legs == 1 else 's'} graded"
-                f" · {settled} ticket"
-                f"{'' if settled == 1 else 's'} settled"
-                + (
-                    f" · {skipped_legs} leg"
-                    f"{'' if skipped_legs == 1 else 's'} pending"
-                    if skipped_legs
-                    else ""
-                ),
+                "Results synced: " + " · ".join(parts),
                 "success"
             )
+
+        elif failed or correction_failed:
+            flash(
+                "Results were found, but one or more settlements "
+                "or corrections failed.",
+                "error"
+            )
+
         elif graded_legs:
             flash(
                 f"{graded_legs} leg"
@@ -7145,14 +7369,10 @@ def sync_personal_bet_results():
                 "The remaining ticket legs are still pending.",
                 "info"
             )
-        elif failed:
-            flash(
-                "Ticket results were found, but settlement failed.",
-                "error"
-            )
+
         else:
             flash(
-                "No pending MLB legs were ready to grade.",
+                "No pending MLB legs or settlement corrections were found.",
                 "info"
             )
 
@@ -7160,14 +7380,13 @@ def sync_personal_bet_results():
         app.logger.exception(
             "Personal Hub result sync failed"
         )
+
         flash(
-            "Result sync failed. No tickets were settled.",
+            "Result sync failed. No tickets were settled or corrected.",
             "error"
         )
 
     return redirect(url_for("my_bets_page"))
-
-
 @app.route("/my-hub/bets/<int:bet_id>/grade", methods=["POST"])
 @login_required
 def grade_personal_bet(bet_id):
