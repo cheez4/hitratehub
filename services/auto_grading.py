@@ -110,6 +110,65 @@ def innings_pitched_to_outs(value):
         return None
     return whole * 3 + extra
 
+
+def normalize_outcome_text(value):
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def get_provider_resolution(cur, provider_event_id, market_key, player_name, side, line):
+    raw_side = normalize_outcome_text(side)
+
+    if line is None:
+        cur.execute("""
+            SELECT resolution, actual_value
+            FROM provider_results
+            WHERE provider = 'prop_line'
+              AND provider_event_id = %s
+              AND market_key = %s
+              AND LOWER(TRIM(player_name)) = LOWER(TRIM(%s))
+              AND LOWER(TRIM(outcome_name)) = %s
+              AND line IS NULL
+              AND resolution IS NOT NULL
+              AND COALESCE(redacted, FALSE) = FALSE
+            ORDER BY resolved_at DESC, id DESC
+        """, (str(provider_event_id), str(market_key), player_name, raw_side))
+    else:
+        cur.execute("""
+            SELECT resolution, actual_value
+            FROM provider_results
+            WHERE provider = 'prop_line'
+              AND provider_event_id = %s
+              AND market_key = %s
+              AND LOWER(TRIM(player_name)) = LOWER(TRIM(%s))
+              AND LOWER(TRIM(outcome_name)) = %s
+              AND line = %s
+              AND resolution IS NOT NULL
+              AND COALESCE(redacted, FALSE) = FALSE
+            ORDER BY resolved_at DESC, id DESC
+        """, (str(provider_event_id), str(market_key), player_name, raw_side, line))
+
+    rows = cur.fetchall()
+
+    if not rows:
+        return None, None, "provider_result_missing"
+
+    resolutions = {
+        str(row[0] or "").strip().lower()
+        for row in rows
+        if row[0] is not None
+    }
+    valid = {x for x in resolutions if x in {"won", "lost", "push", "void"}}
+
+    if not valid:
+        return None, None, "provider_result_unresolved"
+
+    if len(valid) > 1:
+        return None, None, "provider_result_conflict"
+
+    actual_value = next((float(row[1]) for row in rows if row[1] is not None), None)
+    return next(iter(valid)), actual_value, None
+
+
 def get_single_hitter_result(cur, player_name, event_date, market):
     stat_sql = {
         "h": "COALESCE(SUM(h), 0)",
@@ -219,41 +278,95 @@ def grade_pending_mlb_bets(user_id):
 
                     market = resolve_market(provider_market_key, raw_prop)
                     if not market:
-                        skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": "unsupported_market", "provider_market_key": provider_market_key, "prop": raw_prop})
-                        continue
-
-                    event_date = local_event_date(
-                        provider_commence_time or start_time
-                    )
-                    if not event_date:
-                        skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": "missing_event_date"})
-                        continue
-
-                    if market.entity == "batter":
-                        stat_value, error = get_single_hitter_result(cur, player_name, event_date, market)
-                    else:
-                        stat_value, error = get_single_pitcher_result(cur, player_name, event_date, market)
-
-                    if error:
-                        skipped.append({"bet_id": bet_id, "leg_id": leg_id, "reason": error, "market_key": market.key})
-                        continue
-
-                    normalized_side, normalized_line = normalize_side_and_line(
-                        side,
-                        line
-                    )
-
-                    result = compare_result(
-                        stat_value,
-                        normalized_side,
-                        normalized_line
-                    )
-
-                    if result is None:
                         skipped.append({
                             "bet_id": bet_id,
                             "leg_id": leg_id,
-                            "reason": "unsupported_side_or_line"
+                            "reason": "unsupported_market",
+                            "provider_market_key": provider_market_key,
+                            "prop": raw_prop,
+                        })
+                        continue
+
+                    provider_result, provider_actual, provider_error = (
+                        get_provider_resolution(
+                            cur,
+                            provider_event_id,
+                            market.key,
+                            player_name,
+                            side,
+                            line,
+                        )
+                    )
+
+                    result = None
+                    stat_value = provider_actual
+                    normalized_line = line
+                    grade_source = "provider_results"
+
+                    if provider_result is not None:
+                        result = provider_result
+
+                    elif provider_error in {
+                        "provider_result_missing",
+                        "provider_result_unresolved",
+                    }:
+                        event_date = local_event_date(
+                            provider_commence_time or start_time
+                        )
+                        if not event_date:
+                            skipped.append({
+                                "bet_id": bet_id,
+                                "leg_id": leg_id,
+                                "reason": "missing_event_date",
+                            })
+                            continue
+
+                        if market.entity == "batter":
+                            stat_value, error = get_single_hitter_result(
+                                cur, player_name, event_date, market
+                            )
+                        else:
+                            stat_value, error = get_single_pitcher_result(
+                                cur, player_name, event_date, market
+                            )
+
+                        if error:
+                            skipped.append({
+                                "bet_id": bet_id,
+                                "leg_id": leg_id,
+                                "reason": error,
+                                "market_key": market.key,
+                                "provider_fallback_reason": provider_error,
+                            })
+                            continue
+
+                        normalized_side, normalized_line = normalize_side_and_line(
+                            side,
+                            line
+                        )
+
+                        result = compare_result(
+                            stat_value,
+                            normalized_side,
+                            normalized_line
+                        )
+
+                        if result is None:
+                            skipped.append({
+                                "bet_id": bet_id,
+                                "leg_id": leg_id,
+                                "reason": "unsupported_side_or_line"
+                            })
+                            continue
+
+                        grade_source = "internal_stats"
+
+                    else:
+                        skipped.append({
+                            "bet_id": bet_id,
+                            "leg_id": leg_id,
+                            "reason": provider_error,
+                            "market_key": market.key,
                         })
                         continue
 
@@ -268,10 +381,15 @@ def grade_pending_mlb_bets(user_id):
                         "leg_id": leg_id,
                         "result": result,
                         "stat_value": stat_value,
-                        "line": float(normalized_line),
+                        "line": (
+                            float(normalized_line)
+                            if normalized_line is not None
+                            else None
+                        ),
                         "player_name": player_name,
                         "market_key": market.key,
                         "market": market.display,
+                        "grade_source": grade_source,
                     })
 
         ready_tickets = []
