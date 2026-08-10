@@ -7124,8 +7124,10 @@ def sync_personal_bet_results():
                 failed += 1
 
         # ---------------------------------------------------------
-        # PASS 2: reconcile already-settled VERIFIED straight bets
-        # against official provider_results
+        # PASS 2: reconcile already-settled VERIFIED tickets
+        # against official provider_results.
+        #
+        # Supports straight bets AND parlays.
         # ---------------------------------------------------------
         corrected = 0
         correction_failed = 0
@@ -7140,11 +7142,21 @@ def sync_personal_bet_results():
                         LOWER(COALESCE(ub.result, ub.status, '')) AS bet_result,
                         LOWER(COALESCE(ub.bet_type, 'straight')) AS bet_type,
                         ubl.id AS leg_id,
+                        LOWER(COALESCE(
+                            ubl.result,
+                            ubl.status,
+                            'pending'
+                        )) AS stored_leg_result,
                         ubl.player_name,
                         ubl.provider_event_id,
                         ubl.provider_market_key,
                         ubl.ou,
-                        COALESCE(ubl.user_line, ubl.line) AS line
+                        COALESCE(ubl.user_line, ubl.line) AS line,
+                        COALESCE(
+                            ubl.user_odds,
+                            ubl.odds,
+                            ubl.official_odds
+                        ) AS leg_odds
                     FROM user_bets ub
                     JOIN user_bet_legs ubl
                       ON ubl.user_bet_id = ub.id
@@ -7154,7 +7166,9 @@ def sync_personal_bet_results():
                             IN ('won', 'lost', 'push', 'void')
                       AND ubl.provider_event_id IS NOT NULL
                       AND ubl.provider_market_key IS NOT NULL
-                    ORDER BY ub.id, COALESCE(ubl.sort_order, ubl.id)
+                    ORDER BY
+                        ub.id,
+                        COALESCE(ubl.sort_order, ubl.id)
                 """, (current_user.id,))
 
                 rows = cur.fetchall()
@@ -7167,11 +7181,13 @@ def sync_personal_bet_results():
                         bet_result,
                         bet_type,
                         leg_id,
+                        stored_leg_result,
                         player_name,
                         provider_event_id,
                         provider_market_key,
                         side,
-                        line
+                        line,
+                        leg_odds
                     ) = row
 
                     item = bets.setdefault(
@@ -7179,146 +7195,272 @@ def sync_personal_bet_results():
                         {
                             "bet_result": str(
                                 bet_result or ""
-                            ).lower(),
+                            ).strip().lower(),
                             "bet_type": str(
                                 bet_type or "straight"
-                            ).lower(),
+                            ).strip().lower(),
                             "legs": []
                         }
                     )
 
                     item["legs"].append({
                         "leg_id": int(leg_id),
+                        "stored_result": str(
+                            stored_leg_result or "pending"
+                        ).strip().lower(),
                         "player_name": player_name,
                         "provider_event_id": provider_event_id,
                         "provider_market_key": provider_market_key,
                         "side": side,
                         "line": line,
+                        "odds": (
+                            int(leg_odds)
+                            if leg_odds is not None
+                            else None
+                        ),
                     })
 
+                correction_plans = []
+
                 for bet_id, bet_data in bets.items():
-                    # First correction pass: settled straight bets only.
-                    # Parlays will be reconciled separately at ticket level.
-                    if (
-                        bet_data["bet_type"] != "straight"
-                        or len(bet_data["legs"]) != 1
+                    provider_legs = []
+                    unresolved = False
+
+                    for leg in bet_data["legs"]:
+                        side = str(
+                            leg["side"] or ""
+                        ).strip()
+
+                        market_key = str(
+                            leg["provider_market_key"] or ""
+                        ).strip()
+
+                        if not side or not market_key:
+                            unresolved = True
+                            break
+
+                        if leg["line"] is None:
+                            cur.execute("""
+                                SELECT
+                                    LOWER(TRIM(resolution))
+                                FROM provider_results
+                                WHERE provider = 'prop_line'
+                                  AND provider_event_id = %s
+                                  AND market_key = %s
+                                  AND LOWER(TRIM(player_name))
+                                        = LOWER(TRIM(%s))
+                                  AND LOWER(TRIM(outcome_name))
+                                        = LOWER(TRIM(%s))
+                                  AND line IS NULL
+                                  AND resolution IS NOT NULL
+                                  AND COALESCE(redacted, FALSE) = FALSE
+                                ORDER BY resolved_at DESC, id DESC
+                            """, (
+                                str(leg["provider_event_id"]),
+                                market_key,
+                                leg["player_name"],
+                                side,
+                            ))
+                        else:
+                            cur.execute("""
+                                SELECT
+                                    LOWER(TRIM(resolution))
+                                FROM provider_results
+                                WHERE provider = 'prop_line'
+                                  AND provider_event_id = %s
+                                  AND market_key = %s
+                                  AND LOWER(TRIM(player_name))
+                                        = LOWER(TRIM(%s))
+                                  AND LOWER(TRIM(outcome_name))
+                                        = LOWER(TRIM(%s))
+                                  AND line = %s
+                                  AND resolution IS NOT NULL
+                                  AND COALESCE(redacted, FALSE) = FALSE
+                                ORDER BY resolved_at DESC, id DESC
+                            """, (
+                                str(leg["provider_event_id"]),
+                                market_key,
+                                leg["player_name"],
+                                side,
+                                leg["line"],
+                            ))
+
+                        resolutions = {
+                            str(result_row[0] or "")
+                            .strip()
+                            .lower()
+                            for result_row in cur.fetchall()
+                            if str(result_row[0] or "")
+                            .strip()
+                            .lower()
+                            in {"won", "lost", "push", "void"}
+                        }
+
+                        # Missing or conflicting provider outcomes:
+                        # do not alter this ticket.
+                        if len(resolutions) != 1:
+                            unresolved = True
+                            break
+
+                        provider_leg_result = next(iter(resolutions))
+
+                        provider_legs.append({
+                            **leg,
+                            "provider_result": provider_leg_result,
+                        })
+
+                    if unresolved or not provider_legs:
+                        continue
+
+                    statuses = [
+                        leg["provider_result"]
+                        for leg in provider_legs
+                    ]
+
+                    ticket_result = None
+                    adjusted_odds = None
+
+                    if "lost" in statuses:
+                        ticket_result = "lost"
+
+                    elif statuses and all(
+                        status in {"push", "void"}
+                        for status in statuses
                     ):
+                        ticket_result = "push"
+
+                    elif statuses and all(
+                        status in {"won", "push", "void"}
+                        for status in statuses
+                    ):
+                        ticket_result = "won"
+
+                        removed_legs = [
+                            leg
+                            for leg in provider_legs
+                            if leg["provider_result"] in {"push", "void"}
+                        ]
+
+                        # A reduced parlay needs recalculated odds.
+                        if removed_legs:
+                            active_winners = [
+                                leg
+                                for leg in provider_legs
+                                if leg["provider_result"] == "won"
+                            ]
+
+                            if (
+                                not active_winners
+                                or any(
+                                    leg["odds"] in (None, 0)
+                                    for leg in active_winners
+                                )
+                            ):
+                                continue
+
+                            combined_decimal = 1.0
+
+                            for leg in active_winners:
+                                odds = int(leg["odds"])
+
+                                if odds > 0:
+                                    decimal_odds = 1 + odds / 100
+                                else:
+                                    decimal_odds = (
+                                        1 + 100 / abs(odds)
+                                    )
+
+                                combined_decimal *= decimal_odds
+
+                            if combined_decimal <= 1:
+                                continue
+
+                            if combined_decimal >= 2:
+                                adjusted_odds = round(
+                                    (combined_decimal - 1) * 100
+                                )
+                            else:
+                                adjusted_odds = round(
+                                    -100 / (combined_decimal - 1)
+                                )
+
+                    if ticket_result is None:
                         continue
 
-                    leg = bet_data["legs"][0]
+                    leg_results = [
+                        {
+                            "leg_id": leg["leg_id"],
+                            "result": leg["provider_result"],
+                        }
+                        for leg in provider_legs
+                    ]
 
-                    side = str(
-                        leg["side"] or ""
-                    ).strip()
-
-                    market_key = str(
-                        leg["provider_market_key"] or ""
-                    ).strip()
-
-                    if not side or not market_key:
-                        continue
-
-                    if leg["line"] is None:
-                        cur.execute("""
-                            SELECT
-                                LOWER(TRIM(resolution))
-                            FROM provider_results
-                            WHERE provider = 'prop_line'
-                              AND provider_event_id = %s
-                              AND market_key = %s
-                              AND LOWER(TRIM(player_name))
-                                    = LOWER(TRIM(%s))
-                              AND LOWER(TRIM(outcome_name))
-                                    = LOWER(TRIM(%s))
-                              AND line IS NULL
-                              AND resolution IS NOT NULL
-                              AND COALESCE(redacted, FALSE) = FALSE
-                            ORDER BY resolved_at DESC, id DESC
-                        """, (
-                            str(leg["provider_event_id"]),
-                            market_key,
-                            leg["player_name"],
-                            side,
-                        ))
-                    else:
-                        cur.execute("""
-                            SELECT
-                                LOWER(TRIM(resolution))
-                            FROM provider_results
-                            WHERE provider = 'prop_line'
-                              AND provider_event_id = %s
-                              AND market_key = %s
-                              AND LOWER(TRIM(player_name))
-                                    = LOWER(TRIM(%s))
-                              AND LOWER(TRIM(outcome_name))
-                                    = LOWER(TRIM(%s))
-                              AND line = %s
-                              AND resolution IS NOT NULL
-                              AND COALESCE(redacted, FALSE) = FALSE
-                            ORDER BY resolved_at DESC, id DESC
-                        """, (
-                            str(leg["provider_event_id"]),
-                            market_key,
-                            leg["player_name"],
-                            side,
-                            leg["line"],
-                        ))
-
-                    resolutions = {
-                        str(result_row[0] or "")
-                        .strip()
-                        .lower()
-                        for result_row in cur.fetchall()
-                        if str(result_row[0] or "")
-                        .strip()
-                        .lower()
-                        in {"won", "lost", "push", "void"}
-                    }
-
-                    # Do nothing if provider result is missing or conflicting.
-                    if len(resolutions) != 1:
-                        continue
-
-                    provider_result = next(iter(resolutions))
-                    stored_result = bet_data["bet_result"]
-
-                    if provider_result == stored_result:
-                        continue
-
-                    app.logger.warning(
-                        "BET RECONCILE user=%s bet=%s stored=%s provider=%s",
-                        current_user.id,
-                        bet_id,
-                        stored_result,
-                        provider_result,
+                    leg_changed = any(
+                        leg["stored_result"]
+                        != leg["provider_result"]
+                        for leg in provider_legs
                     )
 
-                    correction = regrade_bet(
-                        bet_id=bet_id,
-                        result=provider_result,
-                        user_id=current_user.id,
-                        update_legs=True,
-                        reason=(
-                            "Official Prop-Line provider_results "
-                            "reconciliation"
-                        )
+                    ticket_changed = (
+                        bet_data["bet_result"] != ticket_result
                     )
 
-                    if correction.get("success"):
-                        corrected += 1
-                    else:
-                        correction_failed += 1
+                    # Even if ticket result stays the same, correct any
+                    # individual leg that disagrees with provider_results.
+                    if not ticket_changed and not leg_changed:
+                        continue
 
-                        app.logger.error(
-                            "BET RECONCILE FAILED "
-                            "user=%s bet=%s error=%s",
-                            current_user.id,
-                            bet_id,
-                            correction.get("error"),
-                        )
+                    correction_plans.append({
+                        "bet_id": bet_id,
+                        "stored_result": bet_data["bet_result"],
+                        "provider_result": ticket_result,
+                        "bet_type": bet_data["bet_type"],
+                        "leg_results": leg_results,
+                        "adjusted_odds": adjusted_odds,
+                    })
 
         finally:
             conn.close()
+
+        # Run each correction in its own atomic regrade transaction.
+        for plan in correction_plans:
+            app.logger.warning(
+                "BET RECONCILE user=%s bet=%s type=%s "
+                "stored=%s provider=%s legs=%s adjusted_odds=%s",
+                current_user.id,
+                plan["bet_id"],
+                plan["bet_type"],
+                plan["stored_result"],
+                plan["provider_result"],
+                plan["leg_results"],
+                plan["adjusted_odds"],
+            )
+
+            correction = regrade_bet(
+                bet_id=plan["bet_id"],
+                result=plan["provider_result"],
+                user_id=current_user.id,
+                update_legs=False,
+                odds_override=plan["adjusted_odds"],
+                reason=(
+                    "Official Prop-Line provider_results "
+                    "ticket reconciliation"
+                ),
+                leg_results=plan["leg_results"],
+            )
+
+            if correction.get("success"):
+                corrected += 1
+            else:
+                correction_failed += 1
+
+                app.logger.error(
+                    "BET RECONCILE FAILED "
+                    "user=%s bet=%s error=%s",
+                    current_user.id,
+                    plan["bet_id"],
+                    correction.get("error"),
+                )
 
         graded_legs = len(scan["graded_legs"])
         skipped_legs = len(scan["skipped_legs"])

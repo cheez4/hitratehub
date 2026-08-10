@@ -327,7 +327,8 @@ def regrade_bet(
     user_id,
     update_legs=True,
     odds_override=None,
-    reason="Provider result correction"
+    reason="Provider result correction",
+    leg_results=None
 ):
     """
     Correct an already-settled bet safely.
@@ -507,6 +508,7 @@ def regrade_bet(
                 if (
                     current_result == result
                     and old_profit == new_profit
+                    and not leg_results
                 ):
                     return {
                         "success": True,
@@ -573,10 +575,53 @@ def regrade_bet(
                     user_id
                 ))
 
-                # Straight bets can synchronize their leg directly.
-                # For parlays callers should normally pass update_legs=False
-                # because each leg may have a different result.
-                if update_legs:
+                # Update leg results atomically with the ticket correction.
+                #
+                # For parlays, leg_results should be a list like:
+                # [{"leg_id": 10, "result": "won"}, ...]
+                #
+                # For straight bets, update_legs=True keeps the original
+                # one-leg synchronization behavior.
+                if leg_results:
+                    for leg_item in leg_results:
+                        leg_id = leg_item.get("leg_id")
+                        leg_result = str(
+                            leg_item.get("result") or ""
+                        ).strip().lower()
+
+                        if (
+                            not leg_id
+                            or leg_result not in VALID_RESULTS
+                        ):
+                            return {
+                                "success": False,
+                                "error": "Invalid corrected leg result."
+                            }
+
+                        cur.execute("""
+                            UPDATE user_bet_legs
+                            SET
+                                status = %s,
+                                result = %s
+                            WHERE id = %s
+                              AND user_bet_id = %s
+                        """, (
+                            leg_result,
+                            leg_result,
+                            leg_id,
+                            bet_id
+                        ))
+
+                        if cur.rowcount != 1:
+                            return {
+                                "success": False,
+                                "error": (
+                                    "A corrected parlay leg "
+                                    "could not be updated."
+                                )
+                            }
+
+                elif update_legs:
                     cur.execute("""
                         UPDATE user_bet_legs
                         SET
