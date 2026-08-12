@@ -7794,7 +7794,7 @@ def strategy_finder():
                     provider_profit = 0.0
                     provider_roi = 0.0
 
-                app.logger.info(
+                app.logger.warning(
                     "\n"
                     "====================================================\n"
                     "STRATEGY FINDER DATA FOUNDATION SHADOW TEST\n"
