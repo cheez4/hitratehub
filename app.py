@@ -35,6 +35,7 @@ from urllib.parse import urlencode
 from functools import wraps
 from services.grading_engine import grade_bet, regrade_bet
 from services.auto_grading import grade_pending_mlb_bets
+from services.market_registry import resolve_market
 from zoneinfo import ZoneInfo
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -7656,9 +7657,192 @@ def strategy_finder():
 
         sql += " LIMIT 10000"
 
+        # ============================================================
+        # LEGACY STRATEGY FINDER QUERY
+        # ============================================================
         df = pd.read_sql(sql, conn, params=params)
+
+        # ============================================================
+        # DATA FOUNDATION SHADOW QUERY
+        # Provider-backed equivalent of odds_market_timeline.
+        #
+        # IMPORTANT:
+        # This does NOT affect what the user sees yet.
+        # It only compares legacy vs provider data in the logs.
+        # ============================================================
+        provider_df = pd.DataFrame()
+
+        try:
+            market = resolve_market(display_prop=prop)
+
+            if market:
+                provider_sql = f"""
+                    SELECT
+                        pmh.player_name AS player,
+                        pmh.market_key AS prop,
+                        pmh.outcome_name AS ou,
+                        pmh.line,
+                        pmh.odds,
+                        pmh.bookmaker_key AS sportsbook,
+                        (
+                            pe.commence_time
+                            AT TIME ZONE 'America/New_York'
+                        )::date AS game_date,
+                        h.team,
+                        h.opponent,
+                        h.is_home,
+                        h.{stat_col} AS result_stat
+                    FROM provider_market_history pmh
+                    JOIN provider_events pe
+                      ON pe.provider = pmh.provider
+                     AND pe.provider_event_id = pmh.provider_event_id
+                    JOIN mlb_hitter_gamelogs h
+                      ON LOWER(TRIM(h.player_name)) = LOWER(TRIM(pmh.player_name))
+                     AND h.game_date = (
+                            pe.commence_time
+                            AT TIME ZONE 'America/New_York'
+                         )::date
+                    WHERE pmh.sport_key = 'baseball_mlb'
+                      AND pmh.market_key = %s
+                      AND LOWER(TRIM(pmh.outcome_name)) = 'over'
+                      AND pmh.checkpoint = %s
+                      AND pmh.odds IS NOT NULL
+                      AND pmh.line IS NOT NULL
+                      AND (
+                            pe.commence_time
+                            AT TIME ZONE 'America/New_York'
+                          )::date >= CURRENT_DATE - (%s || ' days')::interval
+                """
+
+                provider_params = [
+                    market.key,
+                    checkpoint,
+                    window,
+                ]
+
+                if odds_min:
+                    provider_sql += " AND pmh.odds >= %s"
+                    provider_params.append(int(odds_min))
+
+                if odds_max:
+                    provider_sql += " AND pmh.odds <= %s"
+                    provider_params.append(int(odds_max))
+
+                if team:
+                    provider_sql += " AND UPPER(h.team) = %s"
+                    provider_params.append(team.upper().strip())
+
+                if vs_team:
+                    provider_sql += " AND UPPER(h.opponent) = %s"
+                    provider_params.append(vs_team.upper().strip())
+
+                if home_away == "home":
+                    provider_sql += " AND h.is_home = TRUE"
+
+                if home_away == "away":
+                    provider_sql += " AND h.is_home = FALSE"
+
+                # Keep the same cap as the legacy query for the first comparison.
+                provider_sql += " LIMIT 10000"
+
+                provider_df = pd.read_sql(
+                    provider_sql,
+                    conn,
+                    params=provider_params
+                )
+
+                # Match the legacy grading behavior exactly during shadow testing.
+                # Push handling will be corrected after provider parity is proven.
+                provider_bets = len(provider_df)
+
+                if provider_bets > 0:
+                    provider_df["result_status"] = provider_df.apply(
+                        lambda r: (
+                            "Won"
+                            if float(r["result_stat"]) > float(r["line"])
+                            else "Lost"
+                        ),
+                        axis=1
+                    )
+
+                    provider_wins = int(
+                        (provider_df["result_status"] == "Won").sum()
+                    )
+                    provider_losses = int(
+                        (provider_df["result_status"] == "Lost").sum()
+                    )
+
+                    provider_profit = 0.0
+
+                    for _, provider_row in provider_df.iterrows():
+                        provider_odds = int(provider_row["odds"])
+
+                        if provider_row["result_status"] == "Won":
+                            if provider_odds > 0:
+                                provider_profit += provider_odds / 100
+                            else:
+                                provider_profit += 100 / abs(provider_odds)
+                        else:
+                            provider_profit -= 1
+
+                    provider_roi = (
+                        provider_profit / provider_bets
+                    ) * 100
+                else:
+                    provider_wins = 0
+                    provider_losses = 0
+                    provider_profit = 0.0
+                    provider_roi = 0.0
+
+                app.logger.info(
+                    "\n"
+                    "====================================================\n"
+                    "STRATEGY FINDER DATA FOUNDATION SHADOW TEST\n"
+                    "====================================================\n"
+                    "PROP: %s\n"
+                    "PROVIDER MARKET: %s\n"
+                    "CHECKPOINT: %s\n"
+                    "WINDOW: %s\n"
+                    "ODDS: %s to %s\n"
+                    "----------------------------------------------------\n"
+                    "LEGACY ROWS:   %s\n"
+                    "PROVIDER ROWS: %s\n"
+                    "----------------------------------------------------\n"
+                    "PROVIDER WINS:   %s\n"
+                    "PROVIDER LOSSES: %s\n"
+                    "PROVIDER UNITS:  %.2f\n"
+                    "PROVIDER ROI:    %.2f%%%%\n"
+                    "====================================================",
+                    prop,
+                    market.key,
+                    checkpoint,
+                    window,
+                    odds_min or "ANY",
+                    odds_max or "ANY",
+                    len(df),
+                    provider_bets,
+                    provider_wins,
+                    provider_losses,
+                    provider_profit,
+                    provider_roi,
+                )
+
+            else:
+                app.logger.warning(
+                    "Strategy Finder shadow test: "
+                    "could not resolve market for prop=%s",
+                    prop
+                )
+
+        except Exception:
+            app.logger.exception(
+                "Strategy Finder provider shadow query failed"
+            )
+
         conn.close()
 
+        # Existing Strategy Finder continues to use the legacy dataframe
+        # until provider parity has been validated.
         bets = len(df)
 
         if bets > 0:
