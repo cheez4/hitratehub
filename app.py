@@ -2737,7 +2737,8 @@ def edge_finder():
     sort_by = request.args.get("sort", "edge_l20")
     selected_date = request.args.get("date", "today")
 
-    today = date.today()
+    eastern_now = datetime.now(ZoneInfo("America/Toronto"))
+    today = eastern_now.date()
     yesterday = today - timedelta(days=1)
 
     if selected_date == "today":

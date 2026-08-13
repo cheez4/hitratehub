@@ -92,23 +92,23 @@ th a {
 </div>
 
     <div class="filters">
-        <a class="{% if view == 'overpriced' %}active{% endif %}" href="/edge-finder?view=overpriced&prop={{ prop }}">
+        <a class="{% if view == 'overpriced' %}active{% endif %}" href="/edge-finder?view=overpriced&prop={{ prop }}&date={{ selected_date }}">
             Overpriced
         </a>
 
-        <a class="{% if view == 'underpriced' %}active{% endif %}" href="/edge-finder?view=underpriced&prop={{ prop }}">
+        <a class="{% if view == 'underpriced' %}active{% endif %}" href="/edge-finder?view=underpriced&prop={{ prop }}&date={{ selected_date }}">
             Underpriced
         </a>
 
-        <a class="{% if view == 'all' %}active{% endif %}" href="/edge-finder?view=all&prop={{ prop }}">
+        <a class="{% if view == 'all' %}active{% endif %}" href="/edge-finder?view=all&prop={{ prop }}&date={{ selected_date }}">
             All
         </a>
 
-        <a class="{% if prop == 'HR' %}active{% endif %}" href="/edge-finder?prop=HR&view={{ view }}">HR</a>
-        <a class="{% if prop == 'HITS' %}active{% endif %}" href="/edge-finder?prop=HITS&view={{ view }}">Hits</a>
-        <a class="{% if prop == 'TB' %}active{% endif %}" href="/edge-finder?prop=TB&view={{ view }}">Total Bases</a>
-        <a class="{% if prop == 'RBI' %}active{% endif %}" href="/edge-finder?prop=RBI&view={{ view }}">RBI</a>
-        <a class="{% if prop == 'RUNS' %}active{% endif %}" href="/edge-finder?prop=RUNS&view={{ view }}">Runs</a>
+        <a class="{% if prop == 'HR' %}active{% endif %}" href="/edge-finder?prop=HR&view={{ view }}&date={{ selected_date }}">HR</a>
+<a class="{% if prop == 'HITS' %}active{% endif %}" href="/edge-finder?prop=HITS&view={{ view }}&date={{ selected_date }}">Hits</a>
+<a class="{% if prop == 'TB' %}active{% endif %}" href="/edge-finder?prop=TB&view={{ view }}&date={{ selected_date }}">Total Bases</a>
+<a class="{% if prop == 'RBI' %}active{% endif %}" href="/edge-finder?prop=RBI&view={{ view }}&date={{ selected_date }}">RBI</a>
+<a class="{% if prop == 'RUNS' %}active{% endif %}" href="/edge-finder?prop=RUNS&view={{ view }}&date={{ selected_date }}">Runs</a>
     </div>
 
 <div style="margin-bottom:12px;">
@@ -129,10 +129,10 @@ th a {
                 <th>Line</th>
                 <th>Odds</th>
                 <th>Implied %</th>
-                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10">L10 Hit Rate / Edge</a></th>
-<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20">L20 Hit Rate / Edge</a></th>
-<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30">L30 Hit Rate / Edge</a></th>
-<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45">L45 Hit Rate / Edge</a></th>
+                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10&date={{ selected_date }}">L10 Hit Rate / Edge</a></th>
+<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20&date={{ selected_date }}">L20 Hit Rate / Edge</a></th>
+<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30&date={{ selected_date }}">L30 Hit Rate / Edge</a></th>
+<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45&date={{ selected_date }}">L45 Hit Rate / Edge</a></th>
                 <th>Label</th>
             </tr>
         </thead>
