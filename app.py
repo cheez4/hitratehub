@@ -42,6 +42,8 @@ ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
 DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET")
 DISCORD_REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI")
+DISCORD_GUILD_ID = os.environ.get("DISCORD_GUILD_ID")
+DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
 
 DISCORD_API_URL = "https://discord.com/api/v10"
 app = Flask(__name__)
@@ -2383,6 +2385,29 @@ def discord_callback():
             )
         else:
             avatar_url = "https://cdn.discordapp.com/embed/avatars/0.png"
+
+        # ---------------------------------------------------------
+        # Verify the Discord user is actually in HitRateHub
+        # ---------------------------------------------------------
+        if not DISCORD_GUILD_ID or not DISCORD_BOT_TOKEN:
+            print("Discord guild verification is not configured.")
+            return "Discord server verification is unavailable.", 500
+
+        member_response = requests.get(
+            f"{DISCORD_API_URL}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}",
+            headers={
+                "Authorization": f"Bot {DISCORD_BOT_TOKEN}"
+            },
+            timeout=15
+        )
+
+        if member_response.status_code == 404:
+            return (
+                "You must join the HitRateHub Discord server "
+                "before creating a HitRateHub account."
+            ), 403
+
+        member_response.raise_for_status()
 
         conn = get_conn()
 
