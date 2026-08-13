@@ -44,6 +44,7 @@ DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET")
 DISCORD_REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI")
 DISCORD_GUILD_ID = os.environ.get("DISCORD_GUILD_ID")
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
+DISCORD_INVITE_URL = os.environ.get("DISCORD_INVITE_URL")
 
 DISCORD_API_URL = "https://discord.com/api/v10"
 app = Flask(__name__)
