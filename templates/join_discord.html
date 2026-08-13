@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="shell">
+    <div class="panel" style="max-width:650px; margin:50px auto; text-align:center;">
+
+        <div class="page-title">
+            Join the HitRateHub Community
+        </div>
+
+        <div class="subtext" style="margin:15px 0 30px;">
+            Your Discord account is connected, but you haven't joined
+            the HitRateHub Discord server yet.
+        </div>
+
+        <p style="margin-bottom:25px;">
+            Join the server to create your HitRateHub account and
+            access the community.
+        </p>
+
+        <a href="{{ discord_invite_url }}"
+           target="_blank"
+           class="run-btn"
+           style="display:inline-block; text-decoration:none; margin:8px;">
+            Join HitRateHub Discord
+        </a>
+
+        <a href="/login"
+           class="run-btn"
+           style="display:inline-block; text-decoration:none; margin:8px;">
+            I've Joined — Continue
+        </a>
+
+    </div>
+</div>
+
+{% endblock %}

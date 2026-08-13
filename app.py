@@ -2403,9 +2403,9 @@ def discord_callback():
         )
 
         if member_response.status_code == 404:
-            return (
-                "You must join the HitRateHub Discord server "
-                "before creating a HitRateHub account."
+            return render_template(
+                "join_discord.html",
+                discord_invite_url=DISCORD_INVITE_URL
             ), 403
 
         member_response.raise_for_status()
