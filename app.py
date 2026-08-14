@@ -5915,6 +5915,7 @@ def provider_players_api():
 
     rows = read_sql("""
         SELECT
+            canonical_player_id,
             clean_player_name AS name,
             COUNT(*) AS selection_count,
             COUNT(DISTINCT market_key) AS market_count
@@ -5922,7 +5923,9 @@ def provider_players_api():
         WHERE provider = 'prop_line'
           AND provider_event_id = %s
           AND clean_player_name <> ''
-        GROUP BY clean_player_name
+        GROUP BY
+            canonical_player_id,
+            clean_player_name
         ORDER BY clean_player_name
     """, (event_id,))
 
@@ -5930,6 +5933,9 @@ def provider_players_api():
 
     for row in rows.to_dict("records") if not rows.empty else []:
         players.append({
+            "canonical_player_id": provider_int_or_none(
+                row.get("canonical_player_id")
+            ),
             "name": clean_text(row.get("name")),
             "selection_count": int(
                 provider_value_or_none(
@@ -5951,8 +5957,14 @@ def provider_players_api():
 def provider_selections_api():
     event_id = clean_text(request.args.get("event_id"))
     requested_player = clean_text(request.args.get("player"))
+    canonical_player_id = request.args.get(
+        "canonical_player_id",
+        type=int,
+    )
 
-    if not event_id or not requested_player:
+    if not event_id or (
+        not canonical_player_id and not requested_player
+    ):
         return jsonify({
             "player": requested_player,
             "selections": [],
@@ -5978,7 +5990,13 @@ def provider_selections_api():
         FROM provider_market_cache
         WHERE provider = 'prop_line'
           AND provider_event_id = %s
-          AND LOWER(clean_player_name) = LOWER(%s)
+          AND (
+            canonical_player_id = %s
+        OR (
+            canonical_player_id IS NULL
+            AND LOWER(clean_player_name) = LOWER(%s)
+        )
+    )
         ORDER BY
             market_label,
             is_main DESC,
@@ -5986,6 +6004,7 @@ def provider_selections_api():
             line
     """, (
         event_id,
+        canonical_player_id,
         requested_player,
     ))
 

@@ -1814,6 +1814,7 @@ function formatAmericanOdds(value) {
 
 let verifiedPlayers = [];
 let verifiedSelectedPlayer = "";
+let verifiedSelectedCanonicalPlayerId = null;
 let verifiedTicketLegs = [];
 let verifiedPendingPrice = null;
 let verifiedPendingSelection = null;
@@ -1963,6 +1964,7 @@ async function loadVerifiedPlayers() {
     const search = document.getElementById("verified_player_search");
     verifiedPlayers = [];
     verifiedSelectedPlayer = "";
+    verifiedSelectedCanonicalPlayerId = null;
     document.getElementById("verified_player").value = "";
     search.value = "";
     search.disabled = true;
@@ -1998,36 +2000,62 @@ function renderVerifiedPlayerResults(query) {
             button.type = "button";
             button.className = "verified-player-option";
             button.innerHTML = `<strong>${escapeVerifiedHtml(player.name)}</strong><small>${player.selection_count || 0} markets</small>`;
-            button.addEventListener("click", () => chooseVerifiedPlayer(player.name));
+            button.addEventListener("click", () => chooseVerifiedPlayer(
+    player.name,
+    player.canonical_player_id
+));
             box.appendChild(button);
         }
     }
     box.hidden = false;
 }
 
-function chooseVerifiedPlayer(name) {
+function chooseVerifiedPlayer(name, canonicalPlayerId = null) {
     verifiedSelectedPlayer = name;
+    verifiedSelectedCanonicalPlayerId = canonicalPlayerId;
+
     document.getElementById("verified_player").value = name;
     document.getElementById("verified_player_search").value = name;
     document.getElementById("verifiedPlayerResults").hidden = true;
+
     loadVerifiedSelections();
 }
 
 async function loadVerifiedSelections() {
     const eventId = document.getElementById("verified_game").value;
     const player = verifiedSelectedPlayer;
+    const canonicalPlayerId = verifiedSelectedCanonicalPlayerId;
     const grid = document.getElementById("verifiedMarketGrid");
+
     clearVerifiedPrice();
+
     if (!eventId || !player) return;
+
     grid.innerHTML = '<div class="verified-empty">Loading markets...</div>';
     document.getElementById("verifiedMarketHeading").textContent = player;
 
     try {
-        const data = await fetchProviderJson(`/api/provider/selections?event_id=${encodeURIComponent(eventId)}&player=${encodeURIComponent(player)}`);
+        const params = new URLSearchParams({
+            event_id: eventId,
+            player: player
+        });
+
+        if (canonicalPlayerId) {
+            params.set(
+                "canonical_player_id",
+                String(canonicalPlayerId)
+            );
+        }
+
+        const data = await fetchProviderJson(
+            `/api/provider/selections?${params.toString()}`
+        );
+
         renderVerifiedMarkets(data.markets || []);
     } catch (error) {
         console.error(error);
-        grid.innerHTML = '<div class="verified-empty">Could not load markets.</div>';
+        grid.innerHTML =
+            '<div class="verified-empty">Could not load markets.</div>';
     }
 }
 
