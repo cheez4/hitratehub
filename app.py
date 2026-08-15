@@ -1570,38 +1570,27 @@ def get_historical_odds_lookup(
     game_dates=None,
 ):
     """
-    Load provider-backed historical consensus odds for only the games shown
-    in Compare Players.
+    Fast provider-backed historical consensus odds for Compare Players.
 
-    The query stays tightly scoped for Render performance:
-      - requested player aliases only
-      - exact visible game dates only
-      - requested market + line only
-      - close/open checkpoints only
-      - books configured as enabled + include_in_average only
-
-    Consensus logic per player/date:
-      1. Use CLOSE prices if at least one eligible close exists.
-      2. Otherwise use OPEN prices.
-      3. Keep only the latest row per sportsbook/checkpoint.
-      4. Convert each American price to implied probability.
-      5. Average the probabilities.
-      6. Convert the consensus probability back to American odds.
-
-    provider_books is queried separately instead of joined to the very large
-    provider_market_history table. That keeps sportsbook settings dynamic
-    without bringing back the expensive join that caused Render timeouts.
+    Performance strategy:
+      1. Load eligible average books from provider_books (tiny table).
+      2. Resolve player aliases (small table).
+      3. Resolve only the provider event IDs for the exact visible game dates.
+      4. Query provider_market_history directly by those event IDs.
+         This avoids joining the multi-million-row history table to
+         provider_events during the expensive odds lookup.
+      5. Keep the latest row per book/checkpoint/event/player.
+      6. Prefer CLOSE; fall back to OPEN.
+      7. Average implied probabilities and convert back to American odds.
     """
     if not players:
         return {}
 
     market = resolve_market(display_prop=prop)
-
     if not market:
         return {}
 
     expected_entity = "batter" if role == "hitter" else "pitcher"
-
     if market.entity != expected_entity:
         return {}
 
@@ -1610,7 +1599,6 @@ def get_historical_odds_lookup(
         for player in players
         if clean_text(player)
     ]
-
     if not requested_players:
         return {}
 
@@ -1619,18 +1607,14 @@ def get_historical_odds_lookup(
         for value in (game_dates or [])
         if clean_text(value)
     })
-
     if not visible_dates:
         return {}
 
     # ---------------------------------------------------------------
-    # Load the tiny sportsbook configuration separately.
-    # Do NOT join provider_books into provider_market_history.
+    # Eligible consensus books.
     # ---------------------------------------------------------------
     average_book_rows = read_sql("""
-        SELECT
-            bookmaker_key,
-            display_order
+        SELECT bookmaker_key
         FROM provider_books
         WHERE enabled = TRUE
           AND include_in_average = TRUE
@@ -1644,7 +1628,6 @@ def get_historical_odds_lookup(
 
     for _, row in average_book_rows.iterrows():
         key = clean_text(row.get("bookmaker_key")).lower()
-
         if key and key not in average_books:
             average_books.append(key)
 
@@ -1652,7 +1635,7 @@ def get_historical_odds_lookup(
         return {}
 
     # ---------------------------------------------------------------
-    # Resolve requested display names -> raw provider aliases.
+    # Requested display names -> raw provider aliases.
     # ---------------------------------------------------------------
     alias_rows = read_sql("""
         SELECT
@@ -1670,63 +1653,113 @@ def get_historical_odds_lookup(
 
     if not alias_rows.empty:
         for _, row in alias_rows.iterrows():
-            normalized = normalize_name(
-                row.get("normalized_name")
-            )
-            raw_name = clean_text(
-                row.get("raw_player_name")
-            )
-            canonical_id = row.get(
-                "canonical_player_id"
-            )
+            normalized = normalize_name(row.get("normalized_name"))
+            raw_name = clean_text(row.get("raw_player_name"))
+            canonical_id = row.get("canonical_player_id")
 
             if not normalized or not raw_name:
                 continue
 
-            aliases_by_norm.setdefault(
-                normalized,
-                set(),
-            ).add(raw_name)
+            aliases_by_norm.setdefault(normalized, set()).add(raw_name)
 
-            if (
-                canonical_id is not None
-                and not pd.isna(canonical_id)
-            ):
-                ids_by_norm.setdefault(
-                    normalized,
-                    set(),
-                ).add(int(canonical_id))
+            if canonical_id is not None and not pd.isna(canonical_id):
+                ids_by_norm.setdefault(normalized, set()).add(
+                    int(canonical_id)
+                )
 
     alias_pairs = []
 
     for player in requested_players:
         normalized = normalize_name(player)
+        canonical_ids = ids_by_norm.get(normalized, set())
 
-        canonical_ids = ids_by_norm.get(
-            normalized,
-            set(),
-        )
-
-        # Avoid merging two real identities that share the same name.
         if len(canonical_ids) > 1:
             raw_aliases = {player}
         else:
             raw_aliases = set(
-                aliases_by_norm.get(
-                    normalized,
-                    set(),
-                )
+                aliases_by_norm.get(normalized, set())
             )
             raw_aliases.add(player)
 
         for raw_alias in sorted(raw_aliases):
-            alias_pairs.append(
-                (raw_alias, player)
-            )
+            alias_pairs.append((raw_alias, player))
 
     if not alias_pairs:
         return {}
 
+    # ---------------------------------------------------------------
+    # Resolve the exact provider event IDs first.
+    # This is cheap and prevents the history query from joining events.
+    # ---------------------------------------------------------------
+    date_placeholders = ",".join(
+        ["%s::date"] * len(visible_dates)
+    )
+
+    min_date = visible_dates[0]
+    max_date = visible_dates[-1]
+
+    event_query = f"""
+        SELECT
+            provider_event_id,
+            (
+                commence_time
+                AT TIME ZONE 'America/New_York'
+            )::date AS game_date
+        FROM provider_events
+        WHERE provider = 'prop_line'
+          AND sport_key = 'baseball_mlb'
+          AND commence_time >= %s::date - INTERVAL '6 hours'
+          AND commence_time < (
+                %s::date
+                + INTERVAL '1 day 6 hours'
+              )
+          AND (
+                commence_time
+                AT TIME ZONE 'America/New_York'
+              )::date IN ({date_placeholders})
+    """
+
+    event_params = [
+        min_date,
+        max_date,
+    ] + visible_dates
+
+    try:
+        event_df = read_sql(
+            event_query,
+            event_params,
+        )
+    except Exception:
+        app.logger.exception(
+            "Provider event lookup failed dates=%s",
+            visible_dates,
+        )
+        return {}
+
+    if event_df.empty:
+        return {}
+
+    event_date_by_id = {}
+
+    for _, row in event_df.iterrows():
+        event_id = clean_text(
+            row.get("provider_event_id")
+        )
+        game_date = clean_text(
+            row.get("game_date")
+        )
+
+        if event_id and game_date:
+            event_date_by_id[event_id] = game_date
+
+    event_ids = list(event_date_by_id.keys())
+
+    if not event_ids:
+        return {}
+
+    # ---------------------------------------------------------------
+    # Query history DIRECTLY by event IDs.
+    # ---------------------------------------------------------------
     alias_values = ",".join(
         ["(%s, %s)"] * len(alias_pairs)
     )
@@ -1737,153 +1770,95 @@ def get_historical_odds_lookup(
         for value in pair
     ]
 
-    date_placeholders = ",".join(
-        ["%s::date"] * len(visible_dates)
+    event_placeholders = ",".join(
+        ["%s"] * len(event_ids)
     )
 
     book_placeholders = ",".join(
         ["%s"] * len(average_books)
     )
 
-    min_date = visible_dates[0]
-    max_date = visible_dates[-1]
-
-    query = f"""
+    history_query = f"""
         WITH requested_aliases(
             raw_player_name,
             requested_player
         ) AS (
             VALUES {alias_values}
-        ),
-        ranked AS (
-            SELECT
-                ra.requested_player AS player,
-
-                (
-                    pe.commence_time
-                    AT TIME ZONE 'America/New_York'
-                )::date AS game_date,
-
-                pmh.bookmaker_key AS sportsbook,
-                pmh.odds,
-                pmh.line,
-                pmh.checkpoint,
-                pmh.captured_at,
-
-                ROW_NUMBER() OVER (
-                    PARTITION BY
-                        ra.requested_player,
-                        (
-                            pe.commence_time
-                            AT TIME ZONE 'America/New_York'
-                        )::date,
-                        pmh.checkpoint,
-                        pmh.bookmaker_key
-
-                    ORDER BY
-                        pmh.captured_at DESC,
-                        pmh.id DESC
-                ) AS rn
-
-            FROM provider_events pe
-
-            JOIN provider_market_history pmh
-              ON pmh.provider = pe.provider
-             AND pmh.provider_event_id =
-                    pe.provider_event_id
-
-            JOIN requested_aliases ra
-              ON ra.raw_player_name =
-                    pmh.player_name
-
-            WHERE pe.provider = 'prop_line'
-              AND pe.sport_key = 'baseball_mlb'
-              AND pmh.sport_key = 'baseball_mlb'
-
-              AND pmh.market_key = %s
-
-              AND LOWER(
-                    TRIM(pmh.outcome_name)
-                  ) = 'over'
-
-              AND pmh.line = %s
-
-              AND pmh.checkpoint
-                    IN ('close', 'open')
-
-              AND pmh.odds IS NOT NULL
-
-              AND pmh.bookmaker_key
-                    IN ({book_placeholders})
-
-              -- Broad UTC bounds help PostgreSQL restrict events first.
-              AND pe.commence_time >=
-                    %s::date
-                    - INTERVAL '6 hours'
-
-              AND pe.commence_time < (
-                    %s::date
-                    + INTERVAL '1 day 6 hours'
-                  )
-
-              -- Then keep only exact local dates currently visible.
-              AND (
-                    pe.commence_time
-                    AT TIME ZONE 'America/New_York'
-                  )::date
-                    IN ({date_placeholders})
         )
+        SELECT DISTINCT ON (
+            ra.requested_player,
+            pmh.provider_event_id,
+            pmh.checkpoint,
+            pmh.bookmaker_key
+        )
+            ra.requested_player AS player,
+            pmh.provider_event_id,
+            pmh.bookmaker_key AS sportsbook,
+            pmh.odds,
+            pmh.line,
+            pmh.checkpoint,
+            pmh.captured_at
 
-        SELECT
-            player,
-            game_date,
-            sportsbook,
-            odds,
-            line,
-            checkpoint
+        FROM provider_market_history pmh
 
-        FROM ranked
+        JOIN requested_aliases ra
+          ON ra.raw_player_name = pmh.player_name
 
-        WHERE rn = 1
+        WHERE pmh.provider = 'prop_line'
+          AND pmh.sport_key = 'baseball_mlb'
+          AND pmh.provider_event_id IN ({event_placeholders})
+          AND pmh.market_key = %s
+          AND LOWER(TRIM(pmh.outcome_name)) = 'over'
+          AND pmh.line = %s
+          AND pmh.checkpoint IN ('close', 'open')
+          AND pmh.odds IS NOT NULL
+          AND pmh.bookmaker_key IN ({book_placeholders})
 
         ORDER BY
-            game_date DESC,
-            player,
-            checkpoint,
-            sportsbook
+            ra.requested_player,
+            pmh.provider_event_id,
+            pmh.checkpoint,
+            pmh.bookmaker_key,
+            pmh.captured_at DESC,
+            pmh.id DESC
     """
 
-    params = (
+    history_params = (
         alias_params
+        + event_ids
         + [
             market.key,
             line,
         ]
         + average_books
-        + [
-            min_date,
-            max_date,
-        ]
-        + visible_dates
     )
 
     try:
         df = read_sql(
-            query,
-            params,
+            history_query,
+            history_params,
         )
-
     except Exception:
         app.logger.exception(
             "Provider historical consensus odds lookup failed "
-            "market=%s line=%s players=%s dates=%s books=%s",
+            "market=%s line=%s players=%s dates=%s events=%s books=%s",
             market.key,
             line,
             requested_players,
             visible_dates,
+            len(event_ids),
             average_books,
         )
         return {}
+
+    if df.empty:
+        return {}
+
+    df = df.copy()
+    df["game_date"] = df["provider_event_id"].map(
+        event_date_by_id
+    )
+    df = df[df["game_date"].notna()]
 
     if df.empty:
         return {}
@@ -1901,18 +1876,22 @@ def get_historical_odds_lookup(
         game_date = clean_text(game_date_value)
 
         close_rows = group[
-            group["checkpoint"].astype(str).str.lower()
+            group["checkpoint"]
+            .astype(str)
+            .str.lower()
             == "close"
         ]
 
         if not close_rows.empty:
-            chosen = close_rows.copy()
+            chosen = close_rows
             checkpoint = "close"
         else:
             chosen = group[
-                group["checkpoint"].astype(str).str.lower()
+                group["checkpoint"]
+                .astype(str)
+                .str.lower()
                 == "open"
-            ].copy()
+            ]
             checkpoint = "open"
 
         if chosen.empty:
@@ -1943,6 +1922,7 @@ def get_historical_odds_lookup(
                 "odds": odds_value,
                 "implied_prob": implied,
             })
+
             probabilities.append(
                 float(implied)
             )
@@ -1956,10 +1936,8 @@ def get_historical_odds_lookup(
             1,
         )
 
-        consensus_odds = (
-            implied_prob_to_american(
-                consensus_prob
-            )
+        consensus_odds = implied_prob_to_american(
+            consensus_prob
         )
 
         if consensus_odds is None:
@@ -1967,15 +1945,13 @@ def get_historical_odds_lookup(
 
         line_value = None
 
+        first_line = chosen.iloc[0].get("line")
+
         if (
-            chosen.iloc[0].get("line") is not None
-            and not pd.isna(
-                chosen.iloc[0].get("line")
-            )
+            first_line is not None
+            and not pd.isna(first_line)
         ):
-            line_value = float(
-                chosen.iloc[0]["line"]
-            )
+            line_value = float(first_line)
 
         lookup[(player, game_date)] = {
             "odds": consensus_odds,
