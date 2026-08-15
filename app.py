@@ -5856,7 +5856,12 @@ def provider_games_api():
             pe.status,
             pe.live,
             COUNT(pmc.id) AS cached_selections,
-            COUNT(DISTINCT pmc.clean_player_name) AS player_count
+            COUNT(
+                DISTINCT COALESCE(
+                    pmc.canonical_player_id::text,
+                    'name:' || LOWER(pmc.clean_player_name)
+                )
+            ) AS player_count
         FROM provider_events pe
         JOIN provider_market_cache pmc
           ON pmc.provider = pe.provider
