@@ -39,8 +39,18 @@
                                         <option value="home_runs" {% if calc_prop == "home_runs" %}selected{% endif %}>Home Runs</option>
                                         <option value="runs" {% if calc_prop == "runs" %}selected{% endif %}>Runs</option>
                                         <option value="rbi" {% if calc_prop == "rbi" %}selected{% endif %}>RBI</option>
+                                        <option value="hits_runs_rbis" {% if calc_prop == "hits_runs_rbis" %}selected{% endif %}>Hits + Runs + RBI</option>
+                                        <option value="singles" {% if calc_prop == "singles" %}selected{% endif %}>Singles</option>
+                                        <option value="doubles" {% if calc_prop == "doubles" %}selected{% endif %}>Doubles</option>
+                                        <option value="walks" {% if calc_prop == "walks" %}selected{% endif %}>Walks</option>
+                                        <option value="stolen_bases" {% if calc_prop == "stolen_bases" %}selected{% endif %}>Stolen Bases</option>
                                     {% else %}
                                         <option value="strikeouts" {% if calc_prop == "strikeouts" %}selected{% endif %}>Strikeouts</option>
+                                        <option value="pitcher_outs" {% if calc_prop == "pitcher_outs" %}selected{% endif %}>Outs Recorded</option>
+                                        <option value="pitcher_earned_runs" {% if calc_prop == "pitcher_earned_runs" %}selected{% endif %}>Earned Runs</option>
+                                        <option value="pitcher_hits_allowed" {% if calc_prop == "pitcher_hits_allowed" %}selected{% endif %}>Hits Allowed</option>
+                                        <option value="pitcher_walks" {% if calc_prop == "pitcher_walks" %}selected{% endif %}>Walks Allowed</option>
+                                        <option value="pitcher_runs_allowed" {% if calc_prop == "pitcher_runs_allowed" %}selected{% endif %}>Runs Allowed</option>
                                     {% endif %}
                                 </select>
                             </div>
@@ -484,38 +494,50 @@
 
 
     <div class="game-line">
+        <div class="game-main">
+            <span class="stat">{{ pdata.stat_value }}</span>
 
-    <span class="stat">{{ pdata.stat_value }}</span>
+            {% if pdata.odds %}
+                <span class="divider">•</span>
 
-    {% if pdata.odds %}
-        <span class="divider">•</span>
+                <span class="odds">
+                    {% if pdata.odds > 0 %}+{% endif %}{{ pdata.odds }}
+                </span>
 
-        <span class="odds">
-            {{ pdata.odds }}
-        </span>
+                <span class="divider">|</span>
 
-        <span class="divider">|</span>
+                <span class="prob
+                {% if pdata.implied_prob >= 50 %}
+                    prob-good
+                {% else %}
+                    prob-bad
+                {% endif %}
+                ">
+                    {{ pdata.implied_prob }}%
+                </span>
+            {% endif %}
 
-        <span class="prob
-        {% if pdata.implied_prob >= 50 %}
-            prob-good
-        {% else %}
-            prob-bad
+            {% if pdata.hit %}
+                <span class="hit-dot hit-pill">🟢</span>
+            {% else %}
+                <span class="miss-dot miss-pill">🔴</span>
+            {% endif %}
+        </div>
+
+        {% if pdata.odds %}
+            <div class="game-odds-meta">
+                {% if pdata.odds_line is not none %}
+                    <span>O {{ pdata.odds_line }}</span>
+                {% endif %}
+                {% if pdata.sportsbook %}
+                    <span>{{ pdata.sportsbook|upper }}</span>
+                {% endif %}
+                {% if pdata.odds_checkpoint %}
+                    <span>{{ pdata.odds_checkpoint|title }}</span>
+                {% endif %}
+            </div>
         {% endif %}
-        ">
-            {{ pdata.implied_prob }}%
-        </span>
-
-        <span class="divider">|</span>
-    {% endif %}
-
-    {% if pdata.hit %}
-    <span class="hit-dot hit-pill">🟢</span>
-{% else %}
-    <span class="miss-dot miss-pill">🔴</span>
-{% endif %}
-
-</div>
+    </div>
 
 {% else %}
                                             <span class="no-game">—</span>
@@ -1393,6 +1415,52 @@
 
     line-height:1;
 
+}
+
+/* Provider-backed gamelog odds */
+.game-line{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    min-width:145px;
+    padding:5px 3px;
+    line-height:1.1;
+}
+
+.game-main{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    white-space:nowrap;
+}
+
+.game-odds-meta{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    flex-wrap:wrap;
+    font-size:9px;
+    font-weight:800;
+    color:#8ea9c6;
+    letter-spacing:.2px;
+    text-transform:uppercase;
+}
+
+.game-odds-meta span{
+    padding:2px 5px;
+    border:1px solid rgba(142,169,198,.20);
+    border-radius:999px;
+    background:rgba(7,27,47,.55);
+}
+
+.game-main .odds,
+.game-main .prob-good,
+.game-main .prob-bad{
+    min-width:auto;
 }
 
 .combo-best-card.elite{
