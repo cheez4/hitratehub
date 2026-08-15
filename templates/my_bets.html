@@ -788,6 +788,7 @@
                         <label for="verified_sport">Sport</label>
                         <select id="verified_sport" required>
                             <option value="baseball_mlb">MLB</option>
+                            <option value="basketball_wnba">WNBA</option>
                         </select>
                     </div>
 
@@ -1832,16 +1833,46 @@ async function fetchProviderJson(url) {
     return response.json();
 }
 
-async function openVerifiedBetModal() {
-    const modal = document.getElementById("verifiedBetModal");
-    if (!modal) return;
-
-    modal.classList.add("show");
-    modal.setAttribute("aria-hidden", "false");
-    resetVerifiedBetForm();
-
+async function loadVerifiedGames() {
     const gameGrid = document.getElementById("verifiedGameGrid");
     const gameCount = document.getElementById("verifiedGameCount");
+    const gameSelect = document.getElementById("verified_game");
+    const search = document.getElementById("verified_player_search");
+
+    verifiedPlayers = [];
+    verifiedSelectedPlayer = "";
+    verifiedSelectedCanonicalPlayerId = null;
+    verifiedPendingPrice = null;
+    verifiedPendingSelection = null;
+
+    if (gameSelect) {
+        gameSelect.innerHTML = '<option value="">Loading games...</option>';
+        gameSelect.disabled = true;
+    }
+
+    if (search) {
+        search.value = "";
+        search.disabled = true;
+        search.placeholder = "Choose a game first";
+    }
+
+    document.getElementById("verified_player").value = "";
+    document.getElementById("verifiedPlayerResults").hidden = true;
+    document.getElementById("verifiedMarketHeading").textContent = "Markets";
+    document.getElementById("verifiedMarketCount").textContent = "Choose a player";
+    document.getElementById("verifiedMarketGrid").innerHTML =
+        '<div class="verified-empty">Choose a player to view markets.</div>';
+
+    clearVerifiedPrice();
+
+    if (gameGrid) {
+        gameGrid.innerHTML =
+            '<div class="verified-empty">Loading games...</div>';
+    }
+
+    if (gameCount) {
+        gameCount.textContent = "Loading...";
+    }
 
     try {
         const sport = document.getElementById("verified_sport").value;
@@ -1850,16 +1881,17 @@ async function openVerifiedBetModal() {
         );
 
         const games = data.games || [];
-        const gameSelect = document.getElementById("verified_game");
 
         gameSelect.innerHTML = '<option value="">Choose game</option>';
         gameSelect.disabled = !games.length;
 
         gameGrid.innerHTML = "";
-        gameCount.textContent = `${games.length} game${games.length === 1 ? "" : "s"}`;
+        gameCount.textContent =
+            `${games.length} game${games.length === 1 ? "" : "s"}`;
 
         if (!games.length) {
-            gameGrid.innerHTML = '<div class="verified-empty">No upcoming cached markets available.</div>';
+            gameGrid.innerHTML =
+                '<div class="verified-empty">No upcoming cached markets available.</div>';
             return;
         }
 
@@ -1910,8 +1942,20 @@ async function openVerifiedBetModal() {
     } catch (error) {
         console.error(error);
         gameCount.textContent = "Unavailable";
-        gameGrid.innerHTML = '<div class="verified-empty">Could not load games.</div>';
+        gameGrid.innerHTML =
+            '<div class="verified-empty">Could not load games.</div>';
     }
+}
+
+async function openVerifiedBetModal() {
+    const modal = document.getElementById("verifiedBetModal");
+    if (!modal) return;
+
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+
+    resetVerifiedBetForm();
+    await loadVerifiedGames();
 }
 
 function closeVerifiedBetModal() {
@@ -1926,6 +1970,7 @@ function resetVerifiedBetForm() {
     if (form) form.reset();
     verifiedPlayers = [];
     verifiedSelectedPlayer = "";
+    verifiedSelectedCanonicalPlayerId = null;
     verifiedTicketLegs = [];
     verifiedPendingPrice = null;
     verifiedPendingSelection = null;
@@ -2431,6 +2476,17 @@ function calculateVerifiedPayout() {
 function escapeVerifiedHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
 }
+
+document.getElementById("verified_sport")?.addEventListener("change", async event => {
+    const selectedSport = event.target.value;
+
+    // Clear any in-progress ticket when switching sports, but keep the
+    // newly selected sport instead of form.reset() jumping back to MLB.
+    resetVerifiedBetForm();
+    document.getElementById("verified_sport").value = selectedSport;
+
+    await loadVerifiedGames();
+});
 
 document.getElementById("verified_game")?.addEventListener("change", loadVerifiedPlayers);
 document.getElementById("verified_player_search")?.addEventListener("input", event => renderVerifiedPlayerResults(event.target.value));
