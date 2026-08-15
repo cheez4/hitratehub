@@ -1547,24 +1547,13 @@ def get_historical_odds_lookup(
     Load provider-backed historical odds for only the games shown in
     Compare Players.
 
-    This intentionally avoids scanning the full provider_market_history
-    table. Raw provider aliases are resolved first from the small alias
-    table, then history is restricted by:
-      - sport
-      - market
-      - line
-      - requested players/aliases
-      - exact displayed game dates
-      - close/open checkpoints
+    Only sportsbooks enabled in provider_books are eligible.
 
     Preference per player/date:
       1. close checkpoint
       2. open checkpoint
-      3. FanDuel
-      4. DraftKings
-      5. BetMGM
-      6. Caesars
-      7. any remaining book
+      3. provider_books.display_order
+      4. newest captured price
     """
     if not players:
         return {}
@@ -1582,25 +1571,21 @@ def get_historical_odds_lookup(
         for player in players
         if clean_text(player)
     ]
+
     if not requested_players:
         return {}
 
-    # The comparison rows already know exactly which dates are visible.
-    # Restricting history to those dates keeps high-volume markets such as
-    # batter_hits from scanning hundreds of thousands of rows.
     visible_dates = sorted({
         clean_text(value)
         for value in (game_dates or [])
         if clean_text(value)
     })
+
     if not visible_dates:
         return {}
 
     # ---------------------------------------------------------------
     # Resolve requested display names -> raw provider aliases.
-    # provider_player_aliases is tiny compared with market history, so
-    # doing identity work here is cheap and prevents expensive LOWER()
-    # expressions across provider_market_history.
     # ---------------------------------------------------------------
     alias_rows = read_sql("""
         SELECT
@@ -1618,38 +1603,60 @@ def get_historical_odds_lookup(
 
     if not alias_rows.empty:
         for _, row in alias_rows.iterrows():
-            normalized = normalize_name(row.get("normalized_name"))
-            raw_name = clean_text(row.get("raw_player_name"))
-            canonical_id = row.get("canonical_player_id")
+            normalized = normalize_name(
+                row.get("normalized_name")
+            )
+            raw_name = clean_text(
+                row.get("raw_player_name")
+            )
+            canonical_id = row.get(
+                "canonical_player_id"
+            )
 
             if not normalized or not raw_name:
                 continue
 
-            aliases_by_norm.setdefault(normalized, set()).add(raw_name)
+            aliases_by_norm.setdefault(
+                normalized,
+                set(),
+            ).add(raw_name)
 
-            if canonical_id is not None and not pd.isna(canonical_id):
-                ids_by_norm.setdefault(normalized, set()).add(
-                    int(canonical_id)
-                )
+            if (
+                canonical_id is not None
+                and not pd.isna(canonical_id)
+            ):
+                ids_by_norm.setdefault(
+                    normalized,
+                    set(),
+                ).add(int(canonical_id))
 
     alias_pairs = []
 
     for player in requested_players:
         normalized = normalize_name(player)
-        canonical_ids = ids_by_norm.get(normalized, set())
 
-        # If the normalized name maps to more than one real identity
-        # (e.g. two Max Muncys), do not merge aliases by name.
+        canonical_ids = ids_by_norm.get(
+            normalized,
+            set(),
+        )
+
+        # Avoid accidentally combining two real players
+        # that share the same normalized name.
         if len(canonical_ids) > 1:
             raw_aliases = {player}
         else:
             raw_aliases = set(
-                aliases_by_norm.get(normalized, set())
+                aliases_by_norm.get(
+                    normalized,
+                    set(),
+                )
             )
             raw_aliases.add(player)
 
         for raw_alias in sorted(raw_aliases):
-            alias_pairs.append((raw_alias, player))
+            alias_pairs.append(
+                (raw_alias, player)
+            )
 
     if not alias_pairs:
         return {}
@@ -1657,6 +1664,7 @@ def get_historical_odds_lookup(
     alias_values = ",".join(
         ["(%s, %s)"] * len(alias_pairs)
     )
+
     alias_params = [
         value
         for pair in alias_pairs
@@ -1680,15 +1688,18 @@ def get_historical_odds_lookup(
         ranked AS (
             SELECT
                 ra.requested_player AS player,
+
                 (
                     pe.commence_time
                     AT TIME ZONE 'America/New_York'
                 )::date AS game_date,
+
                 pmh.odds,
                 pmh.bookmaker_key AS sportsbook,
                 pmh.line,
                 pmh.checkpoint,
                 pmh.captured_at,
+
                 ROW_NUMBER() OVER (
                     PARTITION BY
                         ra.requested_player,
@@ -1696,51 +1707,79 @@ def get_historical_odds_lookup(
                             pe.commence_time
                             AT TIME ZONE 'America/New_York'
                         )::date
+
                     ORDER BY
                         CASE pmh.checkpoint
                             WHEN 'close' THEN 1
                             WHEN 'open' THEN 2
                             ELSE 99
                         END,
-                        CASE LOWER(pmh.bookmaker_key)
-                            WHEN 'fanduel' THEN 1
-                            WHEN 'draftkings' THEN 2
-                            WHEN 'betmgm' THEN 3
-                            WHEN 'caesars' THEN 4
-                            ELSE 50
-                        END,
+
+                        COALESCE(
+                            pb.display_order,
+                            999
+                        ),
+
                         pmh.captured_at DESC,
                         pmh.id DESC
                 ) AS rn
+
             FROM provider_events pe
+
             JOIN provider_market_history pmh
-              ON pmh.provider = pe.provider
-             AND pmh.provider_event_id = pe.provider_event_id
+              ON pmh.provider =
+                    pe.provider
+             AND pmh.provider_event_id =
+                    pe.provider_event_id
+
             JOIN requested_aliases ra
-              ON ra.raw_player_name = pmh.player_name
+              ON ra.raw_player_name =
+                    pmh.player_name
+
+            -- Only allow sportsbooks that HitRateHub
+            -- has explicitly enabled.
+            JOIN provider_books pb
+              ON LOWER(pb.bookmaker_key) =
+                    LOWER(pmh.bookmaker_key)
+             AND pb.enabled = TRUE
+
             WHERE pe.provider = 'prop_line'
               AND pe.sport_key = 'baseball_mlb'
               AND pmh.sport_key = 'baseball_mlb'
+
               AND pmh.market_key = %s
-              AND LOWER(TRIM(pmh.outcome_name)) = 'over'
+
+              AND LOWER(
+                    TRIM(pmh.outcome_name)
+                  ) = 'over'
+
               AND pmh.line = %s
-              AND pmh.checkpoint IN ('close', 'open')
+
+              AND pmh.checkpoint
+                    IN ('close', 'open')
+
               AND pmh.odds IS NOT NULL
 
-              -- Broad UTC bounds let PostgreSQL use the event-time index.
-              AND pe.commence_time >= %s::date - INTERVAL '6 hours'
+              -- Broad UTC bounds allow PostgreSQL to
+              -- restrict the event range efficiently.
+              AND pe.commence_time >=
+                    %s::date
+                    - INTERVAL '6 hours'
+
               AND pe.commence_time < (
                     %s::date
                     + INTERVAL '1 day 6 hours'
                   )
 
-              -- Then keep only the exact local game dates visible in
-              -- the comparison table.
+              -- Keep only exact game dates visible
+              -- in Compare Players.
               AND (
                     pe.commence_time
                     AT TIME ZONE 'America/New_York'
-                  )::date IN ({date_placeholders})
+                  )::date
+                    IN ({date_placeholders})
         )
+
         SELECT
             player,
             game_date,
@@ -1748,8 +1787,11 @@ def get_historical_odds_lookup(
             sportsbook,
             line,
             checkpoint
+
         FROM ranked
+
         WHERE rn = 1
+
         ORDER BY game_date DESC
     """
 
@@ -1765,7 +1807,11 @@ def get_historical_odds_lookup(
     )
 
     try:
-        df = read_sql(query, params)
+        df = read_sql(
+            query,
+            params,
+        )
+
     except Exception:
         app.logger.exception(
             "Provider historical odds lookup failed "
@@ -1780,8 +1826,14 @@ def get_historical_odds_lookup(
     lookup = {}
 
     for _, row in df.iterrows():
-        player = clean_text(row.get("player"))
-        game_date = clean_text(row.get("game_date"))
+        player = clean_text(
+            row.get("player")
+        )
+
+        game_date = clean_text(
+            row.get("game_date")
+        )
+
         odds_value = row.get("odds")
 
         try:
@@ -1791,21 +1843,34 @@ def get_historical_odds_lookup(
 
         lookup[(player, game_date)] = {
             "odds": odds_value,
-            "sportsbook": clean_text(row.get("sportsbook")),
+
+            "sportsbook": clean_text(
+                row.get("sportsbook")
+            ),
+
             "line": (
                 float(row["line"])
-                if row.get("line") is not None
-                and not pd.isna(row.get("line"))
+                if (
+                    row.get("line") is not None
+                    and not pd.isna(
+                        row.get("line")
+                    )
+                )
                 else None
             ),
-            "checkpoint": clean_text(row.get("checkpoint")),
-            "implied_prob": american_to_implied_prob(
-                odds_value
+
+            "checkpoint": clean_text(
+                row.get("checkpoint")
             ),
+
+            "implied_prob":
+                american_to_implied_prob(
+                    odds_value
+                ),
         }
 
     return lookup
-
+    
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
     summaries = []
     rows_by_player = {}
