@@ -519,7 +519,7 @@ def calculate_streaks(results):
         "streak_distribution": streak_distribution,
     }
 
-@cache.cached(timeout=300, key_prefix="pa_data")
+@cache.cached(timeout=300, key_prefix="pa_data_v2")
 def get_pa_data():
     return read_sql("""
         SELECT
@@ -530,8 +530,12 @@ def get_pa_data():
             day_night,
             game_date,
             COALESCE(h, 0) AS h,
+            COALESCE(single, 0) AS single,
+            COALESCE(double, 0) AS double,
             COALESCE(tb, 0) AS tb,
             COALESCE(hr, 0) AS hr,
+            COALESCE(bb, 0) AS bb,
+            COALESCE(sb, 0) AS sb,
             COALESCE(runs_scored, 0) AS runs_scored,
             COALESCE(rbi, 0) AS rbi
         FROM mlb_pa_gamelog
@@ -643,22 +647,76 @@ def get_teams_from_pa(df=None):
 
 
 def calculate_hitter_stat(df, prop):
-    if prop == "hits":
-        return df["h"]
-    if prop == "total_bases":
-        return df["tb"]
-    if prop == "home_runs":
-        return df["hr"]
-    if prop == "runs":
-        return df["runs_scored"]
-    if prop == "rbi":
-        return df["rbi"]
-    return df["h"]
+    market = resolve_market(display_prop=prop)
+
+    source = market.source if market and market.entity == "batter" else ""
+
+    if source == "h":
+        return pd.to_numeric(df["h"], errors="coerce").fillna(0)
+    if source == "single":
+        return pd.to_numeric(df["single"], errors="coerce").fillna(0)
+    if source == "double":
+        return pd.to_numeric(df["double"], errors="coerce").fillna(0)
+    if source == "tb":
+        return pd.to_numeric(df["tb"], errors="coerce").fillna(0)
+    if source == "hr":
+        return pd.to_numeric(df["hr"], errors="coerce").fillna(0)
+    if source == "bb":
+        return pd.to_numeric(df["bb"], errors="coerce").fillna(0)
+    if source == "sb":
+        return pd.to_numeric(df["sb"], errors="coerce").fillna(0)
+    if source == "runs_scored":
+        return pd.to_numeric(df["runs_scored"], errors="coerce").fillna(0)
+    if source == "rbi":
+        return pd.to_numeric(df["rbi"], errors="coerce").fillna(0)
+    if source == "h+runs_scored+rbi":
+        return (
+            pd.to_numeric(df["h"], errors="coerce").fillna(0)
+            + pd.to_numeric(df["runs_scored"], errors="coerce").fillna(0)
+            + pd.to_numeric(df["rbi"], errors="coerce").fillna(0)
+        )
+
+    return pd.to_numeric(df["h"], errors="coerce").fillna(0)
+
+
+def innings_to_outs(value):
+    """Convert baseball IP notation (e.g. 5.2) into recorded outs."""
+    try:
+        innings = float(value)
+    except (TypeError, ValueError):
+        return 0
+
+    whole = int(innings)
+    partial = round(innings - whole, 1)
+
+    if abs(partial - 0.1) < 0.01:
+        extra_outs = 1
+    elif abs(partial - 0.2) < 0.01:
+        extra_outs = 2
+    else:
+        extra_outs = 0
+
+    return (whole * 3) + extra_outs
 
 
 def calculate_pitcher_stat(df, prop):
-    if prop == "strikeouts":
+    market = resolve_market(display_prop=prop)
+
+    source = market.source if market and market.entity == "pitcher" else ""
+
+    if source == "strikeouts":
         return pd.to_numeric(df["strikeouts"], errors="coerce").fillna(0)
+    if source == "earned_runs":
+        return pd.to_numeric(df["earned_runs"], errors="coerce").fillna(0)
+    if source == "hits_allowed":
+        return pd.to_numeric(df["hits_allowed"], errors="coerce").fillna(0)
+    if source == "walks_allowed":
+        return pd.to_numeric(df["walks_allowed"], errors="coerce").fillna(0)
+    if source == "runs_allowed":
+        return pd.to_numeric(df["runs_allowed"], errors="coerce").fillna(0)
+    if source == "outs_from_innings":
+        return df["innings_pitched"].apply(innings_to_outs)
+
     return pd.Series([0] * len(df), index=df.index)
 
 
@@ -765,8 +823,12 @@ def build_hitter_game_rows(df, player_name, prop, window, mode, line, min_value,
         .groupby("game_date", as_index=False)
         .agg({
             "h": "sum",
+            "single": "sum",
+            "double": "sum",
             "tb": "sum",
             "hr": "sum",
+            "bb": "sum",
+            "sb": "sum",
             "runs_scored": "sum",
             "rbi": "sum",
             "team": "last",
@@ -1474,65 +1536,173 @@ def american_to_implied_prob(odds):
 
     return round((abs(odds) / (abs(odds) + 100)) * 100, 1)
 
-def get_historical_odds_lookup(players, prop, line):
+def get_historical_odds_lookup(players, prop, line, role="hitter"):
+    """
+    Load provider-backed historical odds for Compare Players.
+
+    Preference:
+      1. Closing checkpoint
+      2. Opening checkpoint
+      3. FanDuel
+      4. DraftKings
+      5. BetMGM
+      6. Caesars
+      7. Any remaining available book
+
+    Player aliases are collapsed through provider_player_aliases so accents,
+    team suffixes and provider naming variants map to the canonical display
+    name used by HitRateHub.
+    """
     if not players:
         return {}
 
-    odds_prop = prop_to_odds_prop(prop)
-    placeholders = ",".join(["%s"] * len(players))
+    market = resolve_market(display_prop=prop)
+
+    if not market:
+        return {}
+
+    expected_entity = "batter" if role == "hitter" else "pitcher"
+
+    if market.entity != expected_entity:
+        return {}
+
+    normalized_players = [
+        normalize_name(player)
+        for player in players
+        if clean_text(player)
+    ]
+
+    if not normalized_players:
+        return {}
+
+    placeholders = ",".join(["%s"] * len(normalized_players))
 
     query = f"""
         WITH ranked AS (
             SELECT
-                player,
-                game_date,
-                odds,
-                sportsbook,
-                line,
-                checkpoint,
+                COALESCE(
+                    NULLIF(TRIM(ppa.normalized_name), ''),
+                    TRIM(pmh.player_name)
+                ) AS player,
+                (
+                    pe.commence_time
+                    AT TIME ZONE 'America/New_York'
+                )::date AS game_date,
+                pmh.odds,
+                pmh.bookmaker_key AS sportsbook,
+                pmh.line,
+                pmh.checkpoint,
+                pmh.captured_at,
                 ROW_NUMBER() OVER (
-                    PARTITION BY player, game_date
+                    PARTITION BY
+                        LOWER(
+                            COALESCE(
+                                NULLIF(TRIM(ppa.normalized_name), ''),
+                                TRIM(pmh.player_name)
+                            )
+                        ),
+                        (
+                            pe.commence_time
+                            AT TIME ZONE 'America/New_York'
+                        )::date
                     ORDER BY
-                        CASE checkpoint
+                        CASE pmh.checkpoint
                             WHEN 'close' THEN 1
-                            WHEN '3h' THEN 2
-                            WHEN '12h' THEN 3
-                            WHEN 'open' THEN 4
+                            WHEN 'open' THEN 2
                             ELSE 99
-                        END
+                        END,
+                        CASE LOWER(pmh.bookmaker_key)
+                            WHEN 'fanduel' THEN 1
+                            WHEN 'draftkings' THEN 2
+                            WHEN 'betmgm' THEN 3
+                            WHEN 'caesars' THEN 4
+                            ELSE 50
+                        END,
+                        pmh.captured_at DESC,
+                        pmh.id DESC
                 ) AS rn
-            FROM odds_market_timeline
-            WHERE player IN ({placeholders})
-              AND prop = %s
-              AND sportsbook = 'fanduel'
-              AND LOWER(ou) = 'over'
-              AND line = %s
-              AND checkpoint IN ('close', '3h', '12h', 'open')
-              AND odds IS NOT NULL
+            FROM provider_market_history pmh
+            JOIN provider_events pe
+              ON pe.provider = pmh.provider
+             AND pe.provider_event_id = pmh.provider_event_id
+            LEFT JOIN provider_player_aliases ppa
+              ON ppa.provider = pmh.provider
+             AND ppa.sport_key = pmh.sport_key
+             AND ppa.raw_player_name = pmh.player_name
+            WHERE pmh.provider = 'prop_line'
+              AND pmh.sport_key = 'baseball_mlb'
+              AND pmh.market_key = %s
+              AND LOWER(TRIM(pmh.outcome_name)) = 'over'
+              AND pmh.line = %s
+              AND pmh.checkpoint IN ('close', 'open')
+              AND pmh.odds IS NOT NULL
+              AND LOWER(
+                    COALESCE(
+                        NULLIF(TRIM(ppa.normalized_name), ''),
+                        TRIM(pmh.player_name)
+                    )
+                  ) IN ({placeholders})
         )
-        SELECT *
+        SELECT
+            player,
+            game_date,
+            odds,
+            sportsbook,
+            line,
+            checkpoint
         FROM ranked
         WHERE rn = 1
+        ORDER BY game_date DESC
     """
 
-    params = players + [odds_prop, line]
-    df = read_sql(query, params)
+    params = [market.key, line] + normalized_players
+
+    try:
+        df = read_sql(query, params)
+    except Exception as exc:
+        app.logger.exception(
+            "Provider historical odds lookup failed "
+            "market=%s line=%s players=%s",
+            market.key,
+            line,
+            players,
+        )
+        return {}
 
     lookup = {}
 
     for _, row in df.iterrows():
-        key = (
-            str(row["player"]).strip(),
-            str(row["game_date"])
+        display_player = clean_text(row.get("player"))
+        game_date = str(row.get("game_date"))
+
+        # Match provider canonical/normalized display names back to the player
+        # spelling currently used by the Compare Players gamelog.
+        matched_player = next(
+            (
+                player
+                for player in players
+                if normalize_name(player) == normalize_name(display_player)
+            ),
+            display_player,
         )
 
-        implied = american_to_implied_prob(row["odds"])
+        odds_value = row.get("odds")
 
-        lookup[key] = {
-            "odds": int(row["odds"]),
-            "sportsbook": row["sportsbook"],
-            "line": float(row["line"]) if row["line"] is not None else None,
-            "implied_prob": implied
+        try:
+            odds_value = int(odds_value)
+        except (TypeError, ValueError):
+            continue
+
+        lookup[(matched_player, game_date)] = {
+            "odds": odds_value,
+            "sportsbook": clean_text(row.get("sportsbook")),
+            "line": (
+                float(row["line"])
+                if row.get("line") is not None
+                else None
+            ),
+            "checkpoint": clean_text(row.get("checkpoint")),
+            "implied_prob": american_to_implied_prob(odds_value),
         }
 
     return lookup
@@ -1540,7 +1710,12 @@ def get_historical_odds_lookup(players, prop, line):
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
     summaries = []
     rows_by_player = {}
-    odds_lookup = get_historical_odds_lookup(players, prop, line) if role == "hitter" else {}
+    odds_lookup = get_historical_odds_lookup(
+        players,
+        prop,
+        line,
+        role=role,
+    )
 
     for player_name in players:
         if role == "hitter":
@@ -1551,12 +1726,16 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
         summary = summarize_player(player_name, rows, prop, window, mode, line, min_value, max_value, ftext)
 
         player_odds = [
-            v for (p, d), v in odds_lookup.items()
+            (d, v)
+            for (p, d), v in odds_lookup.items()
             if p == player_name
         ]
 
         if player_odds:
-            latest_odds = player_odds[0]
+            _, latest_odds = max(
+                player_odds,
+                key=lambda item: item[0],
+            )
             summary["current_odds"] = latest_odds.get("odds")
             summary["implied_prob"] = latest_odds.get("implied_prob")
 
@@ -1631,6 +1810,8 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
                     "hit": bool(row["hit"]),
                     "odds": odds_data.get("odds"),
                     "odds_line": odds_data.get("line"),
+                    "sportsbook": odds_data.get("sportsbook"),
+                    "odds_checkpoint": odds_data.get("checkpoint"),
                     "implied_prob": implied_prob,
                     "edge_diff": edge_diff,
                     "edge_label": edge_label
@@ -1650,17 +1831,50 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
     }
 
 def thresholds_for(role, prop):
-    if role == "pitcher":
-        return [3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+    market = resolve_market(display_prop=prop)
 
-    if prop == "home_runs":
+    market_key = market.key if market else ""
+
+    if role == "pitcher":
+        if market_key == "pitcher_outs":
+            return [14.5, 15.5, 16.5, 17.5, 18.5]
+        if market_key == "pitcher_strikeouts":
+            return [3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+        if market_key in {
+            "pitcher_earned_runs",
+            "pitcher_earned_runs_allowed",
+            "pitcher_hits_allowed",
+            "pitcher_walks",
+            "pitcher_walks_allowed",
+            "pitcher_runs_allowed",
+        }:
+            return [0.5, 1.5, 2.5, 3.5, 4.5]
+
+        return [0.5, 1.5, 2.5, 3.5, 4.5]
+
+    if market_key in {
+        "batter_home_runs",
+        "batter_stolen_bases",
+    }:
         return [0.5, 1.5]
 
-    if prop in ("hits", "runs", "rbi"):
+    if market_key in {
+        "batter_hits",
+        "batter_singles",
+        "batter_doubles",
+        "batter_runs",
+        "batter_rbis",
+        "batter_walks",
+    }:
         return [0.5, 1.5, 2.5, 3.5]
 
-    return [0.5, 1.5, 2.5, 3.5, 4.5]
+    if market_key == "batter_hits_runs_rbis":
+        return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5]
 
+    if market_key == "batter_total_bases":
+        return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+
+    return [0.5, 1.5, 2.5, 3.5, 4.5]
 
 def pct_and_record(values, threshold):
     games = len(values)
