@@ -1557,14 +1557,15 @@ def get_historical_odds_lookup(
       - exact displayed game dates
       - close/open checkpoints
 
-    Preference per player/date:
-      1. close checkpoint
-      2. open checkpoint
-      3. FanDuel
-      4. DraftKings
-      5. BetMGM
-      6. Caesars
-      7. any remaining book
+   Preference per player/date:
+    1. close checkpoint
+    2. open checkpoint
+    3. FanDuel
+    4. DraftKings
+    5. BetMGM
+    6. BetRivers
+    7. Pinnacle
+    8. Bovada
     """
     if not players:
         return {}
@@ -1702,12 +1703,14 @@ def get_historical_odds_lookup(
                             WHEN 'open' THEN 2
                             ELSE 99
                         END,
-                        CASE LOWER(pmh.bookmaker_key)
+                        CASE pmh.bookmaker_key
                             WHEN 'fanduel' THEN 1
                             WHEN 'draftkings' THEN 2
                             WHEN 'betmgm' THEN 3
-                            WHEN 'caesars' THEN 4
-                            ELSE 50
+                            WHEN 'betrivers' THEN 4
+                            WHEN 'pinnacle' THEN 5
+                            WHEN 'bovada' THEN 6
+                            ELSE 99
                         END,
                         pmh.captured_at DESC,
                         pmh.id DESC
@@ -1726,6 +1729,15 @@ def get_historical_odds_lookup(
               AND pmh.line = %s
               AND pmh.checkpoint IN ('close', 'open')
               AND pmh.odds IS NOT NULL
+
+              AND pmh.bookmaker_key IN (
+                'fanduel',
+                'draftkings',
+                'betmgm',
+                'betrivers',
+                'pinnacle',
+                'bovada'
+              )
 
               -- Broad UTC bounds let PostgreSQL use the event-time index.
               AND pe.commence_time >= %s::date - INTERVAL '6 hours'
