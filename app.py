@@ -1629,15 +1629,17 @@ def get_historical_odds_lookup(
             consensus_implied_prob,
             line,
             checkpoint,
-            book_count,
-            books
+            books_count,
+            book_keys,
+            book_prices
         FROM provider_consensus_history
-        WHERE sport_key = 'baseball_mlb'
+        WHERE provider = 'prop_line'
+          AND sport_key = 'baseball_mlb'
           AND market_key = %s
           AND player_name IN ({player_placeholders})
           AND game_date IN ({date_placeholders})
           AND line = %s
-          AND outcome_name = 'Over'
+          AND LOWER(TRIM(outcome_name)) = 'over'
           AND checkpoint IN ('close', 'open')
         ORDER BY
             player_name,
@@ -1682,7 +1684,7 @@ def get_historical_odds_lookup(
 
         odds_value = row.get("consensus_odds")
         implied_prob = row.get("consensus_implied_prob")
-        book_count = row.get("book_count")
+        books_count = row.get("books_count")
 
         try:
             odds_value = int(odds_value)
@@ -1695,9 +1697,9 @@ def get_historical_odds_lookup(
             implied_prob = None
 
         try:
-            book_count = int(book_count)
+            books_count = int(books_count)
         except (TypeError, ValueError):
-            book_count = 0
+            books_count = 0
 
         line_value = row.get("line")
 
@@ -1708,15 +1710,20 @@ def get_historical_odds_lookup(
 
         lookup[(player, game_date)] = {
             "odds": odds_value,
+
+            # Keep the existing template interface.
             "sportsbook": (
-                f"AVG {book_count} BOOK"
-                f"{'' if book_count == 1 else 'S'}"
+                f"AVG {books_count} BOOK"
+                f"{'' if books_count == 1 else 'S'}"
             ),
+
             "line": line_value,
             "checkpoint": clean_text(row.get("checkpoint")),
             "implied_prob": implied_prob,
-            "book_count": book_count,
-            "books": row.get("books"),
+
+            "book_count": books_count,
+            "books": row.get("book_keys"),
+            "book_prices": row.get("book_prices"),
         }
 
     return lookup
