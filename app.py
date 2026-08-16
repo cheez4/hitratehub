@@ -3081,6 +3081,11 @@ def edge_finder():
 
 @app.route("/")
 def index():
+    # Render repeatedly probes the root with HEAD requests.
+    # Do not build the full calculator context for those checks.
+    if request.method == "HEAD":
+        return "", 200
+
     context = get_common_context(active_page="calculator")
     return render_template("index.html", **context)
 

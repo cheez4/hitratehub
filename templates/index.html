@@ -513,7 +513,7 @@
                     prob-bad
                 {% endif %}
                 ">
-                    {{ pdata.implied_prob }}%
+                    {{ "%.2f"|format(pdata.implied_prob) }}%
                 </span>
             {% endif %}
 
