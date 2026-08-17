@@ -2158,12 +2158,17 @@ def get_common_context(active_page="calculator"):
         pitcher_names = get_pitcher_names()
         lineup_map = get_today_lineups()
 
-        try:
-            weather_lookup = load_team_weather()
-        except Exception as e:
-            print("Weather lookup error:", e)
+        # Weather is only needed for pages that display
+        # weather-enhanced leaderboard data.
+        if active_page == "leaderboard":
+            try:
+                weather_lookup = load_team_weather()
+            except Exception as e:
+                print("Weather lookup error:", e)
+                weather_lookup = {}
+        else:
             weather_lookup = {}
-        selected_players = []
+                selected_players = []
 
         for i in range(1, 11):
             field_name = "calc_player" if i == 1 else f"calc_compare_{i}"
