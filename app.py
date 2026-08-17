@@ -544,6 +544,52 @@ def get_pa_data():
           AND season IN ('2025', '2026')
     """)
 
+def get_pa_data_for_players(players):
+    if not players:
+        return pd.DataFrame()
+
+    cleaned_players = [
+        clean_text(player)
+        for player in players
+        if clean_text(player)
+    ]
+
+    if not cleaned_players:
+        return pd.DataFrame()
+
+    placeholders = ",".join(
+        ["%s"] * len(cleaned_players)
+    )
+
+    query = f"""
+        SELECT
+            batter_name,
+            team,
+            opp_team,
+            pitcher_hand,
+            day_night,
+            game_date,
+            COALESCE(h, 0) AS h,
+            COALESCE(single, 0) AS single,
+            COALESCE(double, 0) AS double,
+            COALESCE(tb, 0) AS tb,
+            COALESCE(hr, 0) AS hr,
+            COALESCE(bb, 0) AS bb,
+            COALESCE(sb, 0) AS sb,
+            COALESCE(runs_scored, 0) AS runs_scored,
+            COALESCE(rbi, 0) AS rbi
+        FROM mlb_pa_gamelog
+        WHERE batter_name IS NOT NULL
+          AND game_date IS NOT NULL
+          AND season IN ('2025', '2026')
+          AND batter_name IN ({placeholders})
+    """
+
+    return read_sql(
+        query,
+        cleaned_players,
+    )
+
 @cache.cached(timeout=300, key_prefix="pitcher_data")
 def get_pitcher_data():
     return read_sql("""
@@ -2117,21 +2163,6 @@ def get_common_context(active_page="calculator"):
         except Exception as e:
             print("Weather lookup error:", e)
             weather_lookup = {}
-
-        pa_df = pd.DataFrame()
-        pitcher_df = pd.DataFrame()
-
-        if calc_role == "hitter" or role == "hitter":
-            pa_df_raw = get_pa_data()
-            teams = get_teams_from_pa(pa_df_raw)
-            pa_df = filter_hitter_df(pa_df_raw, vs_team, vs_hand, day_night)
-
-            if active_page in ("leaderboard", "trends"):
-                pa_df = apply_lineup_filter(pa_df, lineup_map, lineup_filter)
-
-        if calc_role == "pitcher" or role == "pitcher":
-            pitcher_df = get_pitcher_data()
-
         selected_players = []
 
         for i in range(1, 11):
@@ -2140,6 +2171,33 @@ def get_common_context(active_page="calculator"):
 
             if player_name and player_name not in selected_players:
                 selected_players.append(player_name)
+
+        pa_df = pd.DataFrame()
+        pitcher_df = pd.DataFrame()
+
+        if calc_role == "hitter" or role == "hitter":
+            if active_page == "calculator" and selected_players:
+                pa_df_raw = get_pa_data_for_players(selected_players)
+            else:
+                pa_df_raw = get_pa_data()
+
+            teams = get_teams_from_pa(pa_df_raw)
+            pa_df = filter_hitter_df(
+                pa_df_raw,
+                vs_team,
+                vs_hand,
+                day_night
+            )
+
+            if active_page in ("leaderboard", "trends"):
+                pa_df = apply_lineup_filter(
+                    pa_df,
+                    lineup_map,
+                    lineup_filter
+                )
+
+        if calc_role == "pitcher" or role == "pitcher":
+            pitcher_df = get_pitcher_data()
 
         if selected_players:
             if calc_role == "hitter":
@@ -2169,8 +2227,8 @@ def get_common_context(active_page="calculator"):
                         calc_max,
                         ftext
                     )
-                    conn = get_conn()
 
+                    conn = get_conn()
                     try:
                         custom_result["pa_breakdown"] = get_pa_props_breakdown(
                             conn,
@@ -2240,7 +2298,6 @@ def get_common_context(active_page="calculator"):
         # Only build the full leaderboard when the user
         # is actually on the leaderboard page.
         if active_page == "leaderboard":
-
             if role == "hitter":
                 thresholds = thresholds_for(role, hitter_prop)
 
@@ -2258,7 +2315,6 @@ def get_common_context(active_page="calculator"):
 
                 for item in leaderboard:
                     team = str(item.get("team", "")).strip()
-
                     weather = weather_lookup.get(team, {})
 
                     item["weather_display"] = weather.get(
