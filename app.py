@@ -2237,44 +2237,54 @@ def get_common_context(active_page="calculator"):
                         ""
                     )
 
-        if role == "hitter":
-            thresholds = thresholds_for(role, hitter_prop)
+        # Only build the full leaderboard when the user
+        # is actually on the leaderboard page.
+        if active_page == "leaderboard":
 
-            if sort_line not in thresholds:
-                sort_line = thresholds[0]
+            if role == "hitter":
+                thresholds = thresholds_for(role, hitter_prop)
 
-            leaderboard = build_hitter_leaderboard(
-                pa_df,
-                hitter_prop,
-                calc_window,
-                thresholds,
-                sort_line,
-                leaderboard_limit
-            )
+                if sort_line not in thresholds:
+                    sort_line = thresholds[0]
 
-            for item in leaderboard:
-                team = str(item.get("team", "")).strip()
+                leaderboard = build_hitter_leaderboard(
+                    pa_df,
+                    hitter_prop,
+                    calc_window,
+                    thresholds,
+                    sort_line,
+                    leaderboard_limit
+                )
 
-                weather = weather_lookup.get(team, {})
+                for item in leaderboard:
+                    team = str(item.get("team", "")).strip()
 
-                item["weather_display"] = weather.get("weather_display", "")
-                item["opp_pitcher"] = weather.get("opp_pitcher", "")
-                item["opp_pitcher_hand"] = weather.get("opp_pitcher_hand", "")
+                    weather = weather_lookup.get(team, {})
 
-        else:
-            thresholds = thresholds_for(role, pitcher_prop)
+                    item["weather_display"] = weather.get(
+                        "weather_display", ""
+                    )
+                    item["opp_pitcher"] = weather.get(
+                        "opp_pitcher", ""
+                    )
+                    item["opp_pitcher_hand"] = weather.get(
+                        "opp_pitcher_hand", ""
+                    )
 
-            if sort_line not in thresholds:
-                sort_line = thresholds[0]
+            else:
+                thresholds = thresholds_for(role, pitcher_prop)
 
-            leaderboard = build_pitcher_leaderboard(
-                pitcher_df,
-                pitcher_prop,
-                calc_window,
-                thresholds,
-                sort_line,
-                leaderboard_limit
-            )
+                if sort_line not in thresholds:
+                    sort_line = thresholds[0]
+
+                leaderboard = build_pitcher_leaderboard(
+                    pitcher_df,
+                    pitcher_prop,
+                    calc_window,
+                    thresholds,
+                    sort_line,
+                    leaderboard_limit
+                )
 
     except Exception as e:
         error = f"Error loading report: {e}"
