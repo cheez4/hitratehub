@@ -2168,7 +2168,7 @@ def get_common_context(active_page="calculator"):
                 weather_lookup = {}
         else:
             weather_lookup = {}
-                selected_players = []
+        selected_players = []
 
         for i in range(1, 11):
             field_name = "calc_player" if i == 1 else f"calc_compare_{i}"
