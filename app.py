@@ -8303,7 +8303,7 @@ def strategy_finder():
             elif home_away == "away":
                 sql += " AND g.is_home = FALSE"
 
-        sql += " ORDER BY pmh.bookmaker_key, pmh.player_name, game_date, pmh.line, pmh.last_update DESC NULLS LAST LIMIT 10000"
+        sql += " ORDER BY pmh.bookmaker_key, pmh.player_name, game_date, pmh.line, pmh.captured_at DESC, pmh.id DESC LIMIT 10000"
 
         try:
             df = read_sql(sql, params)
