@@ -3234,84 +3234,50 @@ def _edge_market_from_request(prop_value):
 
 def _edge_consensus_for_date(market, target_date):
     """
-    Build a consensus price directly from Prop-Line checkpoint history.
+    Load Prop-Line's already-precomputed market consensus.
 
-    This replaces the old edge_finder_cache dependency. For each player/line/book,
-    prefer CLOSE, then OPEN, and take the most recently captured row. The selected
-    books are then averaged by implied probability.
+    provider_market_summary is refreshed from provider_markets by the Prop-Line
+    sync job, so Edge Finder should read it instead of rebuilding sportsbook
+    consensus from provider_market_history during a web request.
     """
     sql = """
-        WITH ranked AS (
-            SELECT
-                COALESCE(
-                    NULLIF(TRIM(ppa.normalized_name), ''),
-                    TRIM(pmh.player_name)
-                ) AS player_name,
-                pmh.line,
-                LOWER(pmh.bookmaker_key) AS bookmaker_key,
-                pmh.odds,
-                LOWER(pmh.checkpoint) AS checkpoint,
-                pmh.captured_at,
-                pmh.id,
-                ROW_NUMBER() OVER (
-                    PARTITION BY
-                        COALESCE(
-                            NULLIF(TRIM(ppa.normalized_name), ''),
-                            TRIM(pmh.player_name)
-                        ),
-                        pmh.line,
-                        LOWER(pmh.bookmaker_key)
-                    ORDER BY
-                        CASE LOWER(pmh.checkpoint)
-                            WHEN 'close' THEN 1
-                            WHEN 'open' THEN 2
-                            ELSE 99
-                        END,
-                        pmh.captured_at DESC,
-                        pmh.id DESC
-                ) AS rn
-            FROM provider_market_history pmh
-            JOIN provider_events pe
-              ON pe.provider = pmh.provider
-             AND pe.provider_event_id = pmh.provider_event_id
-            LEFT JOIN provider_player_aliases ppa
-              ON ppa.provider = pmh.provider
-             AND ppa.sport_key = pmh.sport_key
-             AND ppa.raw_player_name = pmh.player_name
-            WHERE pmh.provider = 'prop_line'
-              AND pmh.sport_key = 'baseball_mlb'
-              AND pe.sport_key = 'baseball_mlb'
-              AND pmh.market_key = %s
-              AND LOWER(TRIM(pmh.outcome_name)) = 'over'
-              AND LOWER(pmh.checkpoint) IN ('close', 'open')
-              AND pmh.odds IS NOT NULL
-              AND pmh.odds <> 0
-              AND pmh.line IS NOT NULL
-              AND pe.commence_time >= %s::date - INTERVAL '6 hours'
-              AND pe.commence_time < %s::date + INTERVAL '1 day 6 hours'
-              AND (
-                    pe.commence_time AT TIME ZONE 'America/New_York'
-                  )::date = %s::date
-        )
         SELECT
-            player_name,
-            line,
-            bookmaker_key,
-            odds,
-            checkpoint
-        FROM ranked
-        WHERE rn = 1
-        ORDER BY player_name, line, bookmaker_key
+            COALESCE(
+                NULLIF(TRIM(ppa.normalized_name), ''),
+                TRIM(pms.player_name)
+            ) AS player,
+            pms.line,
+            pms.average_odds AS odds,
+            (pms.average_implied_probability * 100.0) AS implied_prob,
+            pms.books_available AS book_count
+        FROM provider_market_summary pms
+        JOIN provider_events pe
+          ON pe.provider = pms.provider
+         AND pe.provider_event_id = pms.provider_event_id
+        LEFT JOIN provider_player_aliases ppa
+          ON ppa.provider = pms.provider
+         AND ppa.sport_key = pms.sport_key
+         AND ppa.raw_player_name = pms.player_name
+        WHERE pms.provider = 'prop_line'
+          AND pms.sport_key = 'baseball_mlb'
+          AND pe.sport_key = 'baseball_mlb'
+          AND pms.market_key = %s
+          AND LOWER(TRIM(pms.outcome_name)) = 'over'
+          AND pms.line IS NOT NULL
+          AND pms.average_implied_probability IS NOT NULL
+          AND (
+                pe.commence_time AT TIME ZONE 'America/New_York'
+              )::date = %s::date
+        ORDER BY
+            player,
+            pms.line
     """
 
     try:
-        df = read_sql(
-            sql,
-            [market.key, target_date, target_date, target_date],
-        )
+        df = read_sql(sql, [market.key, target_date])
     except Exception:
         app.logger.exception(
-            "Edge Finder odds query failed market=%s date=%s",
+            "Edge Finder summary query failed market=%s date=%s",
             market.key,
             target_date,
         )
@@ -3320,36 +3286,26 @@ def _edge_consensus_for_date(market, target_date):
     if df.empty:
         return df
 
-    rows = []
+    df = df.copy()
+    df["player"] = df["player"].fillna("").astype(str).map(clean_text)
+    df["line"] = pd.to_numeric(df["line"], errors="coerce")
+    df["odds"] = pd.to_numeric(df["odds"], errors="coerce")
+    df["implied_prob"] = pd.to_numeric(df["implied_prob"], errors="coerce")
+    df["book_count"] = pd.to_numeric(
+        df["book_count"],
+        errors="coerce",
+    ).fillna(0).astype(int)
 
-    for (player_name, line), group in df.groupby(
-        ["player_name", "line"],
-        dropna=False,
-        sort=False,
-    ):
-        probabilities = []
+    df = df.dropna(subset=["line", "implied_prob"])
+    df = df[df["player"] != ""]
 
-        for odds in group["odds"].tolist():
-            prob = american_to_implied_prob(odds)
-            if prob is not None:
-                probabilities.append(float(prob))
-
-        if not probabilities:
-            continue
-
-        implied_prob = sum(probabilities) / len(probabilities)
-        consensus_odds = implied_prob_to_american(implied_prob)
-
-        rows.append({
-            "player": clean_text(player_name),
-            "line": float(line),
-            "odds": consensus_odds,
-            "implied_prob": round(implied_prob, 2),
-            "book_count": int(group["bookmaker_key"].nunique()),
-            "books": sorted(group["bookmaker_key"].dropna().astype(str).unique().tolist()),
-        })
-
-    return pd.DataFrame(rows)
+    return df[[
+        "player",
+        "line",
+        "odds",
+        "implied_prob",
+        "book_count",
+    ]]
 
 
 def _edge_batter_history(players, target_date):
