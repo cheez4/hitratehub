@@ -4,6 +4,7 @@
 
 <div class="shell">
     <div class="panel">
+
 <style>
 .filters {
     display:flex;
@@ -12,15 +13,15 @@
     margin-bottom:18px;
 }
 
-.filters a {
-    padding:10px 16px;
+.filters a,
+.filters select {
+    padding:10px 14px;
     border-radius:10px;
     background:#132033;
     border:1px solid #21466d;
     color:#ffffff;
     text-decoration:none;
     font-weight:700;
-    transition:.15s ease;
 }
 
 .filters a:hover {
@@ -33,11 +34,31 @@
     color:white;
 }
 
+.edge-market-select {
+    min-width:220px;
+}
+
+.edge-summary {
+    color:#95aac6;
+    margin:0 0 16px;
+}
+
+.edge-empty {
+    padding:22px;
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:12px;
+    color:#95aac6;
+    background:rgba(255,255,255,.02);
+}
+
+.edge-table-wrap {
+    overflow-x:auto;
+}
+
 table {
     width:100%;
     border-collapse:collapse;
-    overflow:hidden;
-    border-radius:14px;
+    min-width:1200px;
 }
 
 th {
@@ -46,11 +67,13 @@ th {
     padding:14px;
     text-align:left;
     font-size:15px;
+    white-space:nowrap;
 }
 
 td {
     padding:14px;
     border-top:1px solid rgba(255,255,255,.05);
+    white-space:nowrap;
 }
 
 tr:hover {
@@ -75,41 +98,76 @@ th a {
 .label {
     font-weight:700;
 }
+
+.book-count {
+    color:#95aac6;
+    font-size:12px;
+    margin-top:3px;
+}
 </style>
-    <div class="page-title">Edge Finder</div>
-    <div class="subtext">
-        Finds plays where the player hit rate is higher or lower than the sportsbook implied probability.
-    </div>
+
+<div class="page-title">Edge Finder</div>
+<div class="subtext">
+    Compares historical player hit rates with the current Prop-Line market consensus.
+</div>
 
 <div class="filters">
-    <a class="{% if selected_date == 'today' %}active{% endif %}" href="/edge-finder?date=today&view={{ view }}&prop={{ prop }}">
+    <a class="{% if selected_date == 'today' %}active{% endif %}"
+       href="/edge-finder?date=today&view={{ view }}&prop={{ prop }}">
         Today
     </a>
 
-    <a class="{% if selected_date == 'yesterday' %}active{% endif %}" href="/edge-finder?date=yesterday&view={{ view }}&prop={{ prop }}">
+    <a class="{% if selected_date == 'yesterday' %}active{% endif %}"
+       href="/edge-finder?date=yesterday&view={{ view }}&prop={{ prop }}">
         Yesterday
     </a>
 </div>
 
-    <div class="filters">
-        <a class="{% if view == 'overpriced' %}active{% endif %}" href="/edge-finder?view=overpriced&prop={{ prop }}&date={{ selected_date }}">
-            Overpriced
-        </a>
+<div class="filters">
+    <a class="{% if view == 'overpriced' %}active{% endif %}"
+       href="/edge-finder?view=overpriced&prop={{ prop }}&date={{ selected_date }}">
+        Overpriced
+    </a>
 
-        <a class="{% if view == 'underpriced' %}active{% endif %}" href="/edge-finder?view=underpriced&prop={{ prop }}&date={{ selected_date }}">
-            Underpriced
-        </a>
+    <a class="{% if view == 'underpriced' %}active{% endif %}"
+       href="/edge-finder?view=underpriced&prop={{ prop }}&date={{ selected_date }}">
+        Underpriced
+    </a>
 
-        <a class="{% if view == 'all' %}active{% endif %}" href="/edge-finder?view=all&prop={{ prop }}&date={{ selected_date }}">
-            All
-        </a>
+    <a class="{% if view == 'all' %}active{% endif %}"
+       href="/edge-finder?view=all&prop={{ prop }}&date={{ selected_date }}">
+        All
+    </a>
 
-        <a class="{% if prop == 'HR' %}active{% endif %}" href="/edge-finder?prop=HR&view={{ view }}&date={{ selected_date }}">HR</a>
-<a class="{% if prop == 'HITS' %}active{% endif %}" href="/edge-finder?prop=HITS&view={{ view }}&date={{ selected_date }}">Hits</a>
-<a class="{% if prop == 'TB' %}active{% endif %}" href="/edge-finder?prop=TB&view={{ view }}&date={{ selected_date }}">Total Bases</a>
-<a class="{% if prop == 'RBI' %}active{% endif %}" href="/edge-finder?prop=RBI&view={{ view }}&date={{ selected_date }}">RBI</a>
-<a class="{% if prop == 'RUNS' %}active{% endif %}" href="/edge-finder?prop=RUNS&view={{ view }}&date={{ selected_date }}">Runs</a>
-    </div>
+    <select class="edge-market-select" onchange="changeEdgeMarket(this.value)">
+        <optgroup label="Batters">
+            {% for item in edge_markets if item.entity == "batter" %}
+                <option value="{{ item.value }}"
+                        {% if prop == item.value %}selected{% endif %}>
+                    {{ item.display }}
+                </option>
+            {% endfor %}
+        </optgroup>
+
+        <optgroup label="Pitchers">
+            {% for item in edge_markets if item.entity == "pitcher" %}
+                <option value="{{ item.value }}"
+                        {% if prop == item.value %}selected{% endif %}>
+                    {{ item.display }}
+                </option>
+            {% endfor %}
+        </optgroup>
+    </select>
+</div>
+
+{% if market %}
+<div class="edge-summary">
+    {{ market.display }} • {{ rows|length }} result{% if rows|length != 1 %}s{% endif %}
+    {% if rows %}
+        • consensus from up to {{ rows[0].book_count }} book{% if rows[0].book_count != 1 %}s{% endif %}
+    {% endif %}
+</div>
+{% endif %}
 
 <div style="margin-bottom:12px;">
     <button class="run-btn" type="button" onclick="compareSelectedPlayers()">
@@ -119,78 +177,121 @@ th a {
         Select up to 10 players
     </span>
 </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Select</th>
-                <th>Player</th>
-                <th>Team</th>
-                <th>Prop</th>
-                <th>Line</th>
-                <th>Odds</th>
-                <th>Implied %</th>
-                <th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10&date={{ selected_date }}">L10 Hit Rate / Edge</a></th>
-<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20&date={{ selected_date }}">L20 Hit Rate / Edge</a></th>
-<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30&date={{ selected_date }}">L30 Hit Rate / Edge</a></th>
-<th><a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45&date={{ selected_date }}">L45 Hit Rate / Edge</a></th>
-                <th>Label</th>
-            </tr>
-        </thead>
 
-        <tbody>
-            {% for row in rows %}
-<tr>
-    <td>
-        <input type="checkbox"
-               class="edge-player-check"
-               value="{{ row.player }}">
-    </td>
+{% if rows %}
+<div class="edge-table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Select</th>
+            <th>Player</th>
+            <th>Team</th>
+            <th>Prop</th>
+            <th>Line</th>
+            <th>Consensus Odds</th>
+            <th>Implied %</th>
+            <th>
+                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10&date={{ selected_date }}">
+                    L10 Hit Rate / Edge
+                </a>
+            </th>
+            <th>
+                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20&date={{ selected_date }}">
+                    L20 Hit Rate / Edge
+                </a>
+            </th>
+            <th>
+                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30&date={{ selected_date }}">
+                    L30 Hit Rate / Edge
+                </a>
+            </th>
+            <th>
+                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45&date={{ selected_date }}">
+                    L45 Hit Rate / Edge
+                </a>
+            </th>
+            <th>Label</th>
+        </tr>
+    </thead>
 
-    <td>{{ row.player }}</td>
-    <td>{{ row.team }}</td>
-                <td>{{ row.prop }}</td>
-                <td>{{ row.ou }} {{ row.line }}</td>
-                <td>{{ row.odds }}</td>
-                <td>{{ "%.1f"|format(row.implied_prob) }}%</td>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>
+                <input type="checkbox"
+                       class="edge-player-check"
+                       value="{{ row.player }}">
+            </td>
 
+            <td>{{ row.player }}</td>
+            <td>{{ row.team or "—" }}</td>
+            <td>{{ row.prop }}</td>
+            <td>{{ row.ou }} {{ row.line }}</td>
+            <td>
+                {% if row.odds is not none %}
+                    {% if row.odds > 0 %}+{% endif %}{{ row.odds }}
+                {% else %}
+                    —
+                {% endif %}
+                <div class="book-count">
+                    AVG {{ row.book_count }} book{% if row.book_count != 1 %}s{% endif %}
+                </div>
+            </td>
+            <td>{{ "%.2f"|format(row.implied_prob) }}%</td>
+
+            {% for window in [10, 20, 30, 45] %}
+                {% set rate = row["hit_rate_l" ~ window] %}
+                {% set edge = row["edge_l" ~ window] %}
                 <td>
-    <div>{{ "%.1f"|format(row.hit_rate_l10) }}%</div>
-    <div class="{% if row.edge_l10 >= 0 %}positive{% else %}negative{% endif %}">
-        {{ "%.1f"|format(row.edge_l10) }}%
-    </div>
-</td>
-
-<td>
-    <div>{{ "%.1f"|format(row.hit_rate_l20) }}%</div>
-    <div class="{% if row.edge_l20 >= 0 %}positive{% else %}negative{% endif %}">
-        {{ "%.1f"|format(row.edge_l20) }}%
-    </div>
-</td>
-
-<td>
-    <div>{{ "%.1f"|format(row.hit_rate_l30) }}%</div>
-    <div class="{% if row.edge_l30 >= 0 %}positive{% else %}negative{% endif %}">
-        {{ "%.1f"|format(row.edge_l30) }}%
-    </div>
-</td>
-
-<td>
-    <div>{{ "%.1f"|format(row.hit_rate_l45) }}%</div>
-    <div class="{% if row.edge_l45 >= 0 %}positive{% else %}negative{% endif %}">
-        {{ "%.1f"|format(row.edge_l45) }}%
-    </div>
-</td>
-
-                <td class="label">{{ row.label_l20 }}</td>
-            </tr>
+                    {% if rate is not none %}
+                        <div>{{ "%.1f"|format(rate) }}%</div>
+                        <div class="{% if edge >= 0 %}positive{% else %}negative{% endif %}">
+                            {% if edge > 0 %}+{% endif %}{{ "%.1f"|format(edge) }}%
+                        </div>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
             {% endfor %}
-        </tbody>
-    </table>
-    </div>
+
+            <td class="label">{{ row.label_l20 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 </div>
+
+{% else %}
+<div class="edge-empty">
+    {% if no_market_message %}
+        {{ no_market_message }}
+    {% elif view == "overpriced" %}
+        No plays currently have an L20 edge of +5% or better. Try <strong>All</strong>.
+    {% elif view == "underpriced" %}
+        No plays currently have an L20 edge of -5% or worse. Try <strong>All</strong>.
+    {% else %}
+        No Edge Finder rows are available for this market/date.
+    {% endif %}
+</div>
+{% endif %}
+
+</div>
+</div>
+
 <script>
+function changeEdgeMarket(value) {
+    const params = new URLSearchParams(window.location.search);
+    params.set("prop", value);
+    params.set("view", "{{ view }}");
+    params.set("date", "{{ selected_date }}");
+    params.delete("sort");
+    window.location.href = "/edge-finder?" + params.toString();
+}
+
 function compareSelectedPlayers() {
-    const checked = Array.from(document.querySelectorAll(".edge-player-check:checked"));
+    const checked = Array.from(
+        document.querySelectorAll(".edge-player-check:checked")
+    );
 
     if (checked.length === 0) {
         alert("Select at least 1 player.");
@@ -204,20 +305,12 @@ function compareSelectedPlayers() {
 
     const params = new URLSearchParams();
 
-    params.set("calc_role", "hitter");
+    params.set(
+        "calc_role",
+        "{{ 'pitcher' if market and market.entity == 'pitcher' else 'hitter' }}"
+    );
     params.set("calc_mode", "over");
-
-    const prop = "{{ prop }}";
-
-    const propMap = {
-        "HITS": "hits",
-        "TB": "total_bases",
-        "HR": "home_runs",
-        "RBI": "rbi",
-        "RUNS": "runs"
-    };
-
-    params.set("calc_prop", propMap[prop] || "hits");
+    params.set("calc_prop", "{{ prop }}");
     params.set("calc_window", "20");
     params.set("calc_line", "{{ rows[0].line if rows else 0.5 }}");
 
@@ -232,4 +325,5 @@ function compareSelectedPlayers() {
     window.location.href = "/?" + params.toString();
 }
 </script>
+
 {% endblock %}
