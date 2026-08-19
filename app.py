@@ -1660,12 +1660,9 @@ def get_historical_odds_lookup(
         ["%s"] * len(requested_players)
     )
 
-    # Query one contiguous date range instead of generating a large
-    # IN (...) list for 90/120-game Compare windows. The result is still
-    # keyed by player/date below, so dates without a displayed game are
-    # harmless and never appear in the Compare table.
-    min_date = min(visible_dates)
-    max_date = max(visible_dates)
+    date_placeholders = ",".join(
+        ["%s::date"] * len(visible_dates)
+    )
 
     query = f"""
         SELECT DISTINCT ON (
@@ -1686,9 +1683,9 @@ def get_historical_odds_lookup(
           AND sport_key = 'baseball_mlb'
           AND market_key = %s
           AND player_name IN ({player_placeholders})
-          AND game_date BETWEEN %s::date AND %s::date
+          AND game_date IN ({date_placeholders})
           AND line = %s
-          AND outcome_name = 'Over'
+          AND LOWER(TRIM(outcome_name)) = 'over'
           AND checkpoint IN ('close', 'open')
         ORDER BY
             player_name,
@@ -1703,7 +1700,8 @@ def get_historical_odds_lookup(
     params = (
         [market.key]
         + requested_players
-        + [min_date, max_date, line]
+        + visible_dates
+        + [line]
     )
 
     try:
@@ -2211,20 +2209,8 @@ def get_common_context(active_page="calculator"):
     ftext = filter_text(vs_team, vs_hand, selected_weekday, day_night)
       
     try:
-        # On the calculator, only load the player-name list for the
-        # currently selected role. This avoids fetching and serializing
-        # two full MLB player lists on every compare request.
-        if active_page == "calculator":
-            if calc_role == "hitter":
-                hitter_names = get_hitter_names()
-                pitcher_names = []
-            else:
-                hitter_names = []
-                pitcher_names = get_pitcher_names()
-        else:
-            hitter_names = get_hitter_names()
-            pitcher_names = get_pitcher_names()
-
+        hitter_names = get_hitter_names()
+        pitcher_names = get_pitcher_names()
         lineup_map = get_today_lineups()
 
         # Weather is only needed for pages that display

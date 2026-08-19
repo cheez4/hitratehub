@@ -15,11 +15,9 @@
                     <div class="field">
                         <label>Prop</label>
                         <select name="prop">
-                            <option value="HR" {% if prop == "HR" %}selected{% endif %}>Home Runs</option>
-<option value="HITS" {% if prop == "HITS" %}selected{% endif %}>Hits</option>
-<option value="TB" {% if prop == "TB" %}selected{% endif %}>Total Bases</option>
-<option value="RBI" {% if prop == "RBI" %}selected{% endif %}>RBI</option>
-<option value="RUNS" {% if prop == "RUNS" %}selected{% endif %}>Runs</option>
+                            {% for market in strategy_markets %}
+                            <option value="{{ market.key }}" {% if prop == market.key %}selected{% endif %}>{{ market.display }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 
