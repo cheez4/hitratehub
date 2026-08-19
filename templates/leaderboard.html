@@ -107,16 +107,32 @@
                 <div class="field">
                     <label>Prop</label>
                     {% if role == "hitter" %}
-                        <select name="hitter_prop" onchange="submitLeaderboardFilters()">
-                            <option value="hits" {% if hitter_prop == "hits" %}selected{% endif %}>Hits</option>
-                            <option value="total_bases" {% if hitter_prop == "total_bases" %}selected{% endif %}>Total Bases</option>
-                            <option value="home_runs" {% if hitter_prop == "home_runs" %}selected{% endif %}>Home Runs</option>
-                            <option value="runs" {% if hitter_prop == "runs" %}selected{% endif %}>Runs</option>
-                            <option value="rbi" {% if hitter_prop == "rbi" %}selected{% endif %}>RBI</option>
+                        <select
+                            name="hitter_prop"
+                            onchange="submitLeaderboardFilters()"
+                        >
+                            {% for market in hitter_market_options %}
+                                <option
+                                    value="{{ market.value }}"
+                                    {% if hitter_prop == market.value %}selected{% endif %}
+                                >
+                                    {{ market.display }}
+                                </option>
+                            {% endfor %}
                         </select>
                     {% else %}
-                        <select name="pitcher_prop" onchange="submitLeaderboardFilters()">
-                            <option value="strikeouts" {% if pitcher_prop == "strikeouts" %}selected{% endif %}>Strikeouts</option>
+                        <select
+                            name="pitcher_prop"
+                            onchange="submitLeaderboardFilters()"
+                        >
+                            {% for market in pitcher_market_options %}
+                                <option
+                                    value="{{ market.value }}"
+                                    {% if pitcher_prop == market.value %}selected{% endif %}
+                                >
+                                    {{ market.display }}
+                                </option>
+                            {% endfor %}
                         </select>
                     {% endif %}
                 </div>

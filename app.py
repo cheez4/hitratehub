@@ -35,7 +35,7 @@ from urllib.parse import urlencode
 from functools import wraps
 from services.grading_engine import grade_bet, regrade_bet
 from services.auto_grading import grade_pending_mlb_bets
-from services.market_registry import resolve_market
+from services.market_registry import resolve_market, MARKETS
 from zoneinfo import ZoneInfo
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
@@ -1945,6 +1945,51 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
         "filter_text": ftext
     }
 
+# ---------------------------------------------------------
+# Registry-driven market options used by site features.
+#
+# ui_value keeps compatibility with the prop names already
+# used throughout HitRateHub URLs/templates.
+# ---------------------------------------------------------
+MARKET_UI_EXCLUDED = {
+    "pitcher_earned_runs_allowed",
+    "pitcher_walks_allowed",
+}
+
+
+def market_ui_value(market):
+    if market.key == "batter_rbis":
+        return "rbi"
+
+    if market.key == "pitcher_strikeouts":
+        return "strikeouts"
+
+    if market.entity == "batter":
+        return market.key.removeprefix("batter_")
+
+    return market.key
+
+
+def get_market_options(entity, sport="MLB"):
+    options = []
+
+    for market in MARKETS.values():
+        if market.sport != sport:
+            continue
+        if market.entity != entity:
+            continue
+        if market.key in MARKET_UI_EXCLUDED:
+            continue
+
+        options.append({
+            "value": market_ui_value(market),
+            "market_key": market.key,
+            "display": market.display,
+        })
+
+    return options
+
+
 def thresholds_for(role, prop):
     market = resolve_market(display_prop=prop)
 
@@ -2012,16 +2057,26 @@ def build_hitter_leaderboard(df, prop, window, thresholds, sort_line, limit=50):
     df = df.dropna(subset=["game_date", "batter_name"])
 
     grouped = (
-        df.groupby(["batter_name", "game_date"], as_index=False)
+        df.groupby(
+            ["batter_name", "game_date"],
+            as_index=False
+        )
         .agg({
             "team": "last",
             "h": "sum",
+            "single": "sum",
+            "double": "sum",
             "tb": "sum",
             "hr": "sum",
+            "bb": "sum",
+            "sb": "sum",
             "runs_scored": "sum",
-            "rbi": "sum"
+            "rbi": "sum",
         })
-        .sort_values(["batter_name", "game_date"], ascending=[True, False])
+        .sort_values(
+            ["batter_name", "game_date"],
+            ascending=[True, False]
+        )
     )
 
     grouped["stat_value"] = calculate_hitter_stat(grouped, prop)
@@ -2371,6 +2426,8 @@ def get_common_context(active_page="calculator"):
         "calc_max": calc_max,
         "hitter_prop": hitter_prop,
         "pitcher_prop": pitcher_prop,
+        "hitter_market_options": get_market_options("batter"),
+        "pitcher_market_options": get_market_options("pitcher"),
         "teams": teams,
         "vs_team": vs_team,
         "vs_hand": vs_hand,
