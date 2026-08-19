@@ -8376,9 +8376,21 @@ def strategy_finder():
                 "roi": 0,
             }
 
+    # Strategy Finder currently executes against the legacy odds/gamelog
+    # query below, so expose the prop values that query actually understands.
+    # This also guarantees the template always receives strategy_markets.
+    strategy_markets = [
+        {"key": "HR", "display": "Home Runs"},
+        {"key": "HITS", "display": "Hits"},
+        {"key": "TB", "display": "Total Bases"},
+        {"key": "RBI", "display": "RBI"},
+        {"key": "RUNS", "display": "Runs"},
+    ]
+
     return render_template(
         "strategy_finder.html",
         active_page="strategy_finder",
+        strategy_markets=strategy_markets,
         prop=prop,
         odds_min=odds_min,
         odds_max=odds_max,
