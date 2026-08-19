@@ -2445,6 +2445,21 @@ def get_common_context(active_page="calculator"):
 
 def build_trends_context():
     prop = request.args.get("trend_prop", "hits")
+    hitter_market_options = get_market_options("batter")
+    valid_props = {option["value"] for option in hitter_market_options}
+
+    if prop not in valid_props:
+        prop = "hits"
+
+    thresholds = thresholds_for("hitter", prop)
+    trend_line = safe_float(
+        request.args.get("trend_line", thresholds[0]),
+        thresholds[0],
+    )
+
+    if trend_line not in thresholds:
+        trend_line = thresholds[0]
+
     window = safe_int(request.args.get("trend_window", 10), 10)
     min_games = safe_int(request.args.get("min_games", 5), 5)
     vs_team = clean_text(request.args.get("vs_team", ""))
@@ -2469,8 +2484,12 @@ def build_trends_context():
         .agg({
             "team": "last",
             "h": "sum",
+            "single": "sum",
+            "double": "sum",
             "tb": "sum",
             "hr": "sum",
+            "bb": "sum",
+            "sb": "sum",
             "runs_scored": "sum",
             "rbi": "sum"
         })
@@ -2489,7 +2508,7 @@ def build_trends_context():
         if len(recent) < min_games:
             continue
 
-        hits = int((recent["stat_value"] > 0.5).sum())
+        hits = int((recent["stat_value"] > trend_line).sum())
         games = len(recent)
         rate = round((hits / games) * 100, 1)
         avg = round(float(recent["stat_value"].mean()), 2)
@@ -2497,7 +2516,7 @@ def build_trends_context():
         streak = 0
 
         for _, row in recent.iterrows():
-            if row["stat_value"] > 0.5:
+            if row["stat_value"] > trend_line:
                 streak += 1
             else:
                 break
@@ -2525,8 +2544,8 @@ def build_trends_context():
         recent_half = recent.head(max(3, window // 2))
         older_half = recent.tail(max(3, window // 2))
 
-        recent_rate = (recent_half["stat_value"] > 0.5).mean() * 100
-        older_rate = (older_half["stat_value"] > 0.5).mean() * 100
+        recent_rate = (recent_half["stat_value"] > trend_line).mean() * 100
+        older_rate = (older_half["stat_value"] > trend_line).mean() * 100
         jump = round(recent_rate - older_rate, 1)
 
         move_item = dict(item)
@@ -2541,6 +2560,9 @@ def build_trends_context():
 
     return {
         "trend_prop": prop,
+        "trend_line": trend_line,
+        "trend_thresholds": thresholds,
+        "hitter_market_options": hitter_market_options,
         "trend_window": window,
         "min_games": min_games,
         "trend_teams": teams,

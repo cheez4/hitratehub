@@ -21,12 +21,19 @@
         ">
             <div class="field">
                 <label>Prop</label>
-                <select name="trend_prop">
-                    <option value="hits" {% if trend_prop == "hits" %}selected{% endif %}>Hits</option>
-                    <option value="total_bases" {% if trend_prop == "total_bases" %}selected{% endif %}>Total Bases</option>
-                    <option value="home_runs" {% if trend_prop == "home_runs" %}selected{% endif %}>Home Runs</option>
-                    <option value="runs" {% if trend_prop == "runs" %}selected{% endif %}>Runs</option>
-                    <option value="rbi" {% if trend_prop == "rbi" %}selected{% endif %}>RBI</option>
+                <select name="trend_prop" onchange="this.form.submit()">
+                    {% for option in hitter_market_options %}
+                        <option value="{{ option.value }}" {% if trend_prop == option.value %}selected{% endif %}>{{ option.display }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Line</label>
+                <select name="trend_line">
+                    {% for line in trend_thresholds %}
+                        <option value="{{ line }}" {% if trend_line == line %}selected{% endif %}>{{ line }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -380,7 +387,7 @@ function sendTrendPlayersToCalculator() {
     params.set("calc_mode", "over");
     params.set("calc_prop", "{{ trend_prop }}");
     params.set("calc_window", "{{ trend_window }}");
-    params.set("calc_line", "0.5");
+    params.set("calc_line", "{{ trend_line }}");
 
     selected.forEach((name, index) => {
         if (index === 0) {
