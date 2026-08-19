@@ -112,7 +112,7 @@ MARKETS = {
     "pitcher_walks": MarketDefinition(
         "pitcher_walks", "Pitcher Walks", "MLB", "pitcher",
         "walks_allowed",
-        ("pitcher walks", "walks allowed", "pitcher walks allowed", "walks")
+        ("pitcher walks", "walks allowed", "pitcher walks allowed")
     ),
     "pitcher_walks_allowed": MarketDefinition(
         "pitcher_walks_allowed", "Pitcher Walks Allowed", "MLB", "pitcher",
