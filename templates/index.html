@@ -82,31 +82,37 @@
                                     </select>
                                 </div>
 
+                                {# Render the hitter option list once, then clone it client-side. #}
+                                <select id="sharedPlayerOptionSource" hidden aria-hidden="true" tabindex="-1">
+                                    <option value="">Select Player</option>
+                                    {% for name in hitter_names %}
+                                        {% set lineup = lineup_map.get(name) or lineup_map.get(name|lower) %}
+                                        {% if lineup_filter == "all"
+                                           or (lineup_filter == "confirmed" and lineup and lineup.status == "confirmed")
+                                           or (lineup_filter == "confirmed_probable" and lineup and lineup.status in ["confirmed","probable"]) %}
+                                            <option value="{{ name }}">
+                                                {% if lineup and lineup.status == "confirmed" %}
+                                                    🟢 BO{{ lineup.order }} {{ name }}
+                                                {% elif lineup and lineup.status == "probable" %}
+                                                    🟡 BO{{ lineup.order }} {{ name }}
+                                                {% else %}
+                                                    🔴 — {{ name }}
+                                                {% endif %}
+                                            </option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+
                                 {% for i in range(1, 4) %}
+                                {% set field_name = 'calc_player' if i == 1 else 'calc_compare_' ~ i %}
+                                {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
                                 <div class="field">
                                     <label>Player {{ i }}</label>
-                                    <select class="player-select"name="{{ 'calc_player' if i == 1 else 'calc_compare_' ~ i }}">
+                                    <select
+                                        class="player-select"
+                                        name="{{ field_name }}"
+                                        data-selected="{{ selected_name|e }}">
                                         <option value="">Select Player</option>
-
-                                        {% for name in hitter_names %}
-                                            {% set lineup = lineup_map.get(name) or lineup_map.get(name|lower) %}
-                                            {% set field_name = 'calc_player' if i == 1 else 'calc_compare_' ~ i %}
-                                            {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
-
-                                            {% if lineup_filter == "all"
-                                               or (lineup_filter == "confirmed" and lineup and lineup.status == "confirmed")
-                                               or (lineup_filter == "confirmed_probable" and lineup and lineup.status in ["confirmed","probable"]) %}
-                                                <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>
-                                                    {% if lineup and lineup.status == "confirmed" %}
-                                                        🟢 BO{{ lineup.order }} {{ name }}
-                                                    {% elif lineup and lineup.status == "probable" %}
-                                                        🟡 BO{{ lineup.order }} {{ name }}
-                                                    {% else %}
-                                                        🔴 — {{ name }}
-                                                    {% endif %}
-                                                </option>
-                                            {% endif %}
-                                        {% endfor %}
                                     </select>
                                 </div>
                                 {% endfor %}
@@ -135,30 +141,15 @@
 
                                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
                                     {% for i in range(4, 11) %}
+                                    {% set field_name = 'calc_compare_' ~ i %}
+                                    {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
                                     <div class="field">
                                         <label>Player {{ i }}</label>
-                                        <select class="player-select" name="calc_compare_{{ i }}">
+                                        <select
+                                            class="player-select"
+                                            name="{{ field_name }}"
+                                            data-selected="{{ selected_name|e }}">
                                             <option value="">Select Player</option>
-
-                                            {% for name in hitter_names %}
-                                                {% set lineup = lineup_map.get(name) or lineup_map.get(name|lower) %}
-                                                {% set field_name = 'calc_compare_' ~ i %}
-                                                {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
-
-                                                {% if lineup_filter == "all"
-                                                   or (lineup_filter == "confirmed" and lineup and lineup.status == "confirmed")
-                                                   or (lineup_filter == "confirmed_probable" and lineup and lineup.status in ["confirmed","probable"]) %}
-                                                    <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>
-                                                        {% if lineup and lineup.status == "confirmed" %}
-                                                            🟢 BO{{ lineup.order }} {{ name }}
-                                                        {% elif lineup and lineup.status == "probable" %}
-                                                            🟡 BO{{ lineup.order }} {{ name }}
-                                                        {% else %}
-                                                            🔴 — {{ name }}
-                                                        {% endif %}
-                                                    </option>
-                                                {% endif %}
-                                            {% endfor %}
                                         </select>
                                     </div>
                                     {% endfor %}
@@ -210,16 +201,24 @@
 </div>
                         {% else %}
                             <div class="calculator-bottom" style="grid-template-columns: 1fr 1fr 1fr 110px;">
+                                {# Render the pitcher option list once, then clone it client-side. #}
+                                <select id="sharedPlayerOptionSource" hidden aria-hidden="true" tabindex="-1">
+                                    <option value="">Select Player</option>
+                                    {% for name in pitcher_names %}
+                                        <option value="{{ name }}">{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+
                                 {% for i in range(1, 4) %}
+                                {% set field_name = 'calc_player' if i == 1 else 'calc_compare_' ~ i %}
+                                {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
                                 <div class="field">
                                     <label>Player {{ i }}</label>
-                                    <select name="{{ 'calc_player' if i == 1 else 'calc_compare_' ~ i }}">
+                                    <select
+                                        class="player-select"
+                                        name="{{ field_name }}"
+                                        data-selected="{{ selected_name|e }}">
                                         <option value="">Select Player</option>
-                                        {% for name in pitcher_names %}
-                                            {% set field_name = 'calc_player' if i == 1 else 'calc_compare_' ~ i %}
-                                            {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
-                                            <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>{{ name }}</option>
-                                        {% endfor %}
                                     </select>
                                 </div>
                                 {% endfor %}
@@ -248,15 +247,15 @@
 
                                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
                                     {% for i in range(4, 11) %}
+                                    {% set field_name = 'calc_compare_' ~ i %}
+                                    {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
                                     <div class="field">
                                         <label>Player {{ i }}</label>
-                                        <select class="player-select" name="calc_compare_{{ i }}">
+                                        <select
+                                            class="player-select"
+                                            name="{{ field_name }}"
+                                            data-selected="{{ selected_name|e }}">
                                             <option value="">Select Player</option>
-                                            {% for name in pitcher_names %}
-                                                {% set field_name = 'calc_compare_' ~ i %}
-                                                {% set selected_name = compare_values[field_name] if compare_values is defined else '' %}
-                                                <option value="{{ name }}" {% if selected_name == name %}selected{% endif %}>{{ name }}</option>
-                                            {% endfor %}
                                         </select>
                                     </div>
                                     {% endfor %}
@@ -2765,6 +2764,24 @@ async function submitComboSystem() {
 document.addEventListener("DOMContentLoaded", function () {
 
     updateComboCount();
+
+    // The server renders the complete player list only once.
+    // Clone those options into each compare selector in the browser,
+    // dramatically reducing the HTML response size.
+    const sharedPlayerOptionSource = document.getElementById("sharedPlayerOptionSource");
+
+    if (sharedPlayerOptionSource) {
+        const sharedOptionsHtml = sharedPlayerOptionSource.innerHTML;
+
+        document.querySelectorAll(".player-select").forEach((el) => {
+            const selectedValue = el.dataset.selected || "";
+            el.innerHTML = sharedOptionsHtml;
+
+            if (selectedValue) {
+                el.value = selectedValue;
+            }
+        });
+    }
 
     document.querySelectorAll(".player-select").forEach((el) => {
         if (el.tomselect) {

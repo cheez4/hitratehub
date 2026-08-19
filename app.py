@@ -2211,8 +2211,20 @@ def get_common_context(active_page="calculator"):
     ftext = filter_text(vs_team, vs_hand, selected_weekday, day_night)
       
     try:
-        hitter_names = get_hitter_names()
-        pitcher_names = get_pitcher_names()
+        # On the calculator, only load the player-name list for the
+        # currently selected role. This avoids fetching and serializing
+        # two full MLB player lists on every compare request.
+        if active_page == "calculator":
+            if calc_role == "hitter":
+                hitter_names = get_hitter_names()
+                pitcher_names = []
+            else:
+                hitter_names = []
+                pitcher_names = get_pitcher_names()
+        else:
+            hitter_names = get_hitter_names()
+            pitcher_names = get_pitcher_names()
+
         lineup_map = get_today_lineups()
 
         # Weather is only needed for pages that display
