@@ -1660,9 +1660,12 @@ def get_historical_odds_lookup(
         ["%s"] * len(requested_players)
     )
 
-    date_placeholders = ",".join(
-        ["%s::date"] * len(visible_dates)
-    )
+    # Query one contiguous date range instead of generating a large
+    # IN (...) list for 90/120-game Compare windows. The result is still
+    # keyed by player/date below, so dates without a displayed game are
+    # harmless and never appear in the Compare table.
+    min_date = min(visible_dates)
+    max_date = max(visible_dates)
 
     query = f"""
         SELECT DISTINCT ON (
@@ -1683,9 +1686,9 @@ def get_historical_odds_lookup(
           AND sport_key = 'baseball_mlb'
           AND market_key = %s
           AND player_name IN ({player_placeholders})
-          AND game_date IN ({date_placeholders})
+          AND game_date BETWEEN %s::date AND %s::date
           AND line = %s
-          AND LOWER(TRIM(outcome_name)) = 'over'
+          AND outcome_name = 'Over'
           AND checkpoint IN ('close', 'open')
         ORDER BY
             player_name,
@@ -1700,8 +1703,7 @@ def get_historical_odds_lookup(
     params = (
         [market.key]
         + requested_players
-        + visible_dates
-        + [line]
+        + [min_date, max_date, line]
     )
 
     try:
