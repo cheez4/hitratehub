@@ -8064,305 +8064,297 @@ def grade_personal_bet(bet_id):
 @app.route("/strategy-finder")
 @premium_required
 def strategy_finder():
-    prop = request.args.get("prop", "HR")
-    odds_min = request.args.get("odds_min", "")
-    odds_max = request.args.get("odds_max", "")
-    window = request.args.get("window", "30")
-    checkpoint = request.args.get("checkpoint", "close")
+    """Registry-driven, Prop-Line-backed Strategy Finder."""
+    prop = clean_text(request.args.get("prop", "home_runs")) or "home_runs"
+    odds_min = clean_text(request.args.get("odds_min", ""))
+    odds_max = clean_text(request.args.get("odds_max", ""))
+    window = clean_text(request.args.get("window", "30")) or "30"
+    checkpoint = clean_text(request.args.get("checkpoint", "close")) or "close"
 
-    day_night = request.args.get("day_night", "")
-    home_away = request.args.get("home_away", "")
-    team = request.args.get("team", "")
-    vs_team = request.args.get("vs_team", "")
+    day_night = clean_text(request.args.get("day_night", ""))
+    home_away = clean_text(request.args.get("home_away", ""))
+    team = clean_text(request.args.get("team", ""))
+    vs_team = clean_text(request.args.get("vs_team", ""))
 
     results = None
 
+    # Build Strategy Finder's prop menu from the same central registry used by
+    # Compare Players. Only markets that can currently be graded from our MLB
+    # game logs are exposed here.
+    supported_sources = {
+        "h", "single", "double", "tb", "hr", "bb", "sb",
+        "runs_scored", "rbi", "h+runs_scored+rbi",
+        "strikeouts", "earned_runs", "hits_allowed", "walks_allowed",
+        "runs_allowed", "outs_from_innings",
+    }
+
+    strategy_markets = []
+    seen_market_keys = set()
+
+    for market in MARKETS.values():
+        if market.sport != "MLB":
+            continue
+        if market.entity not in {"batter", "pitcher"}:
+            continue
+        if market.source not in supported_sources:
+            continue
+        if market.key in seen_market_keys:
+            continue
+
+        seen_market_keys.add(market.key)
+        strategy_markets.append({
+            "key": market_ui_value(market),
+            "market_key": market.key,
+            "display": market.display,
+            "entity": market.entity,
+        })
+
+    strategy_markets.sort(
+        key=lambda item: (0 if item["entity"] == "batter" else 1, item["display"])
+    )
+
+    market = resolve_market(display_prop=prop)
+
+    # Backward compatibility with old Strategy Finder URLs/bookmarks.
+    legacy_prop_aliases = {
+        "HR": "home_runs",
+        "HITS": "hits",
+        "TB": "total_bases",
+        "RBI": "rbi",
+        "RUNS": "runs",
+        "SO": "strikeouts",
+    }
+    if not market and prop.upper() in legacy_prop_aliases:
+        prop = legacy_prop_aliases[prop.upper()]
+        market = resolve_market(display_prop=prop)
+
+    if not market or market.sport != "MLB" or market.source not in supported_sources:
+        prop = "home_runs"
+        market = resolve_market(display_prop=prop)
+
+    allowed_checkpoints = {"open", "12h", "3h", "close"}
+    if checkpoint not in allowed_checkpoints:
+        checkpoint = "close"
+
+    try:
+        window_days = max(1, min(int(window), 730))
+    except (TypeError, ValueError):
+        window_days = 30
+        window = "30"
+
+    def parse_odds(value):
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    odds_min_value = parse_odds(odds_min)
+    odds_max_value = parse_odds(odds_max)
+
+    # Preserve existing behavior: run only after an odds bound is supplied.
     if odds_min or odds_max:
-        conn = get_conn()
+        params = [market.key, checkpoint, window_days]
 
-        stat_map = {
-            "HR": "home_runs",
-            "HITS": "hits",
-            "TB": "total_bases",
-            "RBI": "rbi",
-            "RUNS": "runs",
-        }
+        # Each provider row is a historical wager opportunity. DISTINCT ON
+        # collapses duplicate snapshots for the same book/player/game/line at
+        # the selected checkpoint so a refresh does not count the same wager
+        # multiple times.
+        if market.entity == "batter":
+            stat_select = {
+                "h": "COALESCE(g.h, 0)",
+                "single": "COALESCE(g.single, 0)",
+                "double": "COALESCE(g.double, 0)",
+                "tb": "COALESCE(g.tb, 0)",
+                "hr": "COALESCE(g.hr, 0)",
+                "bb": "COALESCE(g.bb, 0)",
+                "sb": "COALESCE(g.sb, 0)",
+                "runs_scored": "COALESCE(g.runs_scored, 0)",
+                "rbi": "COALESCE(g.rbi, 0)",
+                "h+runs_scored+rbi": "(COALESCE(g.h, 0) + COALESCE(g.runs_scored, 0) + COALESCE(g.rbi, 0))",
+            }[market.source]
 
-        stat_col = stat_map.get(prop, "home_runs")
+            sql = f"""
+                WITH game_results AS (
+                    SELECT
+                        batter_name AS player_name,
+                        game_date,
+                        MAX(team) AS team,
+                        MAX(opp_team) AS opponent,
+                        SUM(COALESCE(h, 0)) AS h,
+                        SUM(COALESCE(single, 0)) AS single,
+                        SUM(COALESCE(double, 0)) AS double,
+                        SUM(COALESCE(tb, 0)) AS tb,
+                        SUM(COALESCE(hr, 0)) AS hr,
+                        SUM(COALESCE(bb, 0)) AS bb,
+                        SUM(COALESCE(sb, 0)) AS sb,
+                        SUM(COALESCE(runs_scored, 0)) AS runs_scored,
+                        SUM(COALESCE(rbi, 0)) AS rbi
+                    FROM mlb_pa_gamelog
+                    WHERE batter_name IS NOT NULL
+                      AND game_date IS NOT NULL
+                    GROUP BY batter_name, game_date
+                )
+                SELECT DISTINCT ON (
+                    pmh.bookmaker_key,
+                    pmh.player_name,
+                    game_date,
+                    pmh.line
+                )
+                    pmh.player_name AS player,
+                    pmh.market_key AS prop,
+                    pmh.outcome_name AS ou,
+                    pmh.line,
+                    pmh.odds,
+                    pmh.bookmaker_key AS sportsbook,
+                    game_date,
+                    g.team,
+                    g.opponent,
+                    NULL::boolean AS is_home,
+                    {stat_select} AS result_stat
+                FROM provider_market_history pmh
+                JOIN provider_events pe
+                  ON pe.provider = pmh.provider
+                 AND pe.provider_event_id = pmh.provider_event_id
+                JOIN game_results g
+                  ON LOWER(TRIM(g.player_name)) = LOWER(TRIM(pmh.player_name))
+                 AND g.game_date = (
+                        pe.commence_time AT TIME ZONE 'America/New_York'
+                     )::date
+                WHERE pmh.provider = 'prop_line'
+                  AND pmh.sport_key = 'baseball_mlb'
+                  AND pmh.market_key = %s
+                  AND LOWER(TRIM(pmh.outcome_name)) = 'over'
+                  AND pmh.checkpoint = %s
+                  AND pmh.odds IS NOT NULL
+                  AND pmh.line IS NOT NULL
+                  AND (pe.commence_time AT TIME ZONE 'America/New_York')::date
+                        >= CURRENT_DATE - (%s || ' days')::interval
+            """
+        else:
+            stat_select = {
+                "strikeouts": "COALESCE(g.strikeouts, 0)",
+                "earned_runs": "COALESCE(g.earned_runs, 0)",
+                "hits_allowed": "COALESCE(g.hits_allowed, 0)",
+                "walks_allowed": "COALESCE(g.walks_allowed, 0)",
+                "runs_allowed": "COALESCE(g.runs_allowed, 0)",
+                "outs_from_innings": "(FLOOR(COALESCE(g.innings_pitched, 0))::int * 3 + CASE ROUND((COALESCE(g.innings_pitched, 0) - FLOOR(COALESCE(g.innings_pitched, 0)))::numeric, 1) WHEN 0.1 THEN 1 WHEN 0.2 THEN 2 ELSE 0 END)",
+            }[market.source]
 
-        allowed_checkpoints = ["open", "12h", "3h", "close"]
+            sql = f"""
+                SELECT DISTINCT ON (
+                    pmh.bookmaker_key,
+                    pmh.player_name,
+                    game_date,
+                    pmh.line
+                )
+                    pmh.player_name AS player,
+                    pmh.market_key AS prop,
+                    pmh.outcome_name AS ou,
+                    pmh.line,
+                    pmh.odds,
+                    pmh.bookmaker_key AS sportsbook,
+                    (pe.commence_time AT TIME ZONE 'America/New_York')::date AS game_date,
+                    NULL::text AS team,
+                    NULL::text AS opponent,
+                    g.is_home,
+                    {stat_select} AS result_stat
+                FROM provider_market_history pmh
+                JOIN provider_events pe
+                  ON pe.provider = pmh.provider
+                 AND pe.provider_event_id = pmh.provider_event_id
+                JOIN mlb_pitcher_gamelogs g
+                  ON LOWER(TRIM(g.player_name)) = LOWER(TRIM(pmh.player_name))
+                 AND g.game_date = (
+                        pe.commence_time AT TIME ZONE 'America/New_York'
+                     )::date
+                WHERE pmh.provider = 'prop_line'
+                  AND pmh.sport_key = 'baseball_mlb'
+                  AND pmh.market_key = %s
+                  AND LOWER(TRIM(pmh.outcome_name)) = 'over'
+                  AND pmh.checkpoint = %s
+                  AND pmh.odds IS NOT NULL
+                  AND pmh.line IS NOT NULL
+                  AND (pe.commence_time AT TIME ZONE 'America/New_York')::date
+                        >= CURRENT_DATE - (%s || ' days')::interval
+            """
 
-        if checkpoint not in allowed_checkpoints:
-            checkpoint = "close"
+        if odds_min_value is not None:
+            sql += " AND pmh.odds >= %s"
+            params.append(odds_min_value)
 
-        sql = f"""
-            SELECT
-                o.player,
-                o.prop,
-                o.ou,
-                o.line,
-                o.odds,
-                o.sportsbook,
-                o.game_date,
-                h.team,
-                h.opponent,
-                h.is_home,
-                h.{stat_col} AS result_stat
-            FROM odds_market_timeline o
-            JOIN mlb_hitter_gamelogs h
-              ON LOWER(TRIM(h.player_name)) = LOWER(TRIM(o.player))
-             AND h.game_date = o.game_date
-            WHERE o.prop = %s
-              AND LOWER(o.ou) = 'over'
-              AND o.checkpoint = %s
-              AND o.odds IS NOT NULL
-              AND o.line IS NOT NULL
-              AND o.game_date >= CURRENT_DATE - (%s || ' days')::interval
-        """
+        if odds_max_value is not None:
+            sql += " AND pmh.odds <= %s"
+            params.append(odds_max_value)
 
-        params = [prop, checkpoint, window]
+        # Team/opponent filters are currently available for batter game logs.
+        if market.entity == "batter":
+            if team:
+                sql += " AND UPPER(g.team) = %s"
+                params.append(team.upper())
+            if vs_team:
+                sql += " AND UPPER(g.opponent) = %s"
+                params.append(vs_team.upper())
 
-        if odds_min:
-            sql += " AND o.odds >= %s"
-            params.append(int(odds_min))
+        if market.entity == "pitcher":
+            if home_away == "home":
+                sql += " AND g.is_home = TRUE"
+            elif home_away == "away":
+                sql += " AND g.is_home = FALSE"
 
-        if odds_max:
-            sql += " AND o.odds <= %s"
-            params.append(int(odds_max))
-
-        if team:
-            sql += " AND UPPER(h.team) = %s"
-            params.append(team.upper().strip())
-
-        if vs_team:
-            sql += " AND UPPER(h.opponent) = %s"
-            params.append(vs_team.upper().strip())
-
-        if home_away == "home":
-            sql += " AND h.is_home = TRUE"
-
-        if home_away == "away":
-            sql += " AND h.is_home = FALSE"
-
-        sql += " LIMIT 10000"
-
-        # ============================================================
-        # LEGACY STRATEGY FINDER QUERY
-        # ============================================================
-        df = pd.read_sql(sql, conn, params=params)
-
-        # ============================================================
-        # DATA FOUNDATION SHADOW QUERY
-        # Provider-backed equivalent of odds_market_timeline.
-        #
-        # IMPORTANT:
-        # This does NOT affect what the user sees yet.
-        # It only compares legacy vs provider data in the logs.
-        # ============================================================
-        provider_df = pd.DataFrame()
+        sql += " ORDER BY pmh.bookmaker_key, pmh.player_name, game_date, pmh.line, pmh.last_update DESC NULLS LAST LIMIT 10000"
 
         try:
-            market = resolve_market(display_prop=prop)
-
-            if market:
-                provider_sql = f"""
-                    SELECT
-                        pmh.player_name AS player,
-                        pmh.market_key AS prop,
-                        pmh.outcome_name AS ou,
-                        pmh.line,
-                        pmh.odds,
-                        pmh.bookmaker_key AS sportsbook,
-                        (
-                            pe.commence_time
-                            AT TIME ZONE 'America/New_York'
-                        )::date AS game_date,
-                        h.team,
-                        h.opponent,
-                        h.is_home,
-                        h.{stat_col} AS result_stat
-                    FROM provider_market_history pmh
-                    JOIN provider_events pe
-                      ON pe.provider = pmh.provider
-                     AND pe.provider_event_id = pmh.provider_event_id
-                    JOIN mlb_hitter_gamelogs h
-                      ON LOWER(TRIM(h.player_name)) = LOWER(TRIM(pmh.player_name))
-                     AND h.game_date = (
-                            pe.commence_time
-                            AT TIME ZONE 'America/New_York'
-                         )::date
-                    WHERE pmh.sport_key = 'baseball_mlb'
-                      AND pmh.market_key = %s
-                      AND LOWER(TRIM(pmh.outcome_name)) = 'over'
-                      AND pmh.checkpoint = %s
-                      AND pmh.odds IS NOT NULL
-                      AND pmh.line IS NOT NULL
-                      AND (
-                            pe.commence_time
-                            AT TIME ZONE 'America/New_York'
-                          )::date >= CURRENT_DATE - (%s || ' days')::interval
-                """
-
-                provider_params = [
-                    market.key,
-                    checkpoint,
-                    window,
-                ]
-
-                if odds_min:
-                    provider_sql += " AND pmh.odds >= %s"
-                    provider_params.append(int(odds_min))
-
-                if odds_max:
-                    provider_sql += " AND pmh.odds <= %s"
-                    provider_params.append(int(odds_max))
-
-                if team:
-                    provider_sql += " AND UPPER(h.team) = %s"
-                    provider_params.append(team.upper().strip())
-
-                if vs_team:
-                    provider_sql += " AND UPPER(h.opponent) = %s"
-                    provider_params.append(vs_team.upper().strip())
-
-                if home_away == "home":
-                    provider_sql += " AND h.is_home = TRUE"
-
-                if home_away == "away":
-                    provider_sql += " AND h.is_home = FALSE"
-
-                # Keep the same cap as the legacy query for the first comparison.
-                provider_sql += " LIMIT 10000"
-
-                provider_df = pd.read_sql(
-                    provider_sql,
-                    conn,
-                    params=provider_params
-                )
-
-                # Match the legacy grading behavior exactly during shadow testing.
-                # Push handling will be corrected after provider parity is proven.
-                provider_bets = len(provider_df)
-
-                if provider_bets > 0:
-                    provider_df["result_status"] = provider_df.apply(
-                        lambda r: (
-                            "Won"
-                            if float(r["result_stat"]) > float(r["line"])
-                            else "Lost"
-                        ),
-                        axis=1
-                    )
-
-                    provider_wins = int(
-                        (provider_df["result_status"] == "Won").sum()
-                    )
-                    provider_losses = int(
-                        (provider_df["result_status"] == "Lost").sum()
-                    )
-
-                    provider_profit = 0.0
-
-                    for _, provider_row in provider_df.iterrows():
-                        provider_odds = int(provider_row["odds"])
-
-                        if provider_row["result_status"] == "Won":
-                            if provider_odds > 0:
-                                provider_profit += provider_odds / 100
-                            else:
-                                provider_profit += 100 / abs(provider_odds)
-                        else:
-                            provider_profit -= 1
-
-                    provider_roi = (
-                        provider_profit / provider_bets
-                    ) * 100
-                else:
-                    provider_wins = 0
-                    provider_losses = 0
-                    provider_profit = 0.0
-                    provider_roi = 0.0
-
-                app.logger.warning(
-                    "\n"
-                    "====================================================\n"
-                    "STRATEGY FINDER DATA FOUNDATION SHADOW TEST\n"
-                    "====================================================\n"
-                    "PROP: %s\n"
-                    "PROVIDER MARKET: %s\n"
-                    "CHECKPOINT: %s\n"
-                    "WINDOW: %s\n"
-                    "ODDS: %s to %s\n"
-                    "----------------------------------------------------\n"
-                    "LEGACY ROWS:   %s\n"
-                    "PROVIDER ROWS: %s\n"
-                    "----------------------------------------------------\n"
-                    "PROVIDER WINS:   %s\n"
-                    "PROVIDER LOSSES: %s\n"
-                    "PROVIDER UNITS:  %.2f\n"
-                    "PROVIDER ROI:    %.2f%%%%\n"
-                    "====================================================",
-                    prop,
-                    market.key,
-                    checkpoint,
-                    window,
-                    odds_min or "ANY",
-                    odds_max or "ANY",
-                    len(df),
-                    provider_bets,
-                    provider_wins,
-                    provider_losses,
-                    provider_profit,
-                    provider_roi,
-                )
-
-            else:
-                app.logger.warning(
-                    "Strategy Finder shadow test: "
-                    "could not resolve market for prop=%s",
-                    prop
-                )
-
+            df = read_sql(sql, params)
         except Exception:
             app.logger.exception(
-                "Strategy Finder provider shadow query failed"
+                "Strategy Finder provider query failed market=%s checkpoint=%s window=%s",
+                market.key,
+                checkpoint,
+                window_days,
             )
+            df = pd.DataFrame()
 
-        conn.close()
-
-        # Existing Strategy Finder continues to use the legacy dataframe
-        # until provider parity has been validated.
         bets = len(df)
 
-        if bets > 0:
-            df["result_status"] = df.apply(
-                lambda r: "Won" if float(r["result_stat"]) > float(r["line"]) else "Lost",
-                axis=1
-            )
+        if bets:
+            result_stat = pd.to_numeric(df["result_stat"], errors="coerce")
+            wager_line = pd.to_numeric(df["line"], errors="coerce")
+            valid = result_stat.notna() & wager_line.notna()
+            df = df.loc[valid].copy()
+            result_stat = result_stat.loc[valid]
+            wager_line = wager_line.loc[valid]
+
+            # Grade pushes correctly. Pushes are excluded from win/loss count
+            # and from ROI risk because the stake is returned.
+            df["result_status"] = "Push"
+            df.loc[result_stat > wager_line, "result_status"] = "Won"
+            df.loc[result_stat < wager_line, "result_status"] = "Lost"
 
             wins = int((df["result_status"] == "Won").sum())
             losses = int((df["result_status"] == "Lost").sum())
+            pushes = int((df["result_status"] == "Push").sum())
+            graded_bets = wins + losses
 
-            profit = 0
-
+            profit = 0.0
             for _, row in df.iterrows():
+                status = row["result_status"]
                 odds = int(row["odds"])
-
-                if row["result_status"] == "Won":
-                    if odds > 0:
-                        profit += odds / 100
-                    else:
-                        profit += 100 / abs(odds)
-                else:
+                if status == "Won":
+                    profit += (odds / 100) if odds > 0 else (100 / abs(odds))
+                elif status == "Lost":
                     profit -= 1
 
-            roi = (profit / bets) * 100
+            roi = (profit / graded_bets) * 100 if graded_bets else 0.0
+            hit_rate = (wins / graded_bets) * 100 if graded_bets else 0.0
 
             results = {
-                "bets": bets,
+                "bets": graded_bets,
                 "wins": wins,
                 "losses": losses,
-                "hit_rate": round((wins / bets) * 100, 1),
+                "pushes": pushes,
+                "hit_rate": round(hit_rate, 1),
                 "units": round(profit, 2),
                 "roi": round(roi, 1),
             }
@@ -8371,21 +8363,11 @@ def strategy_finder():
                 "bets": 0,
                 "wins": 0,
                 "losses": 0,
+                "pushes": 0,
                 "hit_rate": 0,
                 "units": 0,
                 "roi": 0,
             }
-
-    # Strategy Finder currently executes against the legacy odds/gamelog
-    # query below, so expose the prop values that query actually understands.
-    # This also guarantees the template always receives strategy_markets.
-    strategy_markets = [
-        {"key": "HR", "display": "Home Runs"},
-        {"key": "HITS", "display": "Hits"},
-        {"key": "TB", "display": "Total Bases"},
-        {"key": "RBI", "display": "RBI"},
-        {"key": "RUNS", "display": "Runs"},
-    ]
 
     return render_template(
         "strategy_finder.html",
@@ -8400,7 +8382,7 @@ def strategy_finder():
         home_away=home_away,
         team=team,
         vs_team=vs_team,
-        results=results
+        results=results,
     )
 
 if __name__ == "__main__":
