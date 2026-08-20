@@ -1,269 +1,283 @@
-{% extends "base.html" %}
 
+{% extends "base.html" %}
 {% block content %}
 
 <div class="shell">
-    <div class="panel">
+<div class="panel edge-shell">
 
 <style>
-.filters {
+.edge-shell {
+    border: 1px solid rgba(72, 132, 190, .35);
+    background:
+        radial-gradient(circle at 75% 15%, rgba(0, 132, 255, .08), transparent 30%),
+        radial-gradient(circle at 20% 0%, rgba(168, 53, 255, .08), transparent 26%),
+        #071523;
+    border-radius: 15px;
+    padding: 20px;
+}
+.edge-title {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -.5px;
+}
+.edge-title .icon { color:#c94cff; margin-right:8px; }
+.edge-subtext { color:#b7c8dc; margin-top:4px; margin-bottom:22px; }
+
+.edge-toolbar {
+    display:grid;
+    grid-template-columns: auto minmax(240px, 1fr) minmax(260px, 1fr);
+    gap:16px;
+    align-items:end;
+    margin-bottom:16px;
+}
+.edge-left-controls {
     display:flex;
     gap:10px;
     flex-wrap:wrap;
-    margin-bottom:18px;
 }
-
-.filters a,
-.filters select {
-    padding:10px 14px;
-    border-radius:10px;
-    background:#132033;
-    border:1px solid #21466d;
-    color:#ffffff;
+.edge-btn, .edge-select-wrap {
+    min-height:56px;
+    border-radius:11px;
+    border:1px solid #304b68;
+    background:#0c1b2b;
+    color:#fff;
+}
+.edge-btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 18px;
     text-decoration:none;
-    font-weight:700;
+    font-weight:800;
 }
-
-.filters a:hover {
-    background:#1a2c45;
+.edge-btn.active {
+    background:linear-gradient(135deg,#7d18f5,#4426e8);
+    border-color:#b849ff;
+    box-shadow:0 0 18px rgba(172,55,255,.25);
 }
-
-.filters a.active {
-    background:#16a34a;
-    border-color:#22c55e;
+.edge-btn.over.active {
+    background:linear-gradient(135deg,#7d18f5,#5722bc);
+}
+.edge-btn.all.active {
+    background:linear-gradient(135deg,#1069d8,#2a54f5);
+    border-color:#259dff;
+}
+.edge-select-wrap {
+    padding:8px 13px;
+}
+.edge-select-label {
+    font-size:12px;
+    font-weight:800;
+    color:#9eb4ca;
+    margin-bottom:3px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+.edge-select-wrap.role {
+    border-color:#d239ff;
+    box-shadow:0 0 18px rgba(210,57,255,.20);
+}
+.edge-select-wrap.prop {
+    border-color:#168dff;
+    box-shadow:0 0 18px rgba(22,141,255,.20);
+}
+.edge-select-wrap select {
+    width:100%;
+    border:0;
+    outline:0;
+    background:transparent;
     color:white;
+    font-size:16px;
+    font-weight:800;
+    padding:2px 0;
+}
+.edge-select-wrap select option {
+    background:#0d2032;
+    color:#fff;
 }
 
-.edge-market-select {
-    min-width:220px;
-}
+.edge-date-row { display:flex; gap:10px; margin-bottom:16px; }
+.edge-date-row .edge-btn { min-height:50px; }
 
-.edge-summary {
-    color:#95aac6;
-    margin:0 0 16px;
+.compare-btn {
+    width:100%;
+    min-height:58px;
+    border:1px solid #654cff;
+    border-radius:10px;
+    background:linear-gradient(100deg,#741ef0,#144ce9);
+    color:white;
+    font-size:17px;
+    font-weight:900;
+    cursor:pointer;
+    box-shadow:0 0 20px rgba(72,75,255,.22);
 }
-
-.edge-empty {
-    padding:22px;
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:12px;
-    color:#95aac6;
-    background:rgba(255,255,255,.02);
-}
+.compare-help { color:#9cb2ca; margin:8px 0 18px; }
 
 .edge-table-wrap {
     overflow-x:auto;
+    border:1px solid rgba(82,131,175,.35);
+    border-radius:12px;
 }
-
-table {
+.edge-table {
     width:100%;
     border-collapse:collapse;
-    min-width:1200px;
+    min-width:1180px;
 }
-
-th {
-    background:#10233a;
-    color:white;
-    padding:14px;
+.edge-table th {
+    background:#0d2032;
+    color:#f2f6fb;
+    padding:13px 12px;
     text-align:left;
-    font-size:15px;
+    font-size:13px;
+    white-space:nowrap;
+    border-right:1px solid rgba(103,153,192,.20);
+}
+.edge-table th a { color:#c95cff; text-decoration:none; }
+.edge-table td {
+    padding:12px;
+    border-top:1px solid rgba(103,153,192,.18);
+    border-right:1px solid rgba(103,153,192,.12);
     white-space:nowrap;
 }
-
-td {
-    padding:14px;
-    border-top:1px solid rgba(255,255,255,.05);
-    white-space:nowrap;
+.edge-table tr:hover { background:rgba(0,122,255,.035); }
+.edge-player { font-weight:900; }
+.edge-team { color:#9eb4ca; }
+.edge-prop-pill {
+    display:inline-block;
+    padding:5px 9px;
+    border-radius:7px;
+    border:1px solid #7049bf;
+    background:rgba(111,48,187,.18);
+    color:#ece5ff;
+    font-weight:800;
+}
+.edge-rate { font-weight:800; }
+.edge-positive { color:#45ed6c; font-weight:900; }
+.edge-negative { color:#ff5454; font-weight:900; }
+.edge-fair { color:#ffc83d; font-weight:900; }
+.edge-books { color:#77baff; font-size:11px; font-weight:800; margin-top:2px; }
+.edge-empty {
+    padding:28px;
+    border:1px dashed rgba(120,162,198,.35);
+    border-radius:12px;
+    color:#9eb4ca;
+    text-align:center;
 }
 
-tr:hover {
-    background:rgba(255,255,255,.02);
-}
-
-th a {
-    color:#c084fc;
-    text-decoration:none;
-}
-
-.positive {
-    color:#4ade80;
-    font-weight:700;
-}
-
-.negative {
-    color:#ff6b6b;
-    font-weight:700;
-}
-
-.label {
-    font-weight:700;
-}
-
-.book-count {
-    color:#95aac6;
-    font-size:12px;
-    margin-top:3px;
+@media (max-width: 900px) {
+    .edge-toolbar { grid-template-columns:1fr; }
+    .edge-left-controls { order:3; }
 }
 </style>
 
-<div class="page-title">Edge Finder</div>
-<div class="subtext">
+<div class="edge-title"><span class="icon">🎯</span>Edge Finder</div>
+<div class="edge-subtext">
     Compares historical player hit rates with the current Prop-Line market consensus.
 </div>
 
-<div class="filters">
-    <a class="{% if selected_date == 'today' %}active{% endif %}"
-       href="/edge-finder?date=today&view={{ view }}&prop={{ prop }}">
-        Today
-    </a>
-
-    <a class="{% if selected_date == 'yesterday' %}active{% endif %}"
-       href="/edge-finder?date=yesterday&view={{ view }}&prop={{ prop }}">
-        Yesterday
-    </a>
+<div class="edge-date-row">
+    <a class="edge-btn {% if selected_date == 'today' %}active{% endif %}"
+       href="/edge-finder?date=today&view={{ view }}&role={{ role }}&prop={{ prop }}">📅 Today</a>
+    <a class="edge-btn {% if selected_date == 'yesterday' %}active{% endif %}"
+       href="/edge-finder?date=yesterday&view={{ view }}&role={{ role }}&prop={{ prop }}">🗓 Yesterday</a>
 </div>
 
-<div class="filters">
-    <a class="{% if view == 'overpriced' %}active{% endif %}"
-       href="/edge-finder?view=overpriced&prop={{ prop }}&date={{ selected_date }}">
-        Overpriced
-    </a>
+<div class="edge-toolbar">
+    <div class="edge-left-controls">
+        <a class="edge-btn over {% if view == 'overpriced' %}active{% endif %}"
+           href="/edge-finder?view=overpriced&role={{ role }}&prop={{ prop }}&date={{ selected_date }}">🔥 Overpriced</a>
+        <a class="edge-btn {% if view == 'underpriced' %}active{% endif %}"
+           href="/edge-finder?view=underpriced&role={{ role }}&prop={{ prop }}&date={{ selected_date }}">⚠️ Underpriced</a>
+        <a class="edge-btn all {% if view == 'all' %}active{% endif %}"
+           href="/edge-finder?view=all&role={{ role }}&prop={{ prop }}&date={{ selected_date }}">📊 All</a>
+    </div>
 
-    <a class="{% if view == 'underpriced' %}active{% endif %}"
-       href="/edge-finder?view=underpriced&prop={{ prop }}&date={{ selected_date }}">
-        Underpriced
-    </a>
+    <div class="edge-select-wrap role">
+        <div class="edge-select-label">👤 Role</div>
+        <select id="edge-role-select" onchange="changeEdgeRole(this.value)">
+            <option value="batter" {% if role == "batter" %}selected{% endif %}>Batter</option>
+            <option value="pitcher" {% if role == "pitcher" %}selected{% endif %}>Pitcher</option>
+        </select>
+    </div>
 
-    <a class="{% if view == 'all' %}active{% endif %}"
-       href="/edge-finder?view=all&prop={{ prop }}&date={{ selected_date }}">
-        All
-    </a>
-
-    <select class="edge-market-select" id="edge-role-select" onchange="changeEdgeRole(this.value)">
-        <option value="batter" {% if not market or market.entity == "batter" %}selected{% endif %}>Batter</option>
-        <option value="pitcher" {% if market and market.entity == "pitcher" %}selected{% endif %}>Pitcher</option>
-    </select>
-
-    <select class="edge-market-select" id="edge-prop-select" onchange="changeEdgeMarket(this.value)">
-        {% for item in edge_markets %}
-            <option value="{{ item.value }}" data-entity="{{ item.entity }}"
-                    {% if prop == item.value %}selected{% endif %}>{{ item.display }}</option>
-        {% endfor %}
-    </select>
+    <div class="edge-select-wrap prop">
+        <div class="edge-select-label">🎯 Prop Type</div>
+        <select id="edge-prop-select" onchange="changeEdgeMarket(this.value)">
+            {% for item in edge_markets if item.entity == role %}
+                <option value="{{ item.value }}" {% if item.value == prop %}selected{% endif %}>
+                    {{ item.display }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
 </div>
 
-{% if market %}
-<div class="edge-summary">
-    {{ market.display }} • {{ rows|length }} result{% if rows|length != 1 %}s{% endif %}
-    {% if rows %}
-        • consensus from up to {{ rows[0].book_count }} book{% if rows[0].book_count != 1 %}s{% endif %}
-    {% endif %}
-</div>
-{% endif %}
-
-<div style="margin-bottom:12px;">
-    <button class="run-btn" type="button" onclick="compareSelectedPlayers()">
-        Compare Selected Players
-    </button>
-    <span style="color:#95aac6; margin-left:10px;">
-        Select up to 10 players
-    </span>
-</div>
+<button class="compare-btn" type="button" onclick="compareSelectedPlayers()">
+    👥 Compare Selected Players
+</button>
+<div class="compare-help">Select up to 10 players to compare</div>
 
 {% if rows %}
 <div class="edge-table-wrap">
-<table>
-    <thead>
-        <tr>
-            <th>Select</th>
-            <th>Player</th>
-            <th>Team</th>
-            <th>Prop</th>
-            <th>Line</th>
-            <th>Consensus Odds</th>
-            <th>Implied %</th>
-            <th>
-                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l10&date={{ selected_date }}">
-                    L10 Hit Rate / Edge
-                </a>
-            </th>
-            <th>
-                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l20&date={{ selected_date }}">
-                    L20 Hit Rate / Edge
-                </a>
-            </th>
-            <th>
-                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l30&date={{ selected_date }}">
-                    L30 Hit Rate / Edge
-                </a>
-            </th>
-            <th>
-                <a href="/edge-finder?prop={{ prop }}&view={{ view }}&sort=edge_l45&date={{ selected_date }}">
-                    L45 Hit Rate / Edge
-                </a>
-            </th>
-            <th>Label</th>
-        </tr>
-    </thead>
+<table class="edge-table">
+<thead>
+<tr>
+    <th><input type="checkbox" onclick="toggleAllEdgePlayers(this)"></th>
+    <th>PLAYER</th>
+    <th>TEAM</th>
+    <th>PROP</th>
+    <th>LINE</th>
+    <th>CONSENSUS ODDS</th>
+    <th>IMPLIED %</th>
+    {% for window in [10,20,30,45] %}
+    <th>
+        <a href="/edge-finder?role={{ role }}&prop={{ prop }}&view={{ view }}&sort=edge_l{{ window }}&date={{ selected_date }}">
+            L{{ window }} RATE / EDGE
+        </a>
+    </th>
+    {% endfor %}
+    <th>LABEL (L20)</th>
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}
+<tr>
+    <td><input type="checkbox" class="edge-player-check" value="{{ row.player }}" data-line="{{ row.line }}"></td>
+    <td class="edge-player">{{ row.player }}</td>
+    <td class="edge-team">{{ row.team or "—" }}</td>
+    <td><span class="edge-prop-pill">{{ prop }}</span></td>
+    <td>{{ row.line }}</td>
+    <td>
+        {% if row.odds is not none %}
+            {% if row.odds > 0 %}+{% endif %}{{ row.odds }}
+        {% else %}—{% endif %}
+        <div class="edge-books">{{ row.sportsbook }}</div>
+    </td>
+    <td>{{ "%.2f"|format(row.implied_prob) }}%</td>
 
-    <tbody>
-        {% for row in rows %}
-        <tr>
-            <td>
-                <input type="checkbox"
-                       class="edge-player-check"
-                       value="{{ row.player }}">
-            </td>
+    {% for window in [10,20,30,45] %}
+        {% set rate = row["hit_rate_l" ~ window] %}
+        {% set edge = row["edge_l" ~ window] %}
+        <td>
+            <div class="edge-rate">{{ "%.1f"|format(rate) }}%</div>
+            <div class="{% if edge > 0 %}edge-positive{% elif edge < 0 %}edge-negative{% else %}edge-fair{% endif %}">
+                {% if edge > 0 %}+{% endif %}{{ "%.1f"|format(edge) }}%
+            </div>
+        </td>
+    {% endfor %}
 
-            <td>{{ row.player }}</td>
-            <td>{{ row.team or "—" }}</td>
-            <td>{{ row.prop }}</td>
-            <td>{{ row.ou }} {{ row.line }}</td>
-            <td>
-                {% if row.odds is not none %}
-                    {% if row.odds > 0 %}+{% endif %}{{ row.odds }}
-                {% else %}
-                    —
-                {% endif %}
-                <div class="book-count">
-                    AVG {{ row.book_count }} book{% if row.book_count != 1 %}s{% endif %}
-                </div>
-            </td>
-            <td>{{ "%.2f"|format(row.implied_prob) }}%</td>
-
-            {% for window in [10, 20, 30, 45] %}
-                {% set rate = row["hit_rate_l" ~ window] %}
-                {% set edge = row["edge_l" ~ window] %}
-                <td>
-                    {% if rate is not none %}
-                        <div>{{ "%.1f"|format(rate) }}%</div>
-                        <div class="{% if edge >= 0 %}positive{% else %}negative{% endif %}">
-                            {% if edge > 0 %}+{% endif %}{{ "%.1f"|format(edge) }}%
-                        </div>
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-            {% endfor %}
-
-            <td class="label">{{ row.label_l20 }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
+    <td class="{% if row.edge_l20 >= 5 %}edge-positive{% elif row.edge_l20 <= -5 %}edge-negative{% else %}edge-fair{% endif %}">
+        {{ row.label_l20 }}
+    </td>
+</tr>
+{% endfor %}
+</tbody>
 </table>
 </div>
-
 {% else %}
 <div class="edge-empty">
-    {% if no_market_message %}
-        {{ no_market_message }}
-    {% elif view == "overpriced" %}
-        No plays currently have an L20 edge of +5% or better. Try <strong>All</strong>.
-    {% elif view == "underpriced" %}
-        No plays currently have an L20 edge of -5% or worse. Try <strong>All</strong>.
-    {% else %}
-        No Edge Finder rows are available for this market/date.
-    {% endif %}
+    No {{ market.display }} rows match this filter for {{ selected_date }}.
+    {% if view != "all" %} Try <strong>All</strong>.{% endif %}
 </div>
 {% endif %}
 
@@ -271,74 +285,59 @@ th a {
 </div>
 
 <script>
-function visibleEdgeProps(role) {
-    const propSelect = document.getElementById("edge-prop-select");
-    const options = Array.from(propSelect.options);
-    options.forEach(option => option.hidden = option.dataset.entity !== role);
-    return options.filter(option => option.dataset.entity === role);
-}
+const edgeMarketMeta = {{ edge_markets|tojson }};
 
 function changeEdgeRole(role) {
-    const options = visibleEdgeProps(role);
-    const propSelect = document.getElementById("edge-prop-select");
-    if (!options.length) {
-        propSelect.disabled = true;
-        return;
-    }
-    propSelect.disabled = false;
-    const current = propSelect.options[propSelect.selectedIndex];
-    if (!current || current.dataset.entity !== role) {
-        propSelect.value = options[0].value;
-        changeEdgeMarket(options[0].value);
-    }
-}
+    const first = edgeMarketMeta.find(item => item.entity === role);
+    if (!first) return;
 
-document.addEventListener("DOMContentLoaded", function () {
-    const roleSelect = document.getElementById("edge-role-select");
-    if (roleSelect) visibleEdgeProps(roleSelect.value);
-});
-
-function changeEdgeMarket(value) {
     const params = new URLSearchParams(window.location.search);
-    params.set("prop", value);
+    params.set("role", role);
+    params.set("prop", first.value);
     params.set("view", "{{ view }}");
     params.set("date", "{{ selected_date }}");
     params.delete("sort");
     window.location.href = "/edge-finder?" + params.toString();
 }
 
-function compareSelectedPlayers() {
-    const checked = Array.from(
-        document.querySelectorAll(".edge-player-check:checked")
-    );
+function changeEdgeMarket(prop) {
+    const params = new URLSearchParams(window.location.search);
+    params.set("role", "{{ role }}");
+    params.set("prop", prop);
+    params.set("view", "{{ view }}");
+    params.set("date", "{{ selected_date }}");
+    params.delete("sort");
+    window.location.href = "/edge-finder?" + params.toString();
+}
 
-    if (checked.length === 0) {
+function toggleAllEdgePlayers(master) {
+    document.querySelectorAll(".edge-player-check").forEach(box => {
+        box.checked = master.checked;
+    });
+}
+
+function compareSelectedPlayers() {
+    const checked = Array.from(document.querySelectorAll(".edge-player-check:checked"));
+
+    if (!checked.length) {
         alert("Select at least 1 player.");
         return;
     }
-
     if (checked.length > 10) {
         alert("You can compare up to 10 players.");
         return;
     }
 
     const params = new URLSearchParams();
-
-    params.set(
-        "calc_role",
-        "{{ 'pitcher' if market and market.entity == 'pitcher' else 'hitter' }}"
-    );
+    params.set("calc_role", "{{ 'pitcher' if role == 'pitcher' else 'hitter' }}");
     params.set("calc_mode", "over");
-    params.set("calc_prop", "{{ prop }}");
+    params.set("calc_prop", "{{ market.compare_prop }}");
     params.set("calc_window", "20");
-    params.set("calc_line", "{{ rows[0].line if rows else 0.5 }}");
+    params.set("calc_line", checked[0].dataset.line || "0.5");
 
     checked.forEach((box, index) => {
-        if (index === 0) {
-            params.set("calc_player", box.value);
-        } else {
-            params.set("calc_compare_" + (index + 1), box.value);
-        }
+        if (index === 0) params.set("calc_player", box.value);
+        else params.set("calc_compare_" + (index + 1), box.value);
     });
 
     window.location.href = "/?" + params.toString();

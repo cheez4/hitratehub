@@ -3164,16 +3164,56 @@ def load_team_weather():
 
     return weather_lookup
 
+
+EDGE_FINDER_MARKETS = [
+    {"value": "HR", "display": "Home Runs", "entity": "batter", "compare_prop": "home_runs"},
+    {"value": "HITS", "display": "Hits", "entity": "batter", "compare_prop": "hits"},
+    {"value": "TB", "display": "Total Bases", "entity": "batter", "compare_prop": "total_bases"},
+    {"value": "RBI", "display": "RBI", "entity": "batter", "compare_prop": "rbi"},
+    {"value": "RUNS", "display": "Runs", "entity": "batter", "compare_prop": "runs"},
+    {"value": "H+R+RBI", "display": "Hits + Runs + RBI", "entity": "batter", "compare_prop": "hits_runs_rbis"},
+    {"value": "SINGLES", "display": "Singles", "entity": "batter", "compare_prop": "singles"},
+    {"value": "DOUBLES", "display": "Doubles", "entity": "batter", "compare_prop": "doubles"},
+    {"value": "WALKS", "display": "Walks", "entity": "batter", "compare_prop": "walks"},
+    {"value": "SB", "display": "Stolen Bases", "entity": "batter", "compare_prop": "stolen_bases"},
+
+    {"value": "P_SO", "display": "Strikeouts", "entity": "pitcher", "compare_prop": "strikeouts"},
+    {"value": "P_OUTS", "display": "Outs Recorded", "entity": "pitcher", "compare_prop": "pitcher_outs"},
+    {"value": "P_ER", "display": "Earned Runs", "entity": "pitcher", "compare_prop": "pitcher_earned_runs"},
+    {"value": "P_HA", "display": "Hits Allowed", "entity": "pitcher", "compare_prop": "pitcher_hits_allowed"},
+    {"value": "P_BB", "display": "Walks Allowed", "entity": "pitcher", "compare_prop": "pitcher_walks"},
+    {"value": "P_RA", "display": "Runs Allowed", "entity": "pitcher", "compare_prop": "pitcher_runs_allowed"},
+]
+
+EDGE_FINDER_MARKET_MAP = {
+    item["value"]: item
+    for item in EDGE_FINDER_MARKETS
+}
+
+
 @app.route("/edge-finder")
 def edge_finder():
-    import time
+    prop = clean_text(request.args.get("prop", "HR")).upper() or "HR"
+    view = clean_text(request.args.get("view", "overpriced")).lower() or "overpriced"
+    sort_by = clean_text(request.args.get("sort", "edge_l20")) or "edge_l20"
+    selected_date = clean_text(request.args.get("date", "today")) or "today"
 
-    started = time.monotonic()
+    market = EDGE_FINDER_MARKET_MAP.get(prop)
+    if market is None:
+        prop = "HR"
+        market = EDGE_FINDER_MARKET_MAP[prop]
 
-    prop = request.args.get("prop", "HR")
-    view = request.args.get("view", "overpriced")
-    sort_by = request.args.get("sort", "edge_l20")
-    selected_date = request.args.get("date", "today")
+    role = clean_text(request.args.get("role", market["entity"])).lower()
+    if role not in {"batter", "pitcher"}:
+        role = market["entity"]
+
+    # If role and prop disagree, switch to the first real prop for that role.
+    if market["entity"] != role:
+        market = next(
+            item for item in EDGE_FINDER_MARKETS
+            if item["entity"] == role
+        )
+        prop = market["value"]
 
     eastern_now = datetime.now(ZoneInfo("America/Toronto"))
     today = eastern_now.date()
@@ -3184,21 +3224,11 @@ def edge_finder():
     elif selected_date == "yesterday":
         filter_date = yesterday
     else:
-        filter_date = selected_date
-
-    app.logger.warning(
-        "EDGE TRACE 1 start prop=%s date=%s elapsed=%.3f",
-        prop,
-        filter_date,
-        time.monotonic() - started,
-    )
-
-    conn = get_conn()
-
-    app.logger.warning(
-        "EDGE TRACE 2 connected elapsed=%.3f",
-        time.monotonic() - started,
-    )
+        try:
+            filter_date = date.fromisoformat(selected_date)
+        except ValueError:
+            selected_date = "today"
+            filter_date = today
 
     sql = """
         SELECT *
@@ -3206,7 +3236,6 @@ def edge_finder():
         WHERE prop = %s
           AND snapshot_date = %s
     """
-
     params = [prop, filter_date]
 
     if view == "overpriced":
@@ -3222,7 +3251,6 @@ def edge_finder():
         "implied_prob": "implied_prob",
         "odds": "odds",
     }
-
     sort_col = allowed_sorts.get(sort_by, "edge_l20")
 
     if view == "underpriced":
@@ -3230,41 +3258,27 @@ def edge_finder():
     else:
         sql += f" ORDER BY {sort_col} DESC LIMIT 100"
 
+    conn = get_conn()
     try:
         df = pd.read_sql(sql, conn, params=params)
     finally:
         conn.close()
 
-    app.logger.warning(
-        "EDGE TRACE 3 query complete rows=%s elapsed=%.3f",
-        len(df),
-        time.monotonic() - started,
-    )
-
     rows = df.to_dict("records")
 
-    app.logger.warning(
-        "EDGE TRACE 4 dict complete elapsed=%.3f",
-        time.monotonic() - started,
-    )
-
-    response = render_template(
+    return render_template(
         "edge_finder.html",
         rows=rows,
         prop=prop,
+        role=role,
+        market=market,
+        edge_markets=EDGE_FINDER_MARKETS,
         view=view,
         sort_by=sort_by,
         selected_date=selected_date,
         active_page="edge_finder",
     )
 
-    app.logger.warning(
-        "EDGE TRACE 5 template complete bytes=%s elapsed=%.3f",
-        len(response),
-        time.monotonic() - started,
-    )
-
-    return response
 
 @app.route("/")
 def index():
