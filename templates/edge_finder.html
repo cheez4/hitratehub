@@ -139,24 +139,16 @@ th a {
         All
     </a>
 
-    <select class="edge-market-select" onchange="changeEdgeMarket(this.value)">
-        <optgroup label="Batters">
-            {% for item in edge_markets if item.entity == "batter" %}
-                <option value="{{ item.value }}"
-                        {% if prop == item.value %}selected{% endif %}>
-                    {{ item.display }}
-                </option>
-            {% endfor %}
-        </optgroup>
+    <select class="edge-market-select" id="edge-role-select" onchange="changeEdgeRole(this.value)">
+        <option value="batter" {% if not market or market.entity == "batter" %}selected{% endif %}>Batter</option>
+        <option value="pitcher" {% if market and market.entity == "pitcher" %}selected{% endif %}>Pitcher</option>
+    </select>
 
-        <optgroup label="Pitchers">
-            {% for item in edge_markets if item.entity == "pitcher" %}
-                <option value="{{ item.value }}"
-                        {% if prop == item.value %}selected{% endif %}>
-                    {{ item.display }}
-                </option>
-            {% endfor %}
-        </optgroup>
+    <select class="edge-market-select" id="edge-prop-select" onchange="changeEdgeMarket(this.value)">
+        {% for item in edge_markets %}
+            <option value="{{ item.value }}" data-entity="{{ item.entity }}"
+                    {% if prop == item.value %}selected{% endif %}>{{ item.display }}</option>
+        {% endfor %}
     </select>
 </div>
 
@@ -279,6 +271,33 @@ th a {
 </div>
 
 <script>
+function visibleEdgeProps(role) {
+    const propSelect = document.getElementById("edge-prop-select");
+    const options = Array.from(propSelect.options);
+    options.forEach(option => option.hidden = option.dataset.entity !== role);
+    return options.filter(option => option.dataset.entity === role);
+}
+
+function changeEdgeRole(role) {
+    const options = visibleEdgeProps(role);
+    const propSelect = document.getElementById("edge-prop-select");
+    if (!options.length) {
+        propSelect.disabled = true;
+        return;
+    }
+    propSelect.disabled = false;
+    const current = propSelect.options[propSelect.selectedIndex];
+    if (!current || current.dataset.entity !== role) {
+        propSelect.value = options[0].value;
+        changeEdgeMarket(options[0].value);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const roleSelect = document.getElementById("edge-role-select");
+    if (roleSelect) visibleEdgeProps(roleSelect.value);
+});
+
 function changeEdgeMarket(value) {
     const params = new URLSearchParams(window.location.search);
     params.set("prop", value);
