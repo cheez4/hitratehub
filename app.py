@@ -1774,6 +1774,98 @@ def get_historical_odds_lookup(
 
     return lookup
 
+
+def get_current_consensus_lookup(prop, line, role="hitter"):
+    """
+    Return TODAY'S live Prop-Line consensus for the selected market + line.
+
+    This is used for the Compare summary cards and Edge Finder so "Current Odds"
+    actually means current, rather than the latest historical game's odds.
+    """
+    market = resolve_market(display_prop=prop)
+
+    if not market:
+        return {}
+
+    expected_entity = "batter" if role == "hitter" else "pitcher"
+    if market.entity != expected_entity:
+        return {}
+
+    eastern_today = datetime.now(
+        ZoneInfo("America/Toronto")
+    ).date()
+
+    query = """
+        SELECT
+            COALESCE(
+                NULLIF(TRIM(ppa.normalized_name), ''),
+                TRIM(pms.player_name)
+            ) AS player_name,
+            pms.line,
+            pms.average_odds,
+            (pms.average_implied_probability * 100.0) AS implied_prob,
+            pms.books_available
+        FROM provider_market_summary pms
+        JOIN provider_events pe
+          ON pe.provider = pms.provider
+         AND pe.provider_event_id = pms.provider_event_id
+        LEFT JOIN provider_player_aliases ppa
+          ON ppa.provider = pms.provider
+         AND ppa.sport_key = pms.sport_key
+         AND ppa.raw_player_name = pms.player_name
+        WHERE pms.provider = 'prop_line'
+          AND pms.sport_key = 'baseball_mlb'
+          AND pms.market_key = %s
+          AND LOWER(TRIM(pms.outcome_name)) = 'over'
+          AND pms.line = %s
+          AND (
+                pe.commence_time AT TIME ZONE 'America/Toronto'
+              )::date = %s::date
+          AND pms.average_odds IS NOT NULL
+          AND pms.average_implied_probability IS NOT NULL
+    """
+
+    try:
+        df = read_sql(
+            query,
+            [market.key, line, eastern_today],
+        )
+    except Exception:
+        app.logger.exception(
+            "Current consensus lookup failed market=%s line=%s",
+            market.key,
+            line,
+        )
+        return {}
+
+    lookup = {}
+
+    for _, row in df.iterrows():
+        player = clean_text(row.get("player_name"))
+        if not player:
+            continue
+
+        try:
+            odds = int(row.get("average_odds"))
+            implied = float(row.get("implied_prob"))
+            books = int(row.get("books_available") or 0)
+        except (TypeError, ValueError):
+            continue
+
+        lookup[normalize_name(player)] = {
+            "odds": odds,
+            "implied_prob": implied,
+            "line": float(row.get("line")),
+            "book_count": books,
+            "sportsbook": (
+                f"AVG {books} BOOK"
+                f"{'' if books == 1 else 'S'}"
+            ),
+        }
+
+    return lookup
+
+
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
     summaries = []
     rows_by_player = {}
@@ -1828,6 +1920,12 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
         game_dates=all_dates,
     )
 
+    current_odds_lookup = get_current_consensus_lookup(
+        prop,
+        line,
+        role=role,
+    )
+
     for player_name in players:
         rows_indexed = rows_by_player[player_name]
 
@@ -1848,21 +1946,15 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
             ftext,
         )
 
-        player_odds = [
-            (d, v)
-            for (p, d), v in odds_lookup.items()
-            if p == player_name
-        ]
+        current_odds = current_odds_lookup.get(
+            normalize_name(player_name)
+        )
 
-        if player_odds:
-            _, latest_odds = max(
-                player_odds,
-                key=lambda item: item[0],
-            )
-            summary["current_odds"] = latest_odds.get("odds")
-            summary["implied_prob"] = latest_odds.get("implied_prob")
+        if current_odds:
+            summary["current_odds"] = current_odds.get("odds")
+            summary["implied_prob"] = current_odds.get("implied_prob")
 
-            implied_prob = latest_odds.get("implied_prob")
+            implied_prob = current_odds.get("implied_prob")
 
             if implied_prob is not None:
                 edge_diff = round(summary["hit_rate"] - implied_prob, 1)
@@ -3166,23 +3258,23 @@ def load_team_weather():
 
 
 EDGE_FINDER_MARKETS = [
-    {"value": "HR", "display": "Home Runs", "entity": "batter", "compare_prop": "home_runs"},
-    {"value": "HITS", "display": "Hits", "entity": "batter", "compare_prop": "hits"},
-    {"value": "TB", "display": "Total Bases", "entity": "batter", "compare_prop": "total_bases"},
-    {"value": "RBI", "display": "RBI", "entity": "batter", "compare_prop": "rbi"},
-    {"value": "RUNS", "display": "Runs", "entity": "batter", "compare_prop": "runs"},
-    {"value": "H+R+RBI", "display": "Hits + Runs + RBI", "entity": "batter", "compare_prop": "hits_runs_rbis"},
-    {"value": "SINGLES", "display": "Singles", "entity": "batter", "compare_prop": "singles"},
-    {"value": "DOUBLES", "display": "Doubles", "entity": "batter", "compare_prop": "doubles"},
-    {"value": "WALKS", "display": "Walks", "entity": "batter", "compare_prop": "walks"},
-    {"value": "SB", "display": "Stolen Bases", "entity": "batter", "compare_prop": "stolen_bases"},
+    {"value": "HR", "display": "Home Runs", "entity": "batter", "compare_prop": "home_runs", "provider_key": "batter_home_runs"},
+    {"value": "HITS", "display": "Hits", "entity": "batter", "compare_prop": "hits", "provider_key": "batter_hits"},
+    {"value": "TB", "display": "Total Bases", "entity": "batter", "compare_prop": "total_bases", "provider_key": "batter_total_bases"},
+    {"value": "RBI", "display": "RBI", "entity": "batter", "compare_prop": "rbi", "provider_key": "batter_rbis"},
+    {"value": "RUNS", "display": "Runs", "entity": "batter", "compare_prop": "runs", "provider_key": "batter_runs"},
+    {"value": "H+R+RBI", "display": "Hits + Runs + RBI", "entity": "batter", "compare_prop": "hits_runs_rbis", "provider_key": "batter_hits_runs_rbis"},
+    {"value": "SINGLES", "display": "Singles", "entity": "batter", "compare_prop": "singles", "provider_key": "batter_singles"},
+    {"value": "DOUBLES", "display": "Doubles", "entity": "batter", "compare_prop": "doubles", "provider_key": "batter_doubles"},
+    {"value": "WALKS", "display": "Walks", "entity": "batter", "compare_prop": "walks", "provider_key": "batter_walks"},
+    {"value": "SB", "display": "Stolen Bases", "entity": "batter", "compare_prop": "stolen_bases", "provider_key": "batter_stolen_bases"},
 
-    {"value": "P_SO", "display": "Strikeouts", "entity": "pitcher", "compare_prop": "strikeouts"},
-    {"value": "P_OUTS", "display": "Outs Recorded", "entity": "pitcher", "compare_prop": "pitcher_outs"},
-    {"value": "P_ER", "display": "Earned Runs", "entity": "pitcher", "compare_prop": "pitcher_earned_runs"},
-    {"value": "P_HA", "display": "Hits Allowed", "entity": "pitcher", "compare_prop": "pitcher_hits_allowed"},
-    {"value": "P_BB", "display": "Walks Allowed", "entity": "pitcher", "compare_prop": "pitcher_walks"},
-    {"value": "P_RA", "display": "Runs Allowed", "entity": "pitcher", "compare_prop": "pitcher_runs_allowed"},
+    {"value": "P_SO", "display": "Strikeouts", "entity": "pitcher", "compare_prop": "strikeouts", "provider_key": "pitcher_strikeouts"},
+    {"value": "P_OUTS", "display": "Outs Recorded", "entity": "pitcher", "compare_prop": "pitcher_outs", "provider_key": "pitcher_outs"},
+    {"value": "P_ER", "display": "Earned Runs", "entity": "pitcher", "compare_prop": "pitcher_earned_runs", "provider_key": "pitcher_earned_runs"},
+    {"value": "P_HA", "display": "Hits Allowed", "entity": "pitcher", "compare_prop": "pitcher_hits_allowed", "provider_key": "pitcher_hits_allowed"},
+    {"value": "P_BB", "display": "Walks Allowed", "entity": "pitcher", "compare_prop": "pitcher_walks", "provider_key": "pitcher_walks"},
+    {"value": "P_RA", "display": "Runs Allowed", "entity": "pitcher", "compare_prop": "pitcher_runs_allowed", "provider_key": "pitcher_runs_allowed"},
 ]
 
 EDGE_FINDER_MARKET_MAP = {
@@ -3207,7 +3299,6 @@ def edge_finder():
     if role not in {"batter", "pitcher"}:
         role = market["entity"]
 
-    # If role and prop disagree, switch to the first real prop for that role.
     if market["entity"] != role:
         market = next(
             item for item in EDGE_FINDER_MARKETS
@@ -3230,41 +3321,155 @@ def edge_finder():
             selected_date = "today"
             filter_date = today
 
-    sql = """
-        SELECT *
-        FROM edge_finder_cache
-        WHERE prop = %s
-          AND snapshot_date = %s
-    """
-    params = [prop, filter_date]
-
-    if view == "overpriced":
-        sql += " AND edge_l20 >= 5 "
-    elif view == "underpriced":
-        sql += " AND edge_l20 <= -5 "
-
-    allowed_sorts = {
-        "edge_l10": "edge_l10",
-        "edge_l20": "edge_l20",
-        "edge_l30": "edge_l30",
-        "edge_l45": "edge_l45",
-        "implied_prob": "implied_prob",
-        "odds": "odds",
-    }
-    sort_col = allowed_sorts.get(sort_by, "edge_l20")
-
-    if view == "underpriced":
-        sql += f" ORDER BY {sort_col} ASC LIMIT 100"
-    else:
-        sql += f" ORDER BY {sort_col} DESC LIMIT 100"
-
+    # Available betting lines for this prop/date.
     conn = get_conn()
     try:
-        df = pd.read_sql(sql, conn, params=params)
+        line_df = pd.read_sql(
+            """
+            SELECT DISTINCT line
+            FROM edge_finder_cache
+            WHERE prop = %s
+              AND snapshot_date = %s
+              AND line IS NOT NULL
+            ORDER BY line
+            """,
+            conn,
+            params=[prop, filter_date],
+        )
     finally:
         conn.close()
 
-    rows = df.to_dict("records")
+    available_lines = [
+        float(value)
+        for value in line_df["line"].tolist()
+        if value is not None and not pd.isna(value)
+    ]
+
+    requested_line = request.args.get("line")
+    selected_line = None
+
+    if requested_line not in (None, ""):
+        try:
+            candidate = float(requested_line)
+            if candidate in available_lines:
+                selected_line = candidate
+        except (TypeError, ValueError):
+            pass
+
+    if selected_line is None:
+        if 0.5 in available_lines:
+            selected_line = 0.5
+        elif available_lines:
+            selected_line = available_lines[0]
+
+    rows = []
+
+    if selected_line is not None:
+        # Pull cached historical rates only. Odds are overlaid live below.
+        conn = get_conn()
+        try:
+            df = pd.read_sql(
+                """
+                SELECT *
+                FROM edge_finder_cache
+                WHERE prop = %s
+                  AND snapshot_date = %s
+                  AND line = %s
+                """,
+                conn,
+                params=[prop, filter_date, selected_line],
+            )
+        finally:
+            conn.close()
+
+        rows = df.to_dict("records")
+
+        # TODAY: use live Prop-Line consensus so odds don't wait for the heavy
+        # historical rebuild. Yesterday remains the stored snapshot.
+        if selected_date == "today":
+            live_lookup = get_current_consensus_lookup(
+                market["compare_prop"],
+                selected_line,
+                role="hitter" if role == "batter" else "pitcher",
+            )
+
+            for row in rows:
+                live = live_lookup.get(
+                    normalize_name(row.get("player"))
+                )
+
+                if not live:
+                    continue
+
+                row["odds"] = live["odds"]
+                row["implied_prob"] = live["implied_prob"]
+                row["sportsbook"] = live["sportsbook"]
+
+                for window in (10, 20, 30, 45):
+                    rate_key = f"hit_rate_l{window}"
+                    edge_key = f"edge_l{window}"
+                    rate = row.get(rate_key)
+
+                    if rate is None or pd.isna(rate):
+                        row[edge_key] = None
+                    else:
+                        row[edge_key] = round(
+                            float(rate) - float(live["implied_prob"]),
+                            1,
+                        )
+
+                edge20 = row.get("edge_l20")
+                if edge20 is None or pd.isna(edge20):
+                    row["label_l20"] = "NEG"
+                elif edge20 >= 10:
+                    row["label_l20"] = "🔥 Heavy Overpriced"
+                elif edge20 >= 5:
+                    row["label_l20"] = "✅ Overpriced"
+                elif edge20 <= -10:
+                    row["label_l20"] = "❌ Heavy Underpriced"
+                elif edge20 <= -5:
+                    row["label_l20"] = "⚠️ Underpriced"
+                else:
+                    row["label_l20"] = "⚖️ Fair Price"
+
+        # Apply view AFTER live odds are overlaid so the filter uses current edge.
+        if view == "overpriced":
+            rows = [
+                row for row in rows
+                if row.get("edge_l20") is not None
+                and not pd.isna(row.get("edge_l20"))
+                and float(row["edge_l20"]) >= 5
+            ]
+        elif view == "underpriced":
+            rows = [
+                row for row in rows
+                if row.get("edge_l20") is not None
+                and not pd.isna(row.get("edge_l20"))
+                and float(row["edge_l20"]) <= -5
+            ]
+
+        allowed_sorts = {
+            "edge_l10",
+            "edge_l20",
+            "edge_l30",
+            "edge_l45",
+            "implied_prob",
+            "odds",
+        }
+        sort_key = sort_by if sort_by in allowed_sorts else "edge_l20"
+        reverse = view != "underpriced"
+
+        def safe_sort_value(row):
+            value = row.get(sort_key)
+            if value is None or pd.isna(value):
+                return float("-inf") if reverse else float("inf")
+            return float(value)
+
+        rows = sorted(
+            rows,
+            key=safe_sort_value,
+            reverse=reverse,
+        )[:100]
 
     return render_template(
         "edge_finder.html",
@@ -3273,6 +3478,8 @@ def edge_finder():
         role=role,
         market=market,
         edge_markets=EDGE_FINDER_MARKETS,
+        available_lines=available_lines,
+        selected_line=selected_line,
         view=view,
         sort_by=sort_by,
         selected_date=selected_date,

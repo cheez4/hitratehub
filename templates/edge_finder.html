@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block content %}
 
@@ -25,7 +24,7 @@
 
 .edge-toolbar {
     display:grid;
-    grid-template-columns: auto minmax(240px, 1fr) minmax(260px, 1fr);
+    grid-template-columns: auto minmax(210px, .8fr) minmax(240px, 1fr) minmax(180px, .65fr);
     gap:16px;
     align-items:end;
     margin-bottom:16px;
@@ -164,6 +163,12 @@
     text-align:center;
 }
 
+
+.edge-select-wrap.line {
+    border-color:#27d6a0;
+    box-shadow:0 0 18px rgba(39,214,160,.18);
+}
+
 @media (max-width: 900px) {
     .edge-toolbar { grid-template-columns:1fr; }
     .edge-left-controls { order:3; }
@@ -177,19 +182,19 @@
 
 <div class="edge-date-row">
     <a class="edge-btn {% if selected_date == 'today' %}active{% endif %}"
-       href="/edge-finder?date=today&view={{ view }}&role={{ role }}&prop={{ prop }}">📅 Today</a>
+       href="/edge-finder?date=today&view={{ view }}&role={{ role }}&prop={{ prop }}{% if selected_line is not none %}&line={{ selected_line }}{% endif %}">📅 Today</a>
     <a class="edge-btn {% if selected_date == 'yesterday' %}active{% endif %}"
-       href="/edge-finder?date=yesterday&view={{ view }}&role={{ role }}&prop={{ prop }}">🗓 Yesterday</a>
+       href="/edge-finder?date=yesterday&view={{ view }}&role={{ role }}&prop={{ prop }}{% if selected_line is not none %}&line={{ selected_line }}{% endif %}">🗓 Yesterday</a>
 </div>
 
 <div class="edge-toolbar">
     <div class="edge-left-controls">
         <a class="edge-btn over {% if view == 'overpriced' %}active{% endif %}"
-           href="/edge-finder?view=overpriced&role={{ role }}&prop={{ prop }}&date={{ selected_date }}">🔥 Overpriced</a>
+           href="/edge-finder?view=overpriced&role={{ role }}&prop={{ prop }}&date={{ selected_date }}{% if selected_line is not none %}&line={{ selected_line }}{% endif %}">🔥 Overpriced</a>
         <a class="edge-btn {% if view == 'underpriced' %}active{% endif %}"
-           href="/edge-finder?view=underpriced&role={{ role }}&prop={{ prop }}&date={{ selected_date }}">⚠️ Underpriced</a>
+           href="/edge-finder?view=underpriced&role={{ role }}&prop={{ prop }}&date={{ selected_date }}{% if selected_line is not none %}&line={{ selected_line }}{% endif %}">⚠️ Underpriced</a>
         <a class="edge-btn all {% if view == 'all' %}active{% endif %}"
-           href="/edge-finder?view=all&role={{ role }}&prop={{ prop }}&date={{ selected_date }}">📊 All</a>
+           href="/edge-finder?view=all&role={{ role }}&prop={{ prop }}&date={{ selected_date }}{% if selected_line is not none %}&line={{ selected_line }}{% endif %}">📊 All</a>
     </div>
 
     <div class="edge-select-wrap role">
@@ -206,6 +211,17 @@
             {% for item in edge_markets if item.entity == role %}
                 <option value="{{ item.value }}" {% if item.value == prop %}selected{% endif %}>
                     {{ item.display }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="edge-select-wrap line">
+        <div class="edge-select-label">📏 Line</div>
+        <select id="edge-line-select" onchange="changeEdgeLine(this.value)">
+            {% for line in available_lines %}
+                <option value="{{ line }}" {% if selected_line == line %}selected{% endif %}>
+                    {{ line }}
                 </option>
             {% endfor %}
         </select>
@@ -231,7 +247,7 @@
     <th>IMPLIED %</th>
     {% for window in [10,20,30,45] %}
     <th>
-        <a href="/edge-finder?role={{ role }}&prop={{ prop }}&view={{ view }}&sort=edge_l{{ window }}&date={{ selected_date }}">
+        <a href="/edge-finder?role={{ role }}&prop={{ prop }}&view={{ view }}&sort=edge_l{{ window }}&date={{ selected_date }}{% if selected_line is not none %}&line={{ selected_line }}{% endif %}">
             L{{ window }} RATE / EDGE
         </a>
     </th>
@@ -297,6 +313,7 @@ function changeEdgeRole(role) {
     params.set("view", "{{ view }}");
     params.set("date", "{{ selected_date }}");
     params.delete("sort");
+    params.delete("line");
     window.location.href = "/edge-finder?" + params.toString();
 }
 
@@ -306,6 +323,18 @@ function changeEdgeMarket(prop) {
     params.set("prop", prop);
     params.set("view", "{{ view }}");
     params.set("date", "{{ selected_date }}");
+    params.delete("sort");
+    params.delete("line");
+    window.location.href = "/edge-finder?" + params.toString();
+}
+
+function changeEdgeLine(line) {
+    const params = new URLSearchParams(window.location.search);
+    params.set("role", "{{ role }}");
+    params.set("prop", "{{ prop }}");
+    params.set("view", "{{ view }}");
+    params.set("date", "{{ selected_date }}");
+    params.set("line", line);
     params.delete("sort");
     window.location.href = "/edge-finder?" + params.toString();
 }
@@ -333,7 +362,7 @@ function compareSelectedPlayers() {
     params.set("calc_mode", "over");
     params.set("calc_prop", "{{ market.compare_prop }}");
     params.set("calc_window", "20");
-    params.set("calc_line", checked[0].dataset.line || "0.5");
+    params.set("calc_line", "{{ selected_line if selected_line is not none else 0.5 }}");
 
     checked.forEach((box, index) => {
         if (index === 0) params.set("calc_player", box.value);
