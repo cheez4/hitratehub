@@ -2512,14 +2512,28 @@ def get_common_context(active_page="calculator"):
 
         if calc_role == "hitter" or role == "hitter":
             if use_leaderboard_cache and role == "hitter":
-                # The cached leaderboard does not need the full PA history.
-                # Keep only the lightweight team list for the filter dropdown.
+                # Cached Leaderboard path: never load the full PA dataset.
                 teams = get_teams_from_pa()
-            else:
-                if active_page == "calculator" and selected_players:
+
+            elif active_page == "calculator":
+                # Calculator / Compare Players should only load historical data
+                # after the user has actually selected one or more players.
+                # On the plain homepage, keep this lightweight.
+                teams = get_teams_from_pa()
+
+                if selected_players:
                     pa_df_raw = get_pa_data_for_players(selected_players)
-                else:
-                    pa_df_raw = get_pa_data()
+
+                    pa_df = filter_hitter_df(
+                        pa_df_raw,
+                        vs_team,
+                        vs_hand,
+                        day_night
+                    )
+
+            else:
+                # Trends and other historical pages still need the full dataset.
+                pa_df_raw = get_pa_data()
 
                 teams = get_teams_from_pa(pa_df_raw)
                 pa_df = filter_hitter_df(
@@ -2538,10 +2552,11 @@ def get_common_context(active_page="calculator"):
 
         if calc_role == "pitcher" or role == "pitcher":
             if not (use_leaderboard_cache and role == "pitcher"):
-                if active_page == "calculator" and selected_players:
-                    pitcher_df = get_pitcher_data_for_players(
-                        selected_players
-                    )
+                if active_page == "calculator":
+                    if selected_players:
+                        pitcher_df = get_pitcher_data_for_players(
+                            selected_players
+                        )
                 else:
                     pitcher_df = get_pitcher_data()
 
