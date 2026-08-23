@@ -3279,17 +3279,6 @@ def odds_snapshot():
         run_id = data.get("run_id") or str(uuid.uuid4())
         is_final_chunk = bool(data.get("is_final_chunk"))
 
-        snapshot_sql = """
-            INSERT INTO odds_snapshots (
-                player, sportsbook, lastupdate, islive, prop, ou,
-                line, odds, ismain, starttime, gameid, home, away
-            )
-            VALUES (
-                %(player)s, %(sportsbook)s, %(lastupdate)s, %(islive)s, %(prop)s, %(ou)s,
-                %(line)s, %(odds)s, %(ismain)s, %(starttime)s, %(gameid)s, %(home)s, %(away)s
-            )
-        """
-
         last_seen_sql = """
             INSERT INTO odds_last_seen (
                 player, sportsbook, lastupdate, islive, prop, ou,
@@ -3412,7 +3401,6 @@ def odds_snapshot():
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.executemany(snapshot_sql, clean_rows)
                     cur.executemany(last_seen_sql, clean_rows)
 
                     timeline_count = 0
