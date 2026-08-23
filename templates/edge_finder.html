@@ -258,32 +258,78 @@
 <tbody>
 {% for row in rows %}
 <tr>
-    <td><input type="checkbox" class="edge-player-check" value="{{ row.player }}" data-line="{{ row.line }}"></td>
+    <td>
+        <input
+            type="checkbox"
+            class="edge-player-check"
+            value="{{ row.player }}"
+            data-line="{{ row.line }}"
+        >
+    </td>
+
     <td class="edge-player">{{ row.player }}</td>
-    <td class="edge-team">{{ row.team or "—" }}</td>
-    <td><span class="edge-prop-pill">{{ prop }}</span></td>
-    <td>{{ row.line }}</td>
+
+    <td class="edge-team">
+        {{ row.team or "—" }}
+    </td>
+
+    <td>
+        <span class="edge-prop-pill">{{ prop }}</span>
+    </td>
+
+    <td>
+        {{ row.line }}
+    </td>
+
     <td>
         {% if row.odds is not none %}
             {% if row.odds > 0 %}+{% endif %}{{ row.odds }}
-        {% else %}—{% endif %}
-        <div class="edge-books">{{ row.sportsbook }}</div>
+        {% else %}
+            —
+        {% endif %}
+
+        <div class="edge-books">
+            {{ row.sportsbook or "—" }}
+        </div>
     </td>
-    <td>{{ "%.2f"|format(row.implied_prob) }}%</td>
+
+    <td>
+        {% if row.implied_prob is not none %}
+            {{ "%.2f"|format(row.implied_prob) }}%
+        {% else %}
+            —
+        {% endif %}
+    </td>
 
     {% for window in [10,20,30,45] %}
         {% set rate = row["hit_rate_l" ~ window] %}
         {% set edge = row["edge_l" ~ window] %}
+
         <td>
-            <div class="edge-rate">{{ "%.1f"|format(rate) }}%</div>
-            <div class="{% if edge > 0 %}edge-positive{% elif edge < 0 %}edge-negative{% else %}edge-fair{% endif %}">
-                {% if edge > 0 %}+{% endif %}{{ "%.1f"|format(edge) }}%
-            </div>
+            {% if rate is none %}
+                <div class="edge-neg">NEG</div>
+            {% else %}
+                <div class="edge-rate">
+                    {{ "%.1f"|format(rate) }}%
+                </div>
+
+                {% if edge is none %}
+                    <div class="edge-neg">NEG</div>
+                {% else %}
+                    <div class="{% if edge > 0 %}edge-positive{% elif edge < 0 %}edge-negative{% else %}edge-fair{% endif %}">
+                        {% if edge > 0 %}+{% endif %}{{ "%.1f"|format(edge) }}%
+                    </div>
+                {% endif %}
+            {% endif %}
         </td>
     {% endfor %}
 
-    <td class="{% if row.edge_l20 >= 5 %}edge-positive{% elif row.edge_l20 <= -5 %}edge-negative{% else %}edge-fair{% endif %}">
-        {{ row.label_l20 }}
+    <td class="{% if row.edge_l20 is none %}edge-neg{% elif row.edge_l20 >= 5 %}edge-positive{% elif row.edge_l20 <= -5 %}edge-negative{% else %}edge-fair{% endif %}">
+        {% if row.edge_l20 is none %}
+            NEG
+        {% else %}
+            {{ row.label_l20 }}
+        {% endif %}
     </td>
 </tr>
 {% endfor %}
