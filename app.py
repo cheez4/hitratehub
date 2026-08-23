@@ -28,6 +28,7 @@ import requests
 import re
 import os
 import uuid
+import time
 
 from datetime import date, timedelta, datetime
 import secrets
@@ -545,6 +546,13 @@ def get_pa_data():
     """)
 
 def get_pa_data_for_players(players):
+    """
+    Fast Compare Players hitter loader.
+
+    Aggregate plate-appearance rows into one row per player/game in PostgreSQL
+    before sending anything to Render. Compare Players only needs game totals,
+    so returning raw PA rows wastes network, memory, and pandas CPU.
+    """
     if not players:
         return pd.DataFrame()
 
@@ -564,25 +572,27 @@ def get_pa_data_for_players(players):
     query = f"""
         SELECT
             batter_name,
-            team,
-            opp_team,
-            pitcher_hand,
-            day_night,
+            MAX(team) AS team,
+            MAX(opp_team) AS opp_team,
+            MAX(pitcher_hand) AS pitcher_hand,
+            MAX(day_night) AS day_night,
             game_date,
-            COALESCE(h, 0) AS h,
-            COALESCE(single, 0) AS single,
-            COALESCE(double, 0) AS double,
-            COALESCE(tb, 0) AS tb,
-            COALESCE(hr, 0) AS hr,
-            COALESCE(bb, 0) AS bb,
-            COALESCE(sb, 0) AS sb,
-            COALESCE(runs_scored, 0) AS runs_scored,
-            COALESCE(rbi, 0) AS rbi
+            SUM(COALESCE(h, 0)) AS h,
+            SUM(COALESCE(single, 0)) AS single,
+            SUM(COALESCE(double, 0)) AS double,
+            SUM(COALESCE(tb, 0)) AS tb,
+            SUM(COALESCE(hr, 0)) AS hr,
+            SUM(COALESCE(bb, 0)) AS bb,
+            SUM(COALESCE(sb, 0)) AS sb,
+            SUM(COALESCE(runs_scored, 0)) AS runs_scored,
+            SUM(COALESCE(rbi, 0)) AS rbi
         FROM mlb_pa_gamelog
         WHERE batter_name IS NOT NULL
           AND game_date IS NOT NULL
           AND season IN ('2025', '2026')
           AND batter_name IN ({placeholders})
+        GROUP BY batter_name, game_date
+        ORDER BY batter_name, game_date DESC
     """
 
     return read_sql(
@@ -613,6 +623,49 @@ def get_pitcher_data():
         WHERE player_name IS NOT NULL
           AND game_date IS NOT NULL
     """)
+
+
+def get_pitcher_data_for_players(players):
+    """Fast Compare Players pitcher loader: only fetch selected pitchers."""
+    if not players:
+        return pd.DataFrame()
+
+    cleaned_players = [
+        clean_text(player)
+        for player in players
+        if clean_text(player)
+    ]
+
+    if not cleaned_players:
+        return pd.DataFrame()
+
+    placeholders = ",".join(["%s"] * len(cleaned_players))
+
+    query = f"""
+        SELECT
+            id,
+            player_id,
+            player_name,
+            season,
+            game_date,
+            game_id,
+            is_home,
+            COALESCE(strikeouts, 0) AS strikeouts,
+            COALESCE(runs_allowed, 0) AS runs_allowed,
+            COALESCE(earned_runs, 0) AS earned_runs,
+            COALESCE(walks_allowed, 0) AS walks_allowed,
+            COALESCE(hits_allowed, 0) AS hits_allowed,
+            COALESCE(home_runs_allowed, 0) AS home_runs_allowed,
+            COALESCE(innings_pitched, 0) AS innings_pitched,
+            COALESCE(batters_faced, 0) AS batters_faced
+        FROM mlb_pitcher_gamelogs
+        WHERE player_name IS NOT NULL
+          AND game_date IS NOT NULL
+          AND player_name IN ({placeholders})
+        ORDER BY player_name, game_date DESC
+    """
+
+    return read_sql(query, cleaned_players)
 
 
 @cache.cached(timeout=300, key_prefix="hitter_names")
@@ -1775,6 +1828,7 @@ def get_historical_odds_lookup(
     return lookup
 
 
+@cache.memoize(timeout=60)
 def get_current_consensus_lookup(prop, line, role="hitter"):
     """
     Return TODAY'S live Prop-Line consensus for the selected market + line.
@@ -1867,6 +1921,7 @@ def get_current_consensus_lookup(prop, line, role="hitter"):
 
 
 def build_compare_result(players, role, source_df, prop, window, mode, line, min_value, max_value, ftext, weekday="all"):
+    compare_started = time.perf_counter()
     summaries = []
     rows_by_player = {}
 
@@ -2028,6 +2083,16 @@ def build_compare_result(players, role, source_df, prop, window, mode, line, min
             "game_date": game_date,
             "players": player_cells
         })
+
+    app.logger.info(
+        "COMPARE completed role=%s prop=%s line=%s players=%s window=%s in %.3fs",
+        role,
+        prop,
+        line,
+        len(players),
+        window,
+        time.perf_counter() - compare_started,
+    )
 
     return {
         "players": summaries,
@@ -2248,6 +2313,114 @@ def build_pitcher_leaderboard(df, prop, window, thresholds, sort_line, limit=50)
     return rows[:limit]
 
 
+
+def get_cached_leaderboard(role, prop, window, sort_line, limit=50, lineup_map=None, lineup_filter="all"):
+    """
+    Read the precomputed unfiltered leaderboard.
+
+    Historical matchup filters (vs team/hand/day-night) intentionally bypass
+    this helper and use the legacy calculation path because those filters
+    change the underlying game sample.
+    """
+    eastern_today = datetime.now(ZoneInfo("America/Toronto")).date()
+
+    df = read_sql(
+        """
+        SELECT
+            player_name,
+            team,
+            games,
+            average,
+            threshold_data
+        FROM leaderboard_cache
+        WHERE snapshot_date = %s
+          AND role = %s
+          AND prop = %s
+          AND calc_window = %s
+        """,
+        [eastern_today, role, prop, int(window)],
+    )
+
+    if df.empty:
+        return []
+
+    rows = []
+
+    for _, db_row in df.iterrows():
+        item = {
+            "player_name": clean_text(db_row.get("player_name")),
+            "team": clean_text(db_row.get("team")),
+            "games": int(db_row.get("games") or 0),
+            "average": float(db_row.get("average") or 0),
+        }
+
+        payload = db_row.get("threshold_data") or {}
+
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = {}
+
+        if isinstance(payload, dict):
+            item.update(payload)
+
+        rows.append(item)
+
+    # Today's lineup filter is cheap enough to apply after reading the cache.
+    if lineup_filter != "all":
+        filtered = []
+
+        for item in rows:
+            player_name = item["player_name"]
+            lineup_info = (
+                (lineup_map or {}).get(player_name)
+                or (lineup_map or {}).get(player_name.lower())
+                or (lineup_map or {}).get(normalize_name(player_name))
+            )
+
+            status = clean_text(
+                (lineup_info or {}).get("status")
+            ).lower()
+
+            if lineup_filter == "confirmed" and status == "confirmed":
+                filtered.append(item)
+
+            elif (
+                lineup_filter == "confirmed_probable"
+                and status in ("confirmed", "probable")
+            ):
+                filtered.append(item)
+
+        rows = filtered
+
+    sort_key = f"over_{str(sort_line).replace('.', '_')}"
+
+    rows.sort(
+        key=lambda x: (
+            float(x.get(sort_key, 0) or 0),
+            float(x.get("average", 0) or 0),
+            int(x.get("games", 0) or 0),
+        ),
+        reverse=True,
+    )
+
+    return rows[:limit]
+
+
+def leaderboard_cache_is_eligible(vs_team="", vs_hand="", day_night="", selected_weekday="all"):
+    """
+    Cache is valid only when historical game filters are not changing the
+    underlying sample.
+    """
+    return (
+        not clean_text(vs_team)
+        and not clean_text(vs_hand)
+        and not clean_text(day_night)
+        and str(selected_weekday) == "all"
+    )
+
+
 def get_common_context(active_page="calculator"):
     error = ""
 
@@ -2327,29 +2500,50 @@ def get_common_context(active_page="calculator"):
         pa_df = pd.DataFrame()
         pitcher_df = pd.DataFrame()
 
-        if calc_role == "hitter" or role == "hitter":
-            if active_page == "calculator" and selected_players:
-                pa_df_raw = get_pa_data_for_players(selected_players)
-            else:
-                pa_df_raw = get_pa_data()
-
-            teams = get_teams_from_pa(pa_df_raw)
-            pa_df = filter_hitter_df(
-                pa_df_raw,
+        use_leaderboard_cache = (
+            active_page == "leaderboard"
+            and leaderboard_cache_is_eligible(
                 vs_team,
                 vs_hand,
-                day_night
+                day_night,
+                selected_weekday,
             )
+        )
 
-            if active_page in ("leaderboard", "trends"):
-                pa_df = apply_lineup_filter(
-                    pa_df,
-                    lineup_map,
-                    lineup_filter
+        if calc_role == "hitter" or role == "hitter":
+            if use_leaderboard_cache and role == "hitter":
+                # The cached leaderboard does not need the full PA history.
+                # Keep only the lightweight team list for the filter dropdown.
+                teams = get_teams_from_pa()
+            else:
+                if active_page == "calculator" and selected_players:
+                    pa_df_raw = get_pa_data_for_players(selected_players)
+                else:
+                    pa_df_raw = get_pa_data()
+
+                teams = get_teams_from_pa(pa_df_raw)
+                pa_df = filter_hitter_df(
+                    pa_df_raw,
+                    vs_team,
+                    vs_hand,
+                    day_night
                 )
 
+                if active_page in ("leaderboard", "trends"):
+                    pa_df = apply_lineup_filter(
+                        pa_df,
+                        lineup_map,
+                        lineup_filter
+                    )
+
         if calc_role == "pitcher" or role == "pitcher":
-            pitcher_df = get_pitcher_data()
+            if not (use_leaderboard_cache and role == "pitcher"):
+                if active_page == "calculator" and selected_players:
+                    pitcher_df = get_pitcher_data_for_players(
+                        selected_players
+                    )
+                else:
+                    pitcher_df = get_pitcher_data()
 
         if selected_players:
             if calc_role == "hitter":
@@ -2447,24 +2641,74 @@ def get_common_context(active_page="calculator"):
                         ""
                     )
 
-        # Only build the full leaderboard when the user
-        # is actually on the leaderboard page.
+        # Leaderboard: prefer the precomputed cache for normal, unfiltered
+        # browsing. Advanced historical matchup filters fall back to the
+        # original calculation path so behavior is preserved.
         if active_page == "leaderboard":
-            if role == "hitter":
-                thresholds = thresholds_for(role, hitter_prop)
+            selected_leaderboard_prop = (
+                hitter_prop if role == "hitter" else pitcher_prop
+            )
 
-                if sort_line not in thresholds:
-                    sort_line = thresholds[0]
+            thresholds = thresholds_for(
+                role,
+                selected_leaderboard_prop,
+            )
 
-                leaderboard = build_hitter_leaderboard(
-                    pa_df,
-                    hitter_prop,
+            if sort_line not in thresholds:
+                sort_line = thresholds[0]
+
+            if use_leaderboard_cache:
+                leaderboard = get_cached_leaderboard(
+                    role,
+                    selected_leaderboard_prop,
                     calc_window,
-                    thresholds,
                     sort_line,
-                    leaderboard_limit
+                    leaderboard_limit,
+                    lineup_map=lineup_map,
+                    lineup_filter=lineup_filter,
                 )
 
+            if not leaderboard:
+                # Cache missing/stale or advanced historical filters are active.
+                # Preserve the existing calculation as a safe fallback.
+                if role == "hitter":
+                    if pa_df.empty:
+                        pa_df_raw = get_pa_data()
+                        teams = get_teams_from_pa(pa_df_raw)
+                        pa_df = filter_hitter_df(
+                            pa_df_raw,
+                            vs_team,
+                            vs_hand,
+                            day_night,
+                        )
+                        pa_df = apply_lineup_filter(
+                            pa_df,
+                            lineup_map,
+                            lineup_filter,
+                        )
+
+                    leaderboard = build_hitter_leaderboard(
+                        pa_df,
+                        hitter_prop,
+                        calc_window,
+                        thresholds,
+                        sort_line,
+                        leaderboard_limit,
+                    )
+                else:
+                    if pitcher_df.empty:
+                        pitcher_df = get_pitcher_data()
+
+                    leaderboard = build_pitcher_leaderboard(
+                        pitcher_df,
+                        pitcher_prop,
+                        calc_window,
+                        thresholds,
+                        sort_line,
+                        leaderboard_limit,
+                    )
+
+            if role == "hitter":
                 for item in leaderboard:
                     team = str(item.get("team", "")).strip()
                     weather = weather_lookup.get(team, {})
@@ -2478,21 +2722,6 @@ def get_common_context(active_page="calculator"):
                     item["opp_pitcher_hand"] = weather.get(
                         "opp_pitcher_hand", ""
                     )
-
-            else:
-                thresholds = thresholds_for(role, pitcher_prop)
-
-                if sort_line not in thresholds:
-                    sort_line = thresholds[0]
-
-                leaderboard = build_pitcher_leaderboard(
-                    pitcher_df,
-                    pitcher_prop,
-                    calc_window,
-                    thresholds,
-                    sort_line,
-                    leaderboard_limit
-                )
 
     except Exception as e:
         error = f"Error loading report: {e}"
